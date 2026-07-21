@@ -26,10 +26,12 @@ public struct CandidateItem: Sendable, Equatable, Identifiable {
     public let warmth: Warmth?           // nil = 未知
     public let status: ItemStatus
     public let color: GarmentColor?      // nil = 未知
+    public let attributes: Set<StyleAttribute>  // 版型属性，供体型加权
 
     public init(id: String, slot: GarmentSlot, subtype: String? = nil,
                 occasions: Set<String> = [], warmth: Warmth? = nil,
-                status: ItemStatus = .available, color: GarmentColor? = nil) {
+                status: ItemStatus = .available, color: GarmentColor? = nil,
+                attributes: Set<StyleAttribute> = []) {
         self.id = id
         self.slot = slot
         self.subtype = subtype
@@ -37,6 +39,7 @@ public struct CandidateItem: Sendable, Equatable, Identifiable {
         self.warmth = warmth
         self.status = status
         self.color = color
+        self.attributes = attributes
     }
 }
 

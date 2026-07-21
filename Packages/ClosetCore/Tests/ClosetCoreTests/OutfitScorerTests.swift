@@ -34,4 +34,13 @@ struct OutfitScorerTests {
         let s = OutfitScorer.score(plain, context: ctx)
         #expect(!s.reasons.contains { $0.contains("配色") })
     }
+
+    @Test func bodyShapeFlatteringScoresHigher() {
+        let flattering = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])   // 沙漏 +
+        let avoid = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.straightNoWaist])]) // 沙漏 -
+        let hourglassCtx = ScoringContext(bodyShape: .hourglass)
+        #expect(OutfitScorer.score(flattering, context: hourglassCtx).value >
+                OutfitScorer.score(avoid, context: hourglassCtx).value)
+        #expect(OutfitScorer.score(flattering, context: hourglassCtx).reasons.contains { $0.contains("体型") })
+    }
 }

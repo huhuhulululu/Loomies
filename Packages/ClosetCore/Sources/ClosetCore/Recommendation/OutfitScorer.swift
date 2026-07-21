@@ -38,7 +38,17 @@ public enum OutfitScorer {
                 reasons.append("颜色偏多，建议以一个主色打底")
             }
         }
-        // 体型×属性加权：待属性表建成后接入（下一步）。
+        // 体型×属性加权（BodyShapeStyling 表）。
+        if let shape = context.bodyShape {
+            let affinity = BodyShapeStyling.affinity(items: outfit.items, shape: shape.popularCategory)
+            if affinity > 0 {
+                value += 0.2 * affinity
+                reasons.append("适合你的体型：扬长的版型")
+            } else if affinity < 0 {
+                value += 0.2 * affinity
+                reasons.append("这套的版型可能不太衬你的体型")
+            }
+        }
         return OutfitScore(value: value, reasons: reasons)
     }
 }
