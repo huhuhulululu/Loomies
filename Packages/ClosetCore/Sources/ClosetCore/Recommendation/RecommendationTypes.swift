@@ -25,15 +25,18 @@ public struct CandidateItem: Sendable, Equatable, Identifiable {
     public let occasions: Set<String>    // 空 = 未知
     public let warmth: Warmth?           // nil = 未知
     public let status: ItemStatus
+    public let color: GarmentColor?      // nil = 未知
 
     public init(id: String, slot: GarmentSlot, subtype: String? = nil,
-                occasions: Set<String> = [], warmth: Warmth? = nil, status: ItemStatus = .available) {
+                occasions: Set<String> = [], warmth: Warmth? = nil,
+                status: ItemStatus = .available, color: GarmentColor? = nil) {
         self.id = id
         self.slot = slot
         self.subtype = subtype
         self.occasions = occasions
         self.warmth = warmth
         self.status = status
+        self.color = color
     }
 }
 
