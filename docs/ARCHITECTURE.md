@@ -5,7 +5,15 @@
 
 ## 项目定位
 
-每日穿搭与衣橱管理 iOS App（min iOS 26，首发美国区）。设计真相见 `docs/DESIGN.md`（v0.7），市场分析见 `docs/MARKET.md`，裁决日志见 `docs/decisions.md`，调研报告见 `docs/research/01-16`。
+每日穿搭与衣橱管理 iOS App（min iOS 26，首发美国区）。设计真相见 `docs/DESIGN.md`（v0.8），市场分析见 `docs/MARKET.md`，MVP 计划见 `docs/MVP-PLAN.md`，裁决日志见 `docs/decisions.md`，调研报告见 `docs/research/01-16`。
+
+## 代码模块（建设中）
+
+| 模块 | 路径 | 职责 | 验证 |
+|------|------|------|------|
+| ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑核心（无 iOS SDK 依赖）：FFIT 体型判定（plus-size 2020，9 类）+ ease 合身引擎 | `cd Packages/ClosetCore && swift test`（16 tests, TDD RED→GREEN） |
+
+> 计划中的完整 SPM 结构见 `MVP-PLAN.md §3`（ClosetModel/ClosetSync/ScanIntake/RulesEngine/AIProxyClient/DesignSystem/Feature/*）。ClosetCore 是 RulesEngine 的纯逻辑先行部分，可命令行验证、无需 Xcode 模拟器。
 
 ## 对外链接登记
 
