@@ -1,10 +1,10 @@
 # 每日穿搭与衣橱管理 iOS App — 设计文档
 
-> 版本：v0.2（2026-07-21）
-> 依据：`docs/research/01-08` 十份调研报告（37 个调研 agent，关键断言经一手来源对抗核查）+ `.claude-state/requirements.md` 需求总账
+> 版本：v0.3（2026-07-21）
+> 依据：`docs/research/01-10` 十二份调研报告（45 个调研 agent，关键断言经一手来源对抗核查）+ `.claude-state/requirements.md` 需求总账
 > v0.2 变更：应用三视角对抗批判（需求覆盖/技术事实/内部自洽）的 2 critical + 8 major + 8 minor 修复；落定用户裁决（首发美国区、min iOS 26）
+> v0.3 变更：补全 §10 设计语言与 UX（依据 09/10 调研）
 > 标注约定：⚖️ = 需用户裁决的开放决策；〔建议〕= 设计方从竞品调研派生、用户未要求的功能，可整块砍掉
-> 待补：§10 设计语言与 UX（调研 `09/10` 进行中）
 
 ---
 
@@ -251,7 +251,7 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 | 项 | 选型 | 备注 |
 |----|------|------|
 | 最低 iOS 版本 | **iOS 26（已裁决）** | FM 地板 26、SwiftData 26 成熟、Liquid Glass 世代原生 |
-| UI | SwiftUI + Liquid Glass 原生采用 | 设计语言章节待 §10（调研 09/10 进行中） |
+| UI | SwiftUI + Liquid Glass 原生采用 | 设计语言与 UX 规范见 §10 |
 | 数据 | SwiftData + CloudKit 私有库 | 属性 optional/默认值、无 unique 约束；图片 externalStorage + 独立缩略图字段 |
 | 抠图 | Vision（iOS 17+）+ SAM2 辅助 | 模拟器不支持该推理 → 真机测试 + protocol 抽象 mock |
 | Embedding | **FashionCLIP（MIT）或 Marqo-FashionSigLIP（Apache-2.0）自转 Core ML**（1-2 周工程，`06-gap-3.md` 评估架构无根本障碍） | ⚠️ 不用 Apple coreml-mobileclip——权重 apple-amlr 仅限研究、可撤销（`02-opensource.md` 已核验 LICENSE）；MobileCLIP 官方时延数据（ViT-B 级 10.4ms@iPhone12ProMax）仅作同量级性能可行性参照 |
@@ -375,9 +375,46 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 | `research/06-gap-3.md` | 后端架构裁决与单位经济 |
 | `research/07-sizing-entry.md` | 尺码体系/测量字段/OCR/fit 建模 |
 | `research/08-lidar-3d-scan.md` | LiDAR 能力边界与分层结论 |
-| `research/09-ios26-design.md` | iOS 26 Liquid Glass 设计语言（进行中） |
-| `research/10-ux-style.md` | 目标人群 UI/UX 风格适配（进行中） |
+| `research/09-ios26-design.md` | iOS 26 Liquid Glass 设计语言（全部结论有 Apple 一手来源） |
+| `research/10-ux-style.md` | 目标人群 UI/UX 风格适配 |
 
-## 10. 设计语言与 UX（待补）
+---
 
-> 调研 `09/10` 完成后补全本章：Liquid Glass 采用策略、视觉语言（字体/色彩/图片规范）、信息架构与关键流程、无障碍与包容性、en-US 文案基调。
+## 10. 设计语言与 UX（依据 `09/10` 调研）
+
+### 10.1 设计语言定位
+
+**一句话**：Sézane 的温度 × SSENSE 的克制 × Notion 的效率——**衣物照片是界面唯一的色彩主角**。
+
+- 审美参照系：以 Indyx 为代表、获目标人群正面口碑的范式（中性极简 + 自动去背统一抠图网格 + 「顾问而非机器人」的文案人格）；高端时尚电商的排版气质（SSENSE 黑白克制、NAP/Sézane 的 serif 编辑感——观察性结论）
+- 明确反例：Whering 式 Gen Z 游戏化（swipe 抽卡、贴纸、高饱和）——其用户盘「skews heavily Gen Z」，且游戏化与本产品「早晨 3 分钟出门决策」的省时目标方向相反
+- 视觉要素：中性暖底 + **单一低饱和 accent**（只用于主 CTA 与状态指示，HIG 对彩色内容 App 的点名建议）；sans 干活、editorial serif 点睛（约 9:1）；**严禁** AI 紫渐变、游戏化视觉、多色控件
+- 拨盘（对接 frontend-checklist）：`DESIGN_VARIANCE 5-6 / MOTION_INTENSITY 3 / VISUAL_DENSITY 4-5`——推荐页画廊留白（每日「杂志封面时刻」），衣橱网格页标准密度，数据洞察页可偏密
+
+### 10.2 Liquid Glass 采用策略（min iOS 26 = 出生在新世代）
+
+核心心智：**两层制**——内容层（衣物摄影）+ 悬浮玻璃功能层；视觉预算全给内容层，控件层用系统默认。
+
+- 标准 SwiftUI 组件经 Xcode 26 SDK 重编译并运行于 iOS 26 即自动获得新外观；手工项集中在四处：清理自定义 bar/sheet 背景（Apple 建议性措辞「prefer to remove」，会与系统玻璃/scroll edge effect 冲突）、自定义悬浮元素注册 `scrollEdgeEffectStyle`、搭配详情 hero 图用 `backgroundExtensionEffect`（Apple 点名的 product page 场景）、Icon Composer 分层图标（六外观变体全验收，不预裁圆角不自绘高光）
+- 克制规则（Apple 官方告诫）：自定义 `glassEffect` 全 App ≤2 处（如悬浮「今日搭配」入口）且必须包进 `GlassEffectContainer`；内容层禁用玻璃；禁玻璃叠玻璃；regular/clear 变体不混用（clear 仅全屏看图/体型可视化浮层 + ~35% dimming）；bar 优先单色外观（内容鲜艳 App 的 HIG 首选项）
+- 导航骨架：底部 TabView ≤5 tab（衣橱 / 搭配 / 入库 / 日历 / 我的），衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示；搜索用 `Tab(role:.search)`；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
+- 系统表面：Widget 主屏 clear/tinted 去饱和模式需 `widgetAccentable` 适配（否则衣物照片不可辨）；WidgetKit push 服务端触发每日搭配刷新；App Intents `SnippetIntent` 交互结果卡适配「今日搭配」快捷场景（⚠️ updates 页 June 2026 段属 iOS 27 SDK，min iOS 26 不可依赖）
+
+### 10.3 关键 UX 流程
+
+- **Onboarding 最小化**（NN/g 主张能免则免；以下数字为业界启发式而非权威标准）：个性化问题 2-3 个封顶（场合构成/所在城市/可跳过的身体维度）；注册环节天然不存在（无账号架构，§4.1）；风格测验后置为可选
+- **冷启动双路径空状态**：「拍下今天这身，30 秒入库 3 件」（真实起步）/ demo 衣橱（先看效果）；录入激励用预赋进度（答完引导问题即显 20%）+ 按场合里程碑即时兑现推荐（「通勤装满 10 件，已可生成一周通勤搭配」）
+- **每日 ritual**：工作日 1 条推送（默认 7:00 AM 可调），文案给结论（“Your Tuesday look is ready”）；落地单屏在拇指区完成「接受 / 换一套」决策；存放位置直接显示在推荐卡片（省一次跳转——存放位置管理与每日决策的合流点）
+- **录入体验**：批量为默认路径（相册批量导入优先级 = 相机连拍）；出图管线统一去背 + 统一浅色底 + 统一边距——**影调一致是衣橱网格可扫描性的生命线**（品类 table stakes）
+- **反游戏化**：不做积分/徽章/连胜；内生奖励 =「你现有衣服的新组合」+「越用越懂你」
+
+### 10.4 包容性与无障碍（硬约束，进 DoD）
+
+- **文案红线**：禁 flattering / slimming / hide / problem area 类词汇；合身语言只评价衣服不评价身体（"这件衣长偏短" ✅ "遮住你的胯" ❌）——body-positive 是目标人群的信任底线
+- 体型可视化按真实维度呈现、无「理想化」默认值；人物剪影/avatar 肤色采用 Monk 10 档量表
+- 无障碍验收清单：Dynamic Type 全档（serif 标题也须缩放；最大无障碍字号下网格转堆叠布局）；对比度 WCAG AA（4.5:1 起步）；Reduce Transparency / Increase Contrast / Reduce Motion + iOS 26.1 用户侧 Clear/Tinted 偏好——全部配置双态截图验收（标准组件退化由系统自动处理，自定义元素逐项测试）；所有图标按钮带 accessibility label
+
+### 10.5 en-US 本地化格式
+
+- MM/DD 日期、12h AM/PM、°F 温度、英制身体维度控件（5'6" / in / lb，可切公制）——用 `MeasurementFormatter` / `Locale` 实现而非硬编码
+- 尺码展示：品牌 + US 标称码（0-20 / XS-XL / Petite / Plus 副线）+ 实测维度为合身真相——与 §2.2 尺码双层分离一致（vanity sizing 脱钩策略的 UI 表达）
