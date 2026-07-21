@@ -1,0 +1,44 @@
+# 架构目录（唯一真相）
+
+> 项目当前处于**设计阶段**（无源码）；本目录随首行代码起按提交同步维护。
+> 与代码不一致时以代码为准并立即更新本文档。
+
+## 项目定位
+
+每日穿搭与衣橱管理 iOS App（min iOS 26，首发美国区）。设计真相见 `docs/DESIGN.md`（v0.7），市场分析见 `docs/MARKET.md`，裁决日志见 `docs/decisions.md`，调研报告见 `docs/research/01-16`。
+
+## 对外链接登记
+
+| 链接 | 用途 | 可见性 |
+|------|------|--------|
+| https://m424.tailb5f9cb.ts.net:10029/ | 项目状态页 + 审阅制品（status.html / DESIGN.md / MARKET.md 副本） | 仅 tailnet（私有，禁止 --public：含任务/进度/决策） |
+
+> 状态页数据源：`preview/status.json`（commit 后与 Stop 时自动重渲染）+ `preview/agent-state.json`（实时活动）。
+> `preview/` 内 DESIGN.md / MARKET.md 为发布副本，源文件在 `docs/`；重大更新后需重新拷贝。
+
+## 文档结构
+
+| 文件 | 职责 |
+|------|------|
+| `docs/DESIGN.md` | 产品与技术设计（数据模型/功能规格/架构/合规/路线图） |
+| `docs/MARKET.md` | 市场与竞品深度分析（四假设判定/定价/增长） |
+| `docs/decisions.md` | 裁决日志（只追加） |
+| `docs/research/01-16` | 调研报告（含核查状态） |
+
+## 模块详情表
+
+<!-- AUTO-MANAGED:module-table -->
+（暂无源码模块；首个 Xcode 工程建立后由 doc-updater 维护）
+<!-- /AUTO-MANAGED:module-table -->
+
+## 模块依赖 DAG
+
+<!-- AUTO-MANAGED:dep-dag -->
+（暂无）
+<!-- /AUTO-MANAGED:dep-dag -->
+
+## API 表
+
+<!-- AUTO-MANAGED:api-table -->
+（暂无；AI 代理端点设计定稿后登记）
+<!-- /AUTO-MANAGED:api-table -->
