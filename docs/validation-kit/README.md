@@ -16,6 +16,10 @@
 | `interview-guide.md` | Mom Test 1:1 访谈脚本（非诱导，可直接照读） | ③ |
 | `community-posts.md` | ToS-safe 社区触达草稿（Reddit/Elpha/newsletter） | 招募 |
 
+| `RUNBOOK.md` | 一页「今天就开跑」时间线（Day0 铺设→2-3 周出裁决）| 全部 |
+| `decide.py` | 决策计算器：收集的数字→自动 GO/PIVOT/KILL（§2 规则，已实跑验证）| 出裁决 |
+| `wizard-of-oz-tracker.csv` | 管家测试追踪表（导入 Google Sheets）| ① |
+
 ## 建议启动顺序（2-3 周并行）
 
 1. **今天**：方法④（AI 已在跑）+ 落地页接后端上线（`landing-deploy-guide.md`）+ 用 `community-posts.md` 发招募（先确认各社区 mod 规则）
