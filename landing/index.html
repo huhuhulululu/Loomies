@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cleo · an answer before your coffee's cold</title>
+<title>Cleo · never decide what to wear again</title>
 <meta name="robots" content="noindex">
 <!--
-  fake-door 冒烟测试落地页 (V1 = 推荐器 hero)。
-  上线前须做：①接表单后端(Tally/Formspree)替换 FORM_ENDPOINT ②换真实 flat-lay 照片(替换 .photo-slot)
-  ③"Cleo" 为占位品牌名，换成你的品牌 ④公网部署 + Meta 广告导流。
-  A/B 的 V2(规划器) hero 文案见 docs/DEMAND-VALIDATION.md §5。
+  fake-door 冒烟测试落地页 (V1 = 纯 autopilot hero，算法替你决定/零选择)。A/B 的 A 臂。
+  方法④校准(DEMAND-VALIDATION §8.5)：V1 从原「带掌控味」改为纯 autopilot，与 V2(copilot/规划器)
+  干净隔离「autopilot vs copilot」这一个自变量，这是 R1 决定性判别器。
+  与 V2 (v2.html) 唯一差异 = 决策归属(算法决定 vs 用户决定)；hero+how-it-works+首卡不同，其余一致。
+  上线前须做：接后端替换 FORM_ENDPOINT / 换真实照片 / 换品牌名 / 公网部署 + 广告导流。
   设计：Sézane 温度 × SSENSE 克制 × 顾问语气；VARIANCE 6 / MOTION 2 / DENSITY 4；零 em-dash；无捏造社会证明。
 -->
 <style>
@@ -140,8 +141,8 @@
   <div class="wrap">
     <div>
       <p class="eyebrow">Early access · iPhone · US</p>
-      <h1>Stop staring into a full closet every morning.</h1>
-      <p class="sub">One suggestion each morning, built from the clothes you already own, matched to your day's weather and where you're actually headed. Not a shopping feed. Not a stylist you have to book. Just an answer before your coffee's cold.</p>
+      <h1>Never decide what to wear again.</h1>
+      <p class="sub">Each morning, one outfit, already chosen for you from your own closet, right for the day's weather and what's on your calendar. No scrolling, no picking, no second-guessing. It decides, you get dressed and go.</p>
       <form class="signup" id="heroForm" action="FORM_ENDPOINT" method="post" novalidate>
         <input type="email" name="email" placeholder="you@work.com" aria-label="Email address" required>
         <button class="btn" type="submit">Get early access</button>
@@ -163,7 +164,7 @@
 <section class="block reveal">
   <div class="wrap">
     <p class="eyebrow">How it works</p>
-    <h2>Three steps, then it just shows up.</h2>
+    <h2>Three steps, then you stop thinking about it.</h2>
     <div class="steps">
       <div class="step">
         <p class="n">01</p>
@@ -172,13 +173,13 @@
       </div>
       <div class="step">
         <p class="n">02</p>
-        <h3>Tell it your day</h3>
-        <p>Your city for the weather, and what the day holds. Two meetings and a dinner reads differently than a quiet desk day.</p>
+        <h3>Connect your calendar and city</h3>
+        <p>It reads your day and the forecast on its own. You don't fill anything in each morning, it already knows what's coming.</p>
       </div>
       <div class="step">
         <p class="n">03</p>
-        <h3>Get one look each morning</h3>
-        <p>A full outfit from your own closet, ready to accept or swap. It learns what you actually wear.</p>
+        <h3>Wake up to your outfit</h3>
+        <p>One full look, decided for you and waiting. You don't choose from options, you just wear it. It learns quietly from what you keep.</p>
       </div>
     </div>
   </div>
@@ -190,8 +191,8 @@
     <h2>The four things every other app gets wrong, done right.</h2>
     <div class="bento">
       <div class="card wide">
-        <h3>Dressed for the day you're actually having</h3>
-        <p>Tell it Tuesday is two meetings and a dinner, and it pulls a full look from your own closet for the real weather, the daytime kind, not last night's low. It won't hand you the sweater you wore yesterday, and it won't pair two blazers.</p>
+        <h3>It makes the call, so you never have to</h3>
+        <p>Every morning it settles on one full look from your own closet for the real weather, the daytime kind, not last night's low, and for whatever your calendar holds. No options to weigh, no decisions to make. It won't repeat yesterday's sweater, and it won't pair two blazers. You just wear what's waiting.</p>
       </div>
       <div class="card">
         <h3>Honest fit, from your measurements</h3>
