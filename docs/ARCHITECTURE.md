@@ -14,6 +14,10 @@
 | ClosetModel | `Packages/ClosetModel/` | SwiftData 实体层（7 实体 + 身体档案本地域）+ 跨衣柜不变量 + 转移缺件级联 + 删除级联 + ClosetCore 适配层 + RecommendationService（衣柜→copilot 补全单一 API，跨柜隔离在源头强制）；CloudKit 兼容约束（optional/默认值/无 unique/关系带 inverse） | `swift test --package-path Packages/ClosetModel`（17 tests，含 RecommendationService 垂直切片端到端，内存 ModelContainer 验证） |
 | ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑核心（无 iOS SDK 依赖）：FFIT 体型判定（plus-size 2020，9 类）+ ease 合身引擎 + **F4 推荐流水线**（outfit 语法、候选四条正确性过滤、日间时段天气、温区映射、组套 assembler、色彩规则 60-30-10/色轮、outfit 打分附「为什么推荐」、体型×属性加权、尺码归一化「尺码一等公民」、**copilot 补全器（锚定→补全→打分候选，v0.9 PIVOT 核心机制）**） | `cd Packages/ClosetCore && swift test`（85 tests, TDD RED→GREEN） |
 
+| ClosetUI | `Packages/ClosetUI/` | SwiftUI copilot UI 层：DesignSystem tokens（§10 暖底+单 accent）+ CopilotViewModel（锚定→补全逻辑）+ CopilotView | `swift test`（4 ViewModel tests）+ `swift build`（视图编译验证）；渲染需模拟器 |
+
+> App 外壳（`app-shell/`，需 Xcode 组装）：ClosetApp 入口模板（双域 ModelConfiguration，D5 身体维度本地）+ 组装 README。唯一需 Xcode 的薄壳。
+
 > 计划中的完整 SPM 结构见 `MVP-PLAN.md §3`（ClosetModel/ClosetSync/ScanIntake/RulesEngine/AIProxyClient/DesignSystem/Feature/*）。ClosetCore 是 RulesEngine 的纯逻辑先行部分，可命令行验证、无需 Xcode 模拟器。
 
 ## 对外链接登记

@@ -1,0 +1,61 @@
+// App 入口模板（拖进 Xcode iOS App target，替换默认 App 文件）。
+// 需填：CLOUDKIT_CONTAINER_ID（如 "iCloud.com.yourteam.closet"）。
+import SwiftUI
+import SwiftData
+import ClosetModel
+import ClosetCore
+import ClosetUI
+
+@main
+struct ClosetApp: App {
+    let container: ModelContainer
+
+    init() {
+        // 主域：CloudKit 私有库（7 实体同步）
+        let mainSchema = Schema([
+            Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+            Outfit.self, WearRecord.self, CalendarPlan.self,
+        ])
+        let mainConfig = ModelConfiguration(
+            "main", schema: mainSchema,
+            cloudKitDatabase: .private("CLOUDKIT_CONTAINER_ID"))
+
+        // 本地域：身体维度（D5，不进 CloudKit）
+        let localConfig = ModelConfiguration(
+            "local", schema: Schema([PersonBodyProfile.self]),
+            cloudKitDatabase: .none)
+
+        do {
+            // for: 列全部实体类型；每个 configuration 声明各自 schema 子集
+            container = try ModelContainer(
+                for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+                    Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+                configurations: mainConfig, localConfig)
+        } catch {
+            fatalError("ModelContainer 初始化失败: \(error)")
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+        }
+        .modelContainer(container)
+    }
+}
+
+/// 根导航（骨架）：真机 target 里接 TabView（衣柜/搭配/入库/日历/我的，§10.2）。
+/// 此处最小化——进入当前衣柜的 copilot 主屏。选衣柜逻辑待后续 WardrobePickerView。
+struct RootView: View {
+    @Query private var wardrobes: [Wardrobe]
+
+    var body: some View {
+        if let first = wardrobes.first {
+            CopilotView(wardrobe: first)
+        } else {
+            ContentUnavailableView("No wardrobe yet",
+                systemImage: "cabinet",
+                description: Text("Create your first wardrobe to get started."))
+        }
+    }
+}
