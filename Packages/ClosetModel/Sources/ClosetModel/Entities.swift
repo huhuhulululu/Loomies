@@ -75,6 +75,10 @@ public final class Item {
     public var colorHue: Double?
     public var colorIsNeutral: Bool = false
     public var attributesRaw: [String] = []      // StyleAttribute rawValue 数组
+    // 尺码（F2，洗标 OCR 落点）：品牌 + 标称码原文（忠实保真，不跨品牌换算）
+    public var brand: String?
+    public var sizeLabel: String?                // 原始尺码标签 "M"/"8"/"160/84A"
+    public var sizeSystemRaw: String?            // SizeSystem rawValue（us/eu/...）
     public init(name: String = "") { self.name = name }
 }
 

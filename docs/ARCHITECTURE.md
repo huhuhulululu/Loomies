@@ -16,6 +16,8 @@
 
 | ClosetUI | `Packages/ClosetUI/` | SwiftUI copilot UI 层：DesignSystem tokens（§10 暖底+单 accent）+ CopilotViewModel（锚定→补全逻辑）+ CopilotView | `swift test`（4 ViewModel tests）+ `swift build`（视图编译验证）；渲染需模拟器 |
 
+| ClosetIntake | `Packages/ClosetIntake/` | F1 扫描入库（SI-0 capability seam）：抠图/打标/OCR 协议 + mock + IntakeViewModel（抠图→预填→确认落库）；真实 Vision 真机换 | `swift test`（4 tests，mock 验证）；真实 Vision 真机 |
+
 > App 外壳（`app-shell/`，需 Xcode 组装）：ClosetApp 入口模板（双域 ModelConfiguration，D5 身体维度本地）+ 组装 README。唯一需 Xcode 的薄壳。
 
 > 计划中的完整 SPM 结构见 `MVP-PLAN.md §3`（ClosetModel/ClosetSync/ScanIntake/RulesEngine/AIProxyClient/DesignSystem/Feature/*）。ClosetCore 是 RulesEngine 的纯逻辑先行部分，可命令行验证、无需 Xcode 模拟器。

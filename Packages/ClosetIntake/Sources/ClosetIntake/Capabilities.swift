@@ -1,0 +1,55 @@
+import Foundation
+import ClosetCore
+
+// F1 能力协议（DESIGN §F1，MVP-PLAN SI-0）：真机用 Vision，模拟器/测试用 mock，DI 切换无需改调用点。
+
+/// 抠图（VNGenerateForegroundInstanceMaskRequest，真机；mock 直通）。
+public protocol MattingService: Sendable {
+    func removeBackground(_ imageData: Data) async throws -> Data
+}
+
+/// AI 打标（云端 VLM，真机经代理；mock 返回固定标签）。
+public protocol TaggingService: Sendable {
+    func tag(_ imageData: Data) async throws -> ItemTags
+}
+
+/// 洗标 OCR（RecognizeDocumentsRequest，真机；mock 返回固定）。
+public protocol OCRService: Sendable {
+    func readLabel(_ imageData: Data) async throws -> LabelInfo
+}
+
+/// AI 预填标签（全部可编辑，material/color 弱置信见 §F1）。
+public struct ItemTags: Sendable, Equatable {
+    public var slot: GarmentSlot
+    public var color: GarmentColor?
+    public var occasions: Set<String>
+    public var warmth: Warmth?
+    public init(slot: GarmentSlot, color: GarmentColor? = nil,
+                occasions: Set<String> = [], warmth: Warmth? = nil) {
+        self.slot = slot; self.color = color; self.occasions = occasions; self.warmth = warmth
+    }
+}
+
+/// 洗标抽取结果。
+public struct LabelInfo: Sendable, Equatable {
+    public var brand: String?
+    public var size: String?
+    public var material: String?
+    public init(brand: String? = nil, size: String? = nil, material: String? = nil) {
+        self.brand = brand; self.size = size; self.material = material
+    }
+}
+
+/// 入库草稿（落库前的中间态，单屏确认时用户可改）。
+public struct IntakeDraft: Sendable, Equatable {
+    public var name: String
+    public var slot: GarmentSlot
+    public var color: GarmentColor?
+    public var occasions: Set<String>
+    public var warmth: Warmth?
+    public var brand: String?
+    public var size: String?
+    public init(name: String = "New item", slot: GarmentSlot = .top) {
+        self.name = name; self.slot = slot; self.occasions = []
+    }
+}
