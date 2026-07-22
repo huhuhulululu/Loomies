@@ -7,11 +7,15 @@ let package = Package(
     name: "ClosetUI",
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [.library(name: "ClosetUI", targets: ["ClosetUI"])],
-    dependencies: [.package(path: "../ClosetModel"), .package(path: "../ClosetCore")],
+    dependencies: [
+        .package(path: "../ClosetModel"), .package(path: "../ClosetCore"),
+        .package(path: "../ClosetIntake"),
+    ],
     targets: [
         .target(name: "ClosetUI", dependencies: [
             .product(name: "ClosetModel", package: "ClosetModel"),
             .product(name: "ClosetCore", package: "ClosetCore"),
+            .product(name: "ClosetIntake", package: "ClosetIntake"),
         ]),
         .testTarget(name: "ClosetUITests", dependencies: ["ClosetUI"]),
     ]
