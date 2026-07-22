@@ -96,6 +96,7 @@ public final class WearRecord {
     public var date: Date = Date.distantPast
     public var outfitID: UUID?
     public var wardrobeSnapshotID: UUID?         // 固化衣柜快照（转移不改历史统计口径）
+    public var wornItemIDs: [String] = []        // 当天穿了哪些单品（uuidString，喂防重复）
     public var fitFeedback: String?              // 紧/合/松
     public init(date: Date, outfitID: UUID? = nil) { self.date = date; self.outfitID = outfitID }
 }
