@@ -11,7 +11,7 @@
 
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
-| ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑核心（无 iOS SDK 依赖）：FFIT 体型判定（plus-size 2020，9 类）+ ease 合身引擎 + **F4 推荐流水线**（outfit 语法、候选四条正确性过滤、日间时段天气、温区映射、组套 assembler、色彩规则 60-30-10/色轮、outfit 打分附「为什么推荐」、体型×属性加权、尺码归一化「尺码一等公民」） | `cd Packages/ClosetCore && swift test`（70 tests, TDD RED→GREEN） |
+| ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑核心（无 iOS SDK 依赖）：FFIT 体型判定（plus-size 2020，9 类）+ ease 合身引擎 + **F4 推荐流水线**（outfit 语法、候选四条正确性过滤、日间时段天气、温区映射、组套 assembler、色彩规则 60-30-10/色轮、outfit 打分附「为什么推荐」、体型×属性加权、尺码归一化「尺码一等公民」、**copilot 补全器（锚定→补全→打分候选，v0.9 PIVOT 核心机制）**） | `cd Packages/ClosetCore && swift test`（85 tests, TDD RED→GREEN） |
 
 > 计划中的完整 SPM 结构见 `MVP-PLAN.md §3`（ClosetModel/ClosetSync/ScanIntake/RulesEngine/AIProxyClient/DesignSystem/Feature/*）。ClosetCore 是 RulesEngine 的纯逻辑先行部分，可命令行验证、无需 Xcode 模拟器。
 
