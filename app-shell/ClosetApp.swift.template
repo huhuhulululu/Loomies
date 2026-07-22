@@ -44,17 +44,18 @@ struct ClosetApp: App {
     }
 }
 
-/// 根导航（骨架）：真机 target 里接 TabView（衣柜/搭配/入库/日历/我的，§10.2）。
-/// 此处最小化——进入当前衣柜的 copilot 主屏。选衣柜逻辑待后续 WardrobePickerView。
+/// 根导航：进入当前衣柜的 AppRootView（TabView: Today copilot + Closet 浏览，ClosetUI 已建）。
+/// 选衣柜/新建衣柜逻辑待 WardrobePickerView；日历/我的页待补。
 struct RootView: View {
     @Query private var wardrobes: [Wardrobe]
 
     var body: some View {
         if let first = wardrobes.first {
-            CopilotView(wardrobe: first)
+            AppRootView(wardrobe: first)
         } else {
+            // 首次启动无衣柜 → 建一个默认衣柜（真机接 onboarding）
             ContentUnavailableView("No wardrobe yet",
-                systemImage: "cabinet",
+                systemImage: "square.grid.2x2",
                 description: Text("Create your first wardrobe to get started."))
         }
     }

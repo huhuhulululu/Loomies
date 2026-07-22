@@ -13,7 +13,8 @@
 |----|------|------|
 | `Packages/ClosetCore` | 纯逻辑：FFIT 体型 / ease 合身 / 尺码归一化 / F4 四条正确性 / 组套 / 配色 60-30-10 / 体型加权 / 场合正式度 / **copilot 补全器** | 85 tests |
 | `Packages/ClosetModel` | SwiftData 7 实体 + §2.3 全语义（跨柜不变量/转移缺件/删除级联）+ 适配层 + RecommendationService + **打卡防重复闭环** | 20 tests（内存 ModelContainer）|
-| `Packages/ClosetUI` | DesignSystem（§10）+ CopilotViewModel + CopilotView | 4 ViewModel tests + 视图 swift build 编译 |
+| `Packages/ClosetUI` | DesignSystem（§10）+ CopilotViewModel/View + IntakeView + AppRootView（TabView 壳）+ ClosetGridView | 4 ViewModel tests + 全部视图 swift build 编译 |
+| `Packages/ClosetIntake` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + **VisionMattingService（真实抠图，编译验证）** | 4 tests（mock）+ Vision swift build 编译；真机跑推理 |
 
 一键回归：
 ```bash
