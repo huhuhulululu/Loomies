@@ -20,9 +20,10 @@
 | 链接 | 用途 | 可见性 |
 |------|------|--------|
 | https://m424.tailb5f9cb.ts.net:10029/ | 项目状态页 + 审阅制品（status.html / DESIGN.md / MARKET.md / MVP-PLAN.md / DEMAND-VALIDATION.md 副本） | 仅 tailnet（私有，禁止 --public：含任务/进度/决策） |
-| https://m424.tailb5f9cb.ts.net:10029/landing/ | 需求验证 fake-door 落地页（V1 推荐器 hero）预览 | 仅 tailnet 预览；上线需接后端+换真实图+换品牌名+公网部署（见 DEMAND-VALIDATION §5）|
+| https://m424.tailb5f9cb.ts.net:10029/landing/ | 需求验证落地页 **V1（推荐器 hero）** 预览 | 仅 tailnet 预览；上线需接后端+换真实图+换品牌名+公网部署（见 DEMAND-VALIDATION §5）|
+| https://m424.tailb5f9cb.ts.net:10029/landing/v2.html | 需求验证落地页 **V2（规划器 hero）** 预览 = A/B 的 B 臂 | 同上 |
 
-> 落地页 canonical 源码在受版控的 `landing/index.html`；`preview/landing/` 为发布副本。
+> 落地页 canonical 源码在受版控的 `landing/index.html`（V1）与 `landing/v2.html`（V2）；`preview/landing/` 为发布副本。两变体只差 hero/how-it-works/首卡，A/B 隔离「推荐器 vs 规划器」。
 
 > 状态页数据源：`preview/status.json`（commit 后与 Stop 时自动重渲染）+ `preview/agent-state.json`（实时活动）。
 > `preview/` 内 DESIGN.md / MARKET.md 为发布副本，源文件在 `docs/`；重大更新后需重新拷贝。

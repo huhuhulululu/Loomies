@@ -106,9 +106,10 @@ fake-door 冒烟测试落地页，据工作流文案线 + DESIGN §10 设计语�
 
 - **设计判读**：25-45 职业女性，每早为「看不全的满衣橱」丢 10 分钟；Sézane 温度 × SSENSE 克制 × 顾问非机器人语气；暖中性底 + 单一低饱和 accent；诚实压过炒作。
 - **拨盘**：VARIANCE 6 / MOTION 2（比 App 的 3 更低——验证页过度动效违背「克制的 AI」承诺）/ DENSITY 4。
-- **A/B 两个 hero**（本页 = V1；V2 换 hero 文案做 B 臂）：
-  - V1（推荐器）：**"Stop staring into a full closet every morning."** — One suggestion each morning, built from the clothes you already own, matched to your day's weather and where you're actually headed.
-  - V2（规划器）：**"Plan your work week in five minutes on Sunday."** — Never scramble at 7am again. Lay out the week from the clothes you already own, weather-checked.
+- **A/B 两个变体（均已建成，可直接投）**：`landing/index.html`（V1）与 `landing/v2.html`（V2）。两者只差 hero + how-it-works + 首个价值卡（差异 29 行），value props 2-4 / not-this / waitlist / 微调研**完全一致**——A/B 只隔离「推荐器 vs 规划器」这一个自变量。
+  - **V1（推荐器，"算法替你决定"）**："Stop staring into a full closet every morning." / One suggestion each morning, built from the clothes you already own... 预览 `…:10029/landing/`
+  - **V2（规划器，"帮你自己规划"）**："Plan your work week in five minutes on Sunday." / You decide, it does the legwork... 预览 `…:10029/landing/v2.html`
+  - **这正是 §0 关键发现的直接测试**：V1/V2 转化提升比就是「他们要算法决定还是自己规划」的答案。
 - **微调研**（邮箱提交后揭示，H1 vs JTBD 判别）：「只能上线前做好一个，哪个会让你每早打开它？」5 选项从「给我今天的整套穿搭」到「帮我记住我拥有的免得重买」。
 - **诚实红线**（已执行）：零 em-dash；无 AI 紫渐变；无捏造社会证明/假名人/假数据/假星级/媒体 logo（r/FFA 会揭穿马甲，假证据毒化真上线）；真实 flat-lay 照片（当前为诚实占位槽，上线换）；body-positive（禁 flattering/slimming）；尊重 prefers-reduced-motion。
 
