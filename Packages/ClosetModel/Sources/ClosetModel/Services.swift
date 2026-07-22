@@ -1,10 +1,7 @@
 import Foundation
 import SwiftData
 
-/// 单品状态（枚举，String 存储 CloudKit 安全）。
-public enum ItemStatus: String, Sendable, CaseIterable {
-    case available, inWash, dryCleaning, lent, idle, pending
-}
+// 单品状态枚举复用 ClosetCore.ItemStatus（见 Adapter.swift）；此处只存 statusRaw String。
 
 /// 跨衣柜不变量（DESIGN §2.3，用户硬约束）：Outfit 只能引用本衣柜内的 Item。
 public enum WardrobeInvariant {

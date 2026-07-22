@@ -67,6 +67,14 @@ public final class Item {
     public var statusRaw: String = "available"   // 可用/在洗/干洗/外借/闲置/待处理
     public var revision: Int = 0                 // 每次本地变更自增（合并修复器用）
     public var outfits: [Outfit]? = []           // Outfit.items 的反向（多对多）
+    // 推荐引擎所需属性（CloudKit 安全：枚举存 raw、Set 存 Array）
+    public var slotRaw: String = "top"           // GarmentSlot
+    public var subtype: String?
+    public var occasionsRaw: [String] = []       // Set<String> 存为数组
+    public var warmthRaw: Int?                   // Warmth rawValue
+    public var colorHue: Double?
+    public var colorIsNeutral: Bool = false
+    public var attributesRaw: [String] = []      // StyleAttribute rawValue 数组
     public init(name: String = "") { self.name = name }
 }
 

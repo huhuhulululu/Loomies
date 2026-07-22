@@ -7,8 +7,9 @@ let package = Package(
     name: "ClosetModel",
     platforms: [.iOS(.v17), .macOS(.v15)],
     products: [.library(name: "ClosetModel", targets: ["ClosetModel"])],
+    dependencies: [.package(path: "../ClosetCore")],
     targets: [
-        .target(name: "ClosetModel"),
+        .target(name: "ClosetModel", dependencies: [.product(name: "ClosetCore", package: "ClosetCore")]),
         .testTarget(name: "ClosetModelTests", dependencies: ["ClosetModel"]),
     ]
 )
