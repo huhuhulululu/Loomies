@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en" data-variant="dawn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cleo · redesign (soft)</title>
+<meta name="robots" content="noindex">
+<!--
+  UI 重构：新颖 + 柔和。方向不变（copilot），但布局更编辑感、更留白、更圆润、更低对比。
+  两种柔和调性页内切换：Dawn（暖胭脂）/ Mist（冷雾灰磨砂）。共享同一套柔和布局。
+  遵循 DESIGN §10 + frontend-checklist：零 em-dash、无 AI 紫/mesh、body-positive、editorial serif、克制动效。
+  novel 点：Today 从「分段控件+密网格」重构为「问候 + 柔和场合胶囊 + 单张 hero look 卡（衣物瓦片错落 + 温柔理由）」。
+-->
+<style>
+  :root[data-variant="dawn"]{
+    --bg:#F7F3EC; --wash:#F1E7DC; --surface:#FDFAF4; --ink:#3B342D; --muted:#8A7F72;
+    --accent:#C0806A; --accent-ink:#4A2E22; --accent-soft:#F0E2DA; --hair:#EBE3D6; --calm:#9AA79A;
+    --glass:rgba(253,250,244,.72);
+  }
+  :root[data-variant="mist"]{
+    --bg:#EEEDE9; --wash:#E7E7E2; --surface:#F7F6F3; --ink:#37383A; --muted:#83858A;
+    --accent:#A98A86; --accent-ink:#3A2B29; --accent-soft:#EDE4E2; --hair:#E1E0DC; --calm:#9BA6AC;
+    --glass:rgba(247,246,243,.66);
+  }
+  :root{
+    --radius:22px; --radius-sm:14px;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    --soft-shadow:0 10px 34px rgba(70,54,40,.07);
+    --page:#E7E2D8;
+  }
+  :root[data-variant="mist"]{ --page:#E4E3DE; --soft-shadow:0 10px 34px rgba(60,60,66,.07); }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--page);color:var(--ink);font-family:var(--sans);line-height:1.55;
+    -webkit-font-smoothing:antialiased;transition:background .4s ease}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+  h1,h2,h3,h4{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;margin:0}
+
+  header.top{padding:60px 0 22px;display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap}
+  .eyebrow{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+  header.top h1{font-size:clamp(30px,4vw,46px);line-height:1.05}
+  header.top p{max-width:52ch;color:var(--muted);font-size:16px;margin:14px 0 0;text-wrap:pretty}
+
+  /* variant toggle */
+  .moodtoggle{display:flex;gap:6px;background:var(--surface);border:1px solid var(--hair);
+    border-radius:40px;padding:5px;box-shadow:var(--soft-shadow)}
+  .moodtoggle button{border:none;background:transparent;font-family:var(--sans);font-size:13px;
+    color:var(--muted);padding:9px 18px;border-radius:30px;cursor:pointer;transition:.25s}
+  .moodtoggle button[aria-pressed="true"]{background:var(--accent);color:#fff}
+
+  .sectionlabel{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);
+    margin:52px 0 20px;border-top:1px solid var(--hair);padding-top:22px}
+
+  .frames{display:flex;gap:44px;flex-wrap:wrap;align-items:flex-start}
+  .device{width:328px;flex:0 0 auto}
+  .caption{font-family:var(--serif);font-size:17px;margin:16px 4px 3px}
+  .caption + .sub{font-size:13px;color:var(--muted);margin:0 4px;text-wrap:pretty}
+
+  .screen{position:relative;width:328px;height:678px;background:var(--bg);border-radius:46px;
+    border:10px solid #201c18;box-shadow:0 26px 60px rgba(45,36,28,.24);overflow:hidden;
+    display:flex;flex-direction:column;transition:background .4s ease}
+  :root[data-variant="mist"] .screen{border-color:#26262a}
+  .island{position:absolute;top:13px;left:50%;transform:translateX(-50%);width:100px;height:27px;
+    background:#201c18;border-radius:16px;z-index:6}
+  :root[data-variant="mist"] .island{background:#26262a}
+  .statusbar{display:flex;justify-content:space-between;padding:17px 28px 2px;font-size:12px;font-weight:600}
+  .scr{flex:1;overflow:hidden;padding:6px 20px 0;display:flex;flex-direction:column;gap:16px}
+
+  /* soft floating tab bar */
+  .tabbar{margin-top:auto;display:flex;justify-content:space-around;padding:12px 22px 22px;
+    background:var(--glass);backdrop-filter:blur(18px) saturate(1.1);border-top:1px solid var(--hair)}
+  .tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10.5px;color:var(--muted)}
+  .tab.on{color:var(--accent)}
+  .tab svg{width:23px;height:23px}
+
+  /* Today: greeting */
+  .greet{margin-top:4px}
+  .greet .hi{font-family:var(--serif);font-size:27px}
+  .greet .day{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  /* soft occasion pills */
+  .pills{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{font-size:12.5px;padding:9px 16px;border-radius:30px;background:var(--surface);
+    border:1px solid var(--hair);color:var(--muted);transition:.2s}
+  .pill.on{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink);font-weight:600}
+
+  .autoline{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
+  .sw{width:46px;height:27px;border-radius:20px;background:var(--hair);position:relative}
+  .sw i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff}
+
+  /* hero look card (novel) */
+  .look{background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--soft-shadow);
+    position:relative;overflow:hidden}
+  .look::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(120% 80% at 80% -10%, var(--wash) 0%, transparent 60%);pointer-events:none}
+  .look .lt{display:flex;justify-content:space-between;align-items:baseline;position:relative}
+  .look .lt h4{font-size:17px}
+  .look .lt .w{font-size:11.5px;color:var(--muted)}
+  .tiles{display:flex;gap:10px;margin:14px 0 4px;position:relative}
+  .tile{flex:1;height:96px;border-radius:16px;background:var(--bg);border:1px solid var(--hair);
+    display:flex;align-items:flex-end;justify-content:center;padding-bottom:7px}
+  .tile.hero{flex:1.5}
+  .tile span{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .reasons{position:relative;margin-top:8px}
+  .rz{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin:6px 0}
+  .rz svg{width:13px;height:13px;color:var(--accent);flex:0 0 auto}
+  .lookbtns{display:flex;gap:10px;margin-top:14px;position:relative}
+  .primary{flex:1;background:var(--accent);color:#fff;text-align:center;font-weight:600;font-size:14px;
+    padding:12px;border-radius:14px}
+  .ghost{flex:1;background:transparent;border:1px solid var(--hair);color:var(--ink);text-align:center;
+    font-size:14px;padding:12px;border-radius:14px}
+
+  /* wearing row */
+  .wearing{display:flex;align-items:center;gap:10px}
+  .wearing .lab{font-size:12px;color:var(--muted)}
+  .thumbs{display:flex}
+  .thumbs .t{width:38px;height:44px;border-radius:11px;background:var(--surface);border:1.5px solid var(--bg);
+    margin-left:-8px;box-shadow:var(--soft-shadow)}
+  .thumbs .t:first-child{margin-left:0}
+
+  /* Add screen */
+  .matted{height:172px;border-radius:var(--radius);border:1px solid var(--hair);position:relative;
+    background:radial-gradient(circle at 50% 42%, var(--surface) 0%, var(--wash) 78%);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--soft-shadow)}
+  .garment{width:84px;height:104px;border-radius:20px 20px 10px 10px;
+    background:linear-gradient(165deg,color-mix(in oklab,var(--accent) 78%,white),var(--accent))}
+  .tagnote{position:absolute;bottom:10px;left:12px;font-size:10px;color:var(--muted);
+    background:var(--glass);padding:4px 9px;border-radius:8px;backdrop-filter:blur(6px)}
+  .field{margin-top:0}
+  .field .k{font-size:11px;color:var(--muted);margin-bottom:5px}
+  .field .v{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius-sm);
+    padding:12px 14px;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
+  .field .v.ai{border-style:dashed}
+  .aihint{font-size:10px;color:var(--accent);margin-top:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+  /* Closet */
+  .wpills{display:flex;gap:7px}
+  .closet{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .ci{background:var(--surface);border-radius:var(--radius-sm);padding:8px;box-shadow:var(--soft-shadow)}
+  .ci .ph{height:98px;border-radius:11px;background:var(--bg);display:flex;align-items:flex-end;
+    justify-content:center;padding-bottom:6px}
+  .ci .ph span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .ci .nm{font-size:11px;margin-top:6px;padding:0 2px}
+
+  /* components */
+  .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:22px}
+  .card{background:var(--surface);border-radius:var(--radius);padding:22px;box-shadow:var(--soft-shadow)}
+  .card .t{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px}
+  .fitrow{display:flex;gap:8px;flex-wrap:wrap}
+  .fit{font-size:11.5px;padding:6px 13px;border-radius:24px;border:1px solid var(--hair);color:var(--muted)}
+  .fit.mid{border-color:transparent;background:var(--accent-soft);color:var(--accent-ink)}
+  .btn-demo{display:flex;flex-direction:column;gap:11px}
+
+  footer{color:var(--muted);font-size:13px;padding:44px 0 60px;border-top:1px solid var(--hair);margin-top:56px;text-wrap:pretty}
+  code{font-size:12px;color:var(--ink)}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+  @media (max-width:700px){ .frames{justify-content:center} header.top{align-items:flex-start} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">Cleo · redesign</p>
+      <h1>Softer, and quietly in charge.</h1>
+      <p>Same copilot idea, gentler skin. More air, rounder forms, lower contrast, one calm accent. The morning screen is rebuilt around a single hero look instead of a dense grid, so the first thing you see is an answer, not a form.</p>
+    </div>
+    <div class="moodtoggle" role="group" aria-label="Mood">
+      <button aria-pressed="true" onclick="setMood('dawn',this)">Dawn</button>
+      <button aria-pressed="false" onclick="setMood('mist',this)">Mist</button>
+    </div>
+  </header>
+
+  <p class="sectionlabel">Core screens</p>
+  <div class="frames">
+
+    <!-- TODAY -->
+    <div class="device">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>7:04</span><span>Cleo</span></div>
+        <div class="scr">
+          <div class="greet">
+            <div class="hi">Good morning</div>
+            <div class="day">Tuesday · 72&deg;F later · two meetings</div>
+          </div>
+          <div class="pills">
+            <span class="pill on">Work</span><span class="pill">Date</span>
+            <span class="pill">Gala</span><span class="pill">Casual</span>
+          </div>
+          <div class="wearing">
+            <span class="lab">Starting from</span>
+            <div class="thumbs"><div class="t"></div><div class="t"></div></div>
+            <span class="lab">the camel blazer</span>
+          </div>
+          <div class="look">
+            <div class="lt"><h4>Your look</h4><span class="w">built from your closet</span></div>
+            <div class="tiles">
+              <div class="tile hero"><span>blazer</span></div>
+              <div class="tile"><span>blouse</span></div>
+              <div class="tile"><span>trousers</span></div>
+              <div class="tile"><span>loafers</span></div>
+            </div>
+            <div class="reasons">
+              <div class="rz"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 13l-3-3 1.4-1.4L8 10.2l5.6-5.6L15 6z"/></svg>Ivory keeps it calm, camel warms it</div>
+              <div class="rz"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 13l-3-3 1.4-1.4L8 10.2l5.6-5.6L15 6z"/></svg>Right for the daytime warmth, not last night's chill</div>
+              <div class="rz"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 13l-3-3 1.4-1.4L8 10.2l5.6-5.6L15 6z"/></svg>Nothing you already wore this week</div>
+            </div>
+            <div class="lookbtns"><div class="primary">Wear it</div><div class="ghost">Try another</div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6 6 .5-4.5 4 1.5 6-5-3.2L7.5 18.5 9 12.5 4.5 8.5 10.5 8z"/></svg>Today</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Closet</div>
+        </div>
+      </div>
+      <div class="caption">Today</div>
+      <div class="sub">A single hero look, gently reasoned. Tweak or ask for another.</div>
+    </div>
+
+    <!-- ADD -->
+    <div class="device">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>7:04</span><span>Cleo</span></div>
+        <div class="scr">
+          <div class="greet"><div class="hi">Add a piece</div></div>
+          <div class="matted"><div class="garment"></div><div class="tagnote">Cut out on your device</div></div>
+          <div class="field"><div class="k">Name</div><div class="v">Rust knit top<span>edit</span></div></div>
+          <div class="grid2">
+            <div class="field"><div class="k">Type</div><div class="v">Top<span>&#9662;</span></div></div>
+            <div class="field"><div class="k">Warmth</div><div class="v">Light<span>&#9662;</span></div></div>
+          </div>
+          <div class="field"><div class="k">Brand</div><div class="v ai">S&eacute;zane<span>edit</span></div><div class="aihint">Read from the care label</div></div>
+          <div class="field"><div class="k">Size</div><div class="v ai">M<span>edit</span></div></div>
+          <div class="primary" style="margin-top:4px">Add to closet</div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6 6 .5-4.5 4 1.5 6-5-3.2L7.5 18.5 9 12.5 4.5 8.5 10.5 8z"/></svg>Today</div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Closet</div>
+        </div>
+      </div>
+      <div class="caption">Add a piece</div>
+      <div class="sub">Cut out on device, pre-filled, confirmed in one calm screen.</div>
+    </div>
+
+    <!-- CLOSET -->
+    <div class="device">
+      <div class="screen">
+        <div class="island"></div>
+        <div class="statusbar"><span>7:04</span><span>Cleo</span></div>
+        <div class="scr">
+          <div class="greet"><div class="hi">Closet</div></div>
+          <div class="wpills pills"><span class="pill on">Bangkok</span><span class="pill">New York</span><span class="pill">Kids</span></div>
+          <div class="closet">
+            <div class="ci"><div class="ph"><span>top</span></div><div class="nm">Ivory blouse</div></div>
+            <div class="ci"><div class="ph"><span>outer</span></div><div class="nm">Camel blazer</div></div>
+            <div class="ci"><div class="ph"><span>bottom</span></div><div class="nm">Navy trousers</div></div>
+            <div class="ci"><div class="ph"><span>dress</span></div><div class="nm">Black wrap</div></div>
+            <div class="ci"><div class="ph"><span>shoes</span></div><div class="nm">Tan loafers</div></div>
+            <div class="ci"><div class="ph"><span>bottom</span></div><div class="nm">Pleated skirt</div></div>
+          </div>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6 6 .5-4.5 4 1.5 6-5-3.2L7.5 18.5 9 12.5 4.5 8.5 10.5 8z"/></svg>Today</div>
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Closet</div>
+        </div>
+      </div>
+      <div class="caption">Closet</div>
+      <div class="sub">One per place or person. Softer tiles, gentle shadows.</div>
+    </div>
+
+  </div>
+
+  <p class="sectionlabel">Components</p>
+  <div class="gallery">
+    <div class="card">
+      <div class="t">Occasion pills</div>
+      <div class="pills"><span class="pill on">Work</span><span class="pill">Date</span><span class="pill">Gala</span><span class="pill">Casual</span></div>
+    </div>
+    <div class="card">
+      <div class="t">Fit marker · describes the garment</div>
+      <div class="fitrow"><span class="fit">Runs snug</span><span class="fit mid">True to fit</span><span class="fit">Relaxed</span></div>
+      <p style="font-size:11px;color:var(--muted);margin:13px 0 0;text-wrap:pretty">From your measurements against the garment's. Never a comment on your body.</p>
+    </div>
+    <div class="card">
+      <div class="t">Full-auto</div>
+      <div class="autoline"><span style="font-size:13.5px;color:var(--ink)">Let me choose for you</span><div class="sw"><i></i></div></div>
+      <p style="font-size:11px;color:var(--muted);margin:13px 0 0;text-wrap:pretty">Default is copilot: you steer, it does the legwork.</p>
+    </div>
+    <div class="card">
+      <div class="t">Buttons</div>
+      <div class="btn-demo"><div class="primary">Wear it</div><div class="ghost">Try another</div></div>
+    </div>
+  </div>
+
+  <footer>
+    Redesign mockup, soft direction, two moods (Dawn / Mist) via the toggle above. Not the running app; screens mirror the built SwiftUI views. Item images are placeholders, "Cleo" is a working name. When approved, these tokens fold back into <code>Packages/ClosetUI/DesignSystem.swift</code>.
+  </footer>
+
+</div>
+<script>
+  function setMood(m, btn){
+    document.documentElement.setAttribute('data-variant', m);
+    document.querySelectorAll('.moodtoggle button').forEach(function(b){ b.setAttribute('aria-pressed', String(b===btn)); });
+  }
+</script>
+</body>
+</html>
