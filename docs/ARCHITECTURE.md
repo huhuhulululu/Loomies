@@ -29,6 +29,7 @@
 | https://m424.tailb5f9cb.ts.net:10029/ | 项目状态页 + 审阅制品（status.html / DESIGN.md / MARKET.md / MVP-PLAN.md / DEMAND-VALIDATION.md 副本） | 仅 tailnet（私有，禁止 --public：含任务/进度/决策） |
 | https://m424.tailb5f9cb.ts.net:10029/landing/ | 需求验证落地页 **V1（推荐器 hero）** 预览 | 仅 tailnet 预览；上线需接后端+换真实图+换品牌名+公网部署（见 DEMAND-VALIDATION §5）|
 | https://m424.tailb5f9cb.ts.net:10029/mockup/ | **产品 UI/UX mockup**（Today copilot/入库/衣柜三屏 + 组件库，镜像 ClosetUI 视图）| 仅 tailnet 预览 |
+| https://m424.tailb5f9cb.ts.net:10029/mockup/redesign.html | **UI 重构 mockup（柔和方向，Dawn/Mist 双调性切换）** | 仅 tailnet 预览 |
 | https://m424.tailb5f9cb.ts.net:10029/landing/v2.html | 需求验证落地页 **V2（规划器 hero）** 预览 = A/B 的 B 臂 | 同上 |
 
 > 落地页 canonical 源码在受版控的 `landing/index.html`（V1）与 `landing/v2.html`（V2）；`preview/landing/` 为发布副本。两变体只差 hero/how-it-works/首卡，A/B 隔离「推荐器 vs 规划器」。
