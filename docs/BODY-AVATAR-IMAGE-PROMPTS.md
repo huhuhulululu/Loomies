@@ -107,17 +107,35 @@ Combine: use the body pose, camera angle, pasties and thong from the first image
 
 ---
 
-## 7. 精修时建议操作顺序
+## 7. 写实精修（2026-08-03 验证成功）
 
-1. 只动一张金标准 `yaw000`（脸/光照/乳贴形状/丁字裤裁切）  
-2. 验收：脸 = 原模特；装 = 仅乳贴+丁字裤；灰棚一致  
-3. 再 fan-out：体型 → 角度 → 组合补缺  
-4. 入库名：`croquis_{hourglass\|pear\|apple\|rectangle\|invertedTriangle}_yaw{000…315}.png`（1024×1536）  
+在**已锁同人 + pastie/thong** 的单帧上做 realism pass（不要换装、不要换人）：
+
+```text
+Photoreal fashion-catalog refine of THIS exact same frame only — keep pose, camera angle, face, hair, pasties, and thong identical. Increase realism: natural skin texture with subtle pores and freckles, believable soft studio lighting and ground contact shadow, realistic fabric of matte adhesive pasties and thin nude thong, fine hair strands, no plastic AI smoothness, sharp full-body e-commerce photo on seamless gray. Same person, same minimal basewear.
+```
+
+同人改体型时带上写实锚点：
+
+```text
+Same exact photoreal woman (same face, freckles, hair, skin texture) wearing only skin-tone pasties and thin nude thong. Soft gray studio, full length. Keep pasties and thong and photoreal quality. Only change body proportions to {shape}: {note}. Front facing camera.
+```
+
+**注意**：侧/后角 refine 偶发 moderated；失败则保留上一版同人帧，勿回退到 bandeau 或新人脸。
+
+---
+
+## 8. 精修时建议操作顺序
+
+1. 只动一张金标准 `yaw000`（写实 pass / 脸/光/乳贴/丁字裤）  
+2. 验收：脸 = 原模特；装 = 仅乳贴+丁字裤；肤质写实；灰棚一致  
+3. 再 fan-out：体型（§3）→ 角度（§4）→ 组合补缺（§5）→ 各帧 realism pass（§7）  
+4. 入库名：`croquis_{hourglass|pear|apple|rectangle|invertedTriangle}_yaw{000…315}.png`（1024×1536）  
 5. legacy 正面：`croquis_{shape}.png` = 对应 `yaw000` 拷贝  
 
 ---
 
-## 8. 资源与代码挂点
+## 9. 资源与代码挂点
 
 - 资源：`Packages/ClosetUI/.../Resources/BodyAvatar/`  
 - 命名 API：`BodyAvatarAsset.croquisName(for:yaw:)`  
@@ -126,6 +144,6 @@ Combine: use the body pose, camera angle, pasties and thong from the first image
 
 ---
 
-## 9. 一句话记忆
+## 10. 一句话记忆
 
 **装用 gen 过审 → 脸用 transfer 锁回 → 往后只 edit 同人；永远乳贴+丁字裤，永不裸 gen 新人。**
