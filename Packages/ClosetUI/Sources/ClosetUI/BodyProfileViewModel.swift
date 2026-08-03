@@ -20,6 +20,11 @@ public final class BodyProfileViewModel {
     /// 手选大众体型
     public var selectedPopular: PopularShape?
     public var showMeasureTips: Bool = false
+    /// 精调乘数 0.90…1.10（1 = 不偏置）；与测量/预设合成连续 morph
+    public var fineChest: Double = 1
+    public var fineWaist: Double = 1
+    public var fineHip: Double = 1
+    public var fineHeight: Double = 1
 
     public private(set) var shapeLabel: String?
     public private(set) var isComplete: Bool = false
@@ -29,8 +34,24 @@ public final class BodyProfileViewModel {
     public private(set) var popularShape: PopularShape = .rectangle
     public private(set) var confidence: BodyFitConfidence = .none
     public private(set) var measureProgress: Int = 0  // 0…4
+    /// 预览用连续塑形参数
+    public private(set) var morph: BodyMorphParams = .neutral
 
     public init(personID: UUID) { self.personID = personID }
+
+    public var fineTune: BodyMorphParams {
+        BodyMorphParams(
+            chest: fineChest,
+            waist: fineWaist,
+            hip: fineHip,
+            shoulder: 1,
+            height: fineHeight)
+    }
+
+    public func resetFineTune() {
+        fineChest = 1; fineWaist = 1; fineHip = 1; fineHeight = 1
+        recompute()
+    }
 
     // MARK: - Display helpers (in/cm)
 
@@ -185,6 +206,11 @@ public final class BodyProfileViewModel {
             shapeLabel = nil
             popularShape = .rectangle
         }
+
+        morph = BodyMorphParams.resolve(
+            measurements: liveMeasurements,
+            shape: selectedPopular ?? popularShape,
+            fineTune: fineTune)
     }
 
     public func displayTitle(_ shape: PopularShape) -> String {

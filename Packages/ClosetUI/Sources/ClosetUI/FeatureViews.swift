@@ -132,8 +132,7 @@ public struct BodyProfileView: View {
             Section {
                 BodyAvatarView(
                     shape: vm.popularShape,
-                    scale: vm.liveMeasurements.map { BodyAvatarScaler.scale(from: $0) }
-                        ?? BodyAvatarScale(widthScale: 1, hipScale: 1, waistScale: 1),
+                    morph: vm.morph,
                     fitCaption: previewCaption)
                 .frame(maxWidth: .infinity)
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
@@ -141,13 +140,14 @@ public struct BodyProfileView: View {
             } header: {
                 Text("Body reference")
             } footer: {
-                Text("360° base: same model, pasties + thong only — for lingerie try-on layering.")
+                Text("360° + continuous morph (chest/waist/hip). Pasties + thong base for lingerie layering.")
                     .font(.caption2)
             }
 
             Section {
                 LabeledContent("Fit confidence", value: vm.confidence.userLabel)
                 LabeledContent("Measures", value: "\(vm.measureProgress)/4")
+                LabeledContent("Morph", value: morphSummary)
             }
 
             Section {
@@ -163,11 +163,29 @@ public struct BodyProfileView: View {
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             } header: {
-                Text("Quick pick")
+                Text("Quick pick (preset)")
             } footer: {
-                Text("30-second start. Add measures below for fit tips.")
+                Text("Sets a base shape; fine-tune with sliders or measures below.")
                     .font(.caption2)
             }
+
+            Section {
+                morphSlider("Chest", value: $vm.fineChest)
+                morphSlider("Waist", value: $vm.fineWaist)
+                morphSlider("Hip", value: $vm.fineHip)
+                morphSlider("Height", value: $vm.fineHeight)
+                Button("Reset fine-tune") { vm.resetFineTune() }
+                    .font(.caption)
+            } header: {
+                Text("Continuous fine-tune")
+            } footer: {
+                Text("Stepless multipliers on top of measures/preset (0.90–1.10). Live preview.")
+                    .font(.caption2)
+            }
+            .onChange(of: vm.fineChest) { _, _ in vm.refreshPreview() }
+            .onChange(of: vm.fineWaist) { _, _ in vm.refreshPreview() }
+            .onChange(of: vm.fineHip) { _, _ in vm.refreshPreview() }
+            .onChange(of: vm.fineHeight) { _, _ in vm.refreshPreview() }
 
             Section {
                 Toggle("Use centimeters", isOn: $vm.usesMetric)
@@ -238,10 +256,29 @@ public struct BodyProfileView: View {
     }
 
     private var previewCaption: String {
-        if vm.confidence == .none {
+        if vm.confidence == .none && vm.selectedPopular == nil {
             return "Pick a body type or enter measures."
         }
         return "\(vm.displayTitle(vm.popularShape)) · \(vm.confidence.userLabel)"
+    }
+
+    private var morphSummary: String {
+        let m = vm.morph
+        return String(format: "C%.2f W%.2f H%.2f", m.chest, m.waist, m.hip)
+    }
+
+    private func morphSlider(_ title: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(String(format: "%.2f×", value.wrappedValue))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(DS.muted)
+            }
+            Slider(value: value, in: 0.90...1.10, step: 0.01)
+                .tint(DS.accent)
+        }
     }
 
     @ViewBuilder

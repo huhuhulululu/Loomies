@@ -178,3 +178,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - **R13**：合身 ease 仍要四围数字齐；仅快选不开 FitMark
 - Onboarding 增加可选 Body type Picker（可 Skip）
 - `BodyFitConfidence`：none / visualOnly / provisional / measured / mixed
+
+## D34 [2026-08-03] 连续 BodyMorph（2D 分条，非 SMPL）
+用户要「无级调节多指标、类游戏滑杆」：
+- **不做** 真 3D / SMPL 网格（后置）；不做脸部大变形
+- **做** `BodyMorphParams`（chest/waist/hip/shoulder/height）+ 纵向剖面 `horizontalScale(y)`
+- 合成：测量优先 → 否则 5 体型 preset → 再 × fineTune（0.90…1.10）
+- UI：`BodyMorphStripView` ~48 水平条 X 缩放；Me 页 Continuous fine-tune 滑杆实时预览
+- 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）

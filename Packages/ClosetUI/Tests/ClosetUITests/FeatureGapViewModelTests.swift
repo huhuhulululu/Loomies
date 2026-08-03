@@ -103,6 +103,29 @@ struct FeatureGapViewModelTests {
         #expect(s == "91" || s.hasPrefix("91"))
     }
 
+    @Test func bodyMorphUpdatesWithFineTune() {
+        let vm = BodyProfileViewModel(personID: UUID())
+        vm.selectedPopular = .hourglass
+        vm.refreshPreview()
+        let baseWaist = vm.morph.waist
+        vm.fineWaist = 0.92
+        vm.refreshPreview()
+        #expect(vm.morph.waist < baseWaist)
+        vm.resetFineTune()
+        #expect(abs(vm.fineWaist - 1) < 0.001)
+    }
+
+    @Test func bodyMorphFromMeasurements() {
+        let vm = BodyProfileViewModel(personID: UUID())
+        vm.bustInches = 40
+        vm.waistInches = 26
+        vm.hipInches = 40
+        vm.highHipInches = 34
+        vm.refreshPreview()
+        #expect(vm.morph.chest > 1.0)
+        #expect(vm.morph.waist < 1.0)
+    }
+
     @Test func outfitActionsSaveAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

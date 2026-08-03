@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — 真人 BodyAvatar（5 体型写实 PNG + 锚点叠衣层；Me 体型页）+ 既有 Debug/TF。
+> 最近同步：2026-08-03 — BodyMorph 连续塑形（分条 2D）+ 真人 BodyAvatar 360° + 双轨体型录入 + Debug/TF。
 
 ## 项目定位
 
@@ -12,9 +12,9 @@
 
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
-| ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/缩放/槽位** | `swift test` |
+| ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/槽位 + BodyMorphParams 连续塑形** | `swift test` |
 | ClosetModel | `Packages/ClosetModel/` | SwiftData + BodyProfile 双轨（快选/实测）+ ItemStatus/… | `swift test` |
-| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360°（yaw 切帧 + BodyAvatar 写实 PNG）** | `swift test` + build |
+| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360° + BodyMorphStripView 分条变形 + Me 精调滑杆** | `swift test` + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
@@ -73,9 +73,9 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 <!-- AUTO-MANAGED:module-table -->
 | 模块 | 关键类型/服务 | 说明 |
 |------|--------------|------|
-| ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 遥测 schema |
+| ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
 | ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn | 持久化 + 语义服务 |
-| ClosetUI | Copilot/Onboarding/CheckIn/Search/WardrobeSwitcher VMs, AppRootView | UI 逻辑 + 壳 |
+| ClosetUI | BodyAvatarView/BodyMorphStripView, BodyProfileViewModel, Copilot/Onboarding/CheckIn VMs, AppRootView | UI 逻辑 + 体型预览 + 壳 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 

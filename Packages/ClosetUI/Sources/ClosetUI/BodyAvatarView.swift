@@ -8,51 +8,77 @@ import UIKit
 import AppKit
 #endif
 
-/// 真人站姿体型参考 + **360° 静态多角度** + 槽位叠衣（DESIGN §F6，非 VTON）。
-/// 拖拽/点选切换偏航角（每 45° 一帧）；**无插值动画**。
-/// 资产：`Resources/BodyAvatar/croquis_{shape}_yaw{000…315}.png`
+/// 真人站姿 + **360° 切帧** + **连续 BodyMorph 分条变形**（类游戏滑杆塑形，非 SMPL / 非 VTON）。
 public struct BodyAvatarView: View {
     public var shape: PopularShape
-    public var scale: BodyAvatarScale
+    public var morph: BodyMorphParams
     public var layers: [BodyAvatarLayer]
     public var fitCaption: String?
     public var showsFitCaption: Bool
     public var enablesOrbit: Bool
+    /// 分条数：越大越平滑，成本略升
+    public var morphStripCount: Int
 
     @State private var yaw: BodyAvatarYaw = .deg0
     @State private var dragOriginYaw: BodyAvatarYaw?
 
     public init(
         shape: PopularShape = .rectangle,
-        scale: BodyAvatarScale = BodyAvatarScale(widthScale: 1, hipScale: 1, waistScale: 1),
+        morph: BodyMorphParams = .neutral,
+        layers: [BodyAvatarLayer] = [],
+        fitCaption: String? = nil,
+        showsFitCaption: Bool = true,
+        enablesOrbit: Bool = true,
+        initialYaw: BodyAvatarYaw = .deg0,
+        morphStripCount: Int = 48
+    ) {
+        self.shape = shape
+        self.morph = morph
+        self.layers = layers
+        self.fitCaption = fitCaption
+        self.showsFitCaption = showsFitCaption
+        self.enablesOrbit = enablesOrbit
+        self.morphStripCount = max(16, morphStripCount)
+        _yaw = State(initialValue: initialYaw)
+    }
+
+    /// 兼容旧 API：整体 scale → morph
+    public init(
+        shape: PopularShape = .rectangle,
+        scale: BodyAvatarScale,
         layers: [BodyAvatarLayer] = [],
         fitCaption: String? = nil,
         showsFitCaption: Bool = true,
         enablesOrbit: Bool = true,
         initialYaw: BodyAvatarYaw = .deg0
     ) {
-        self.shape = shape
-        self.scale = scale
-        self.layers = layers
-        self.fitCaption = fitCaption
-        self.showsFitCaption = showsFitCaption
-        self.enablesOrbit = enablesOrbit
-        _yaw = State(initialValue: initialYaw)
+        self.init(
+            shape: shape,
+            morph: BodyMorphParams.from(legacy: scale),
+            layers: layers,
+            fitCaption: fitCaption,
+            showsFitCaption: showsFitCaption,
+            enablesOrbit: enablesOrbit,
+            initialYaw: initialYaw)
     }
 
-    /// 从测量 + 单品槽位构建。
     public static func from(
         measurements: BodyMeasurements?,
+        shape: PopularShape? = nil,
+        fineTune: BodyMorphParams = .neutral,
         slotAssets: [BodyAvatarSlot: String] = [:],
         fitCaption: String? = nil,
         enablesOrbit: Bool = true
     ) -> BodyAvatarView {
-        let shape = BodyAvatarComposer.resolveShape(from: measurements)
-        let scale = measurements.map { BodyAvatarScaler.scale(from: $0) }
-            ?? BodyAvatarScale(widthScale: 1, hipScale: 1, waistScale: 1)
+        let resolvedShape = shape
+            ?? BodyAvatarComposer.resolveShape(from: measurements)
+        let morph = BodyMorphParams.resolve(
+            measurements: measurements,
+            shape: resolvedShape,
+            fineTune: fineTune)
         return BodyAvatarView(
-            shape: shape,
-            scale: scale,
+            shape: resolvedShape,
+            morph: morph,
             layers: BodyAvatarComposer.layers(slots: slotAssets),
             fitCaption: fitCaption,
             enablesOrbit: enablesOrbit)
@@ -75,7 +101,6 @@ public struct BodyAvatarView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Body shape \(shape.rawValue), \(yaw.shortLabel) view")
         .onChange(of: shape) { _, _ in
-            // 换体型时回到正面（瞬时，无动画）
             yaw = .deg0
         }
     }
@@ -84,31 +109,26 @@ public struct BodyAvatarView: View {
 
     private var modelCanvas: some View {
         GeometryReader { geo in
-            let w = geo.size.width
-            let displayWidth = w * min(max(scale.widthScale, 0.92), 1.08) * 0.94
+            let size = geo.size
             ZStack {
-                Group {
-                    if let img = croquisImage(for: yaw) {
-                        img
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: displayWidth)
-                    } else {
-                        PlaceholderCroquis(shape: shape)
-                            .frame(width: displayWidth)
-                    }
+                if croquisImage(for: yaw) != nil {
+                    BodyMorphStripView(
+                        image: croquisImage(for: yaw)!,
+                        morph: morph,
+                        stripCount: morphStripCount)
+                } else {
+                    PlaceholderCroquis(shape: shape)
+                        .scaleEffect(x: morph.legacyScale.widthScale, y: morph.height, anchor: .center)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // 叠衣锚点按正面标定；仅正面显示槽位层
+
                 if yaw == .deg0 {
                     ForEach(layers) { layer in
-                        garmentLayer(layer, canvas: geo.size)
+                        garmentLayer(layer, canvas: size)
                     }
                 }
             }
-            .frame(width: w, height: geo.size.height)
+            .frame(width: size.width, height: size.height)
             .clipped()
-            // 禁止隐式动画：换帧瞬时
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
@@ -118,51 +138,41 @@ public struct BodyAvatarView: View {
 
     private var orbitChrome: some View {
         VStack(spacing: 8) {
-            // 8 点方位指示
             HStack(spacing: 6) {
                 ForEach(BodyAvatarYaw.allCases, id: \.rawValue) { a in
                     Circle()
                         .fill(a == yaw ? DS.accent : DS.muted.opacity(0.35))
                         .frame(width: a == yaw ? 8 : 6, height: a == yaw ? 8 : 6)
-                        .onTapGesture {
-                            yaw = a
-                        }
+                        .onTapGesture { yaw = a }
                         .accessibilityLabel(a.shortLabel)
                 }
             }
             HStack {
-                Button {
-                    yaw = yaw.stepped(by: -1)
-                } label: {
+                Button { yaw = yaw.stepped(by: -1) } label: {
                     Image(systemName: "chevron.left.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(DS.accent)
+                        .font(.title2).foregroundStyle(DS.accent)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Previous angle")
-
                 Spacer()
                 Text("360° · \(yaw.shortLabel) · \(yaw.rawValue)°")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(DS.muted)
                 Spacer()
-
-                Button {
-                    yaw = yaw.stepped(by: 1)
-                } label: {
+                Button { yaw = yaw.stepped(by: 1) } label: {
                     Image(systemName: "chevron.right.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(DS.accent)
+                        .font(.title2).foregroundStyle(DS.accent)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Next angle")
             }
             .padding(.horizontal, 4)
-
-            Text("Swipe or tap dots · static frames, no spin animation")
+            Text("Morph C\(fmt(morph.chest)) W\(fmt(morph.waist)) H\(fmt(morph.hip)) · drag to orbit")
                 .font(.caption2)
                 .foregroundStyle(DS.muted)
         }
+    }
+
+    private func fmt(_ v: Double) -> String {
+        String(format: "%.2f", v)
     }
 
     private var captionBlock: some View {
@@ -176,7 +186,7 @@ public struct BodyAvatarView: View {
                     .foregroundStyle(DS.muted)
                     .multilineTextAlignment(.center)
             } else {
-                Text("Real-body proportion guide — not a photo try-on.")
+                Text("Continuous proportion guide — not a photo try-on.")
                     .font(.caption2)
                     .foregroundStyle(DS.muted)
             }
@@ -193,34 +203,23 @@ public struct BodyAvatarView: View {
         }
     }
 
-    /// 水平拖拽：约每 36pt 切一档（8 档覆盖 360°）。
     private var orbitDrag: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
                 if dragOriginYaw == nil { dragOriginYaw = yaw }
                 let origin = dragOriginYaw ?? yaw
-                let stepPx: CGFloat = 36
-                let steps = Int((value.translation.width / stepPx).rounded())
-                // 向右拖 → 看左侧（角度减小）；向左拖 → 向右转
+                let steps = Int((value.translation.width / 36).rounded())
                 let next = origin.stepped(by: -steps)
                 if next != yaw { yaw = next }
             }
-            .onEnded { _ in
-                dragOriginYaw = nil
-            }
+            .onEnded { _ in dragOriginYaw = nil }
     }
 
-    // MARK: - Images
-
     private func croquisImage(for yaw: BodyAvatarYaw) -> Image? {
-        // 精确角 → 相邻 45° → 主方位(0/90/180/270) → 正面 / 旧名
-        var tried: [BodyAvatarYaw] = [yaw]
-        tried.append(yaw.stepped(by: 1))
-        tried.append(yaw.stepped(by: -1))
+        var tried: [BodyAvatarYaw] = [yaw, yaw.stepped(by: 1), yaw.stepped(by: -1)]
         let cardinals: [BodyAvatarYaw] = [.deg0, .deg90, .deg180, .deg270]
         tried.append(contentsOf: cardinals.sorted {
             abs($0.rawValue - yaw.rawValue) < abs($1.rawValue - yaw.rawValue)
-                || (abs($0.rawValue - yaw.rawValue) == abs($1.rawValue - yaw.rawValue) && $0.rawValue < $1.rawValue)
         })
         var seen = Set<Int>()
         for y in tried where seen.insert(y.rawValue).inserted {
@@ -233,11 +232,14 @@ public struct BodyAvatarView: View {
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
         let f = layer.frame
+        // 槽位框随对应 band 水平缩放，避免叠衣与体型脱节
+        let midY = f.y + f.height / 2
+        let sx = morph.horizontalScale(normalizedY: midY)
         let rect = CGRect(
-            x: f.x * canvas.width,
-            y: f.y * canvas.height,
-            width: f.width * canvas.width,
-            height: f.height * canvas.height)
+            x: 0.5 * canvas.width + (f.x - 0.5) * canvas.width * sx,
+            y: f.y * canvas.height * morph.height,
+            width: f.width * canvas.width * sx,
+            height: f.height * canvas.height * morph.height)
         Group {
             if let name = layer.imageAssetName, let img = Self.bundleImage(named: name) {
                 img.resizable().aspectRatio(contentMode: .fit)
@@ -294,6 +296,48 @@ public struct BodyAvatarView: View {
             #endif
         }
         return nil
+    }
+}
+
+// MARK: - Strip morph renderer
+
+/// 将 croquis 切成水平条，按 `BodyMorphParams` 剖面做 X 向缩放（脸附近近 1.0）。
+struct BodyMorphStripView: View {
+    var image: Image
+    var morph: BodyMorphParams
+    var stripCount: Int
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let n = stripCount
+            let stripH = h / CGFloat(n)
+            let heightS = CGFloat(morph.clamped().height)
+            ZStack(alignment: .top) {
+                ForEach(0..<n, id: \.self) { i in
+                    let midY = (CGFloat(i) + 0.5) / CGFloat(n)
+                    let sx = CGFloat(morph.horizontalScale(normalizedY: Double(midY)))
+                    image
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: w, height: h)
+                        // 只露出第 i 条
+                        .mask(
+                            VStack(spacing: 0) {
+                                Color.clear.frame(height: stripH * CGFloat(i))
+                                Color.white.frame(height: stripH + 0.5)
+                                Spacer(minLength: 0)
+                            }
+                        )
+                        .scaleEffect(x: sx, y: heightS, anchor: .center)
+                        // 高度缩放后条带仍对齐中心
+                        .offset(y: (heightS - 1) * h * (midY - 0.5) * 0.15)
+                }
+            }
+            .frame(width: w, height: h)
+            .clipped()
+        }
     }
 }
 
