@@ -19,6 +19,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 | `docs/DESIGN.md` | 产品设计真相 |
 | `docs/MVP-PLAN.md` | MVP 计划（含完整 SPM 结构规划） |
 | `docs/decisions.md` | ADR — 技术决策及理由 |
+| `docs/BODY-AVATAR-IMAGE-PROMPTS.md` | 人体 croquis 出图/精修 prompt 手册（乳贴+丁字裤·同人锁脸） |
 | `docs/PROJECT-CONTEXT.md` | 项目状态、里程碑、工作流 |
 | `preview/` | 预览/设计/文档（`ts-publish.sh` 发布，状态页 :10029） |
 
