@@ -111,6 +111,21 @@ struct OnboardingScreen: View {
                         .textContentType(.addressCity)
                 }
                 Section {
+                    Text("Optional — pick a look-alike. You can refine measurements later.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Body type", selection: $vm.popularShapePick) {
+                        Text("Skip for now").tag(Optional<PopularShape>.none)
+                        Text("Hourglass").tag(Optional(PopularShape.hourglass))
+                        Text("Pear").tag(Optional(PopularShape.pear))
+                        Text("Apple").tag(Optional(PopularShape.apple))
+                        Text("Rectangle").tag(Optional(PopularShape.rectangle))
+                        Text("Inverted triangle").tag(Optional(PopularShape.invertedTriangle))
+                    }
+                } header: {
+                    Text("Body (optional)")
+                }
+                Section {
                     Text("We'll add sample pieces so you can try outfit suggestions right away.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

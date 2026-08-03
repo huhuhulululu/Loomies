@@ -164,3 +164,10 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - UI：拖拽 / 方位点 / 左右按钮瞬时切帧（`transaction.animation = nil`），不做插值旋转动画
 - 资产：5 体型 × 8 角（0/45/90/135/180/225/270/315）均独立生成（hash 全 unique）
 - 贴肤极简内衣（全裸生成被审核拦截）；叠衣层仅正面 yaw000 显示
+
+## D32 [2026-08-03] 体型双轨录入：快选 + 实测
+- **快路径**：5 大众体型图点选 → `popularShapeOverrideRaw` + source=visualPick；立刻 360；推荐轻加权 0.5
+- **精路径**：胸/腰/臀/上臀 Stepper（in↔cm）+ 量法示意；上臀可「腰臀推断」→ provisional（加权 0.85）
+- **R13**：合身 ease 仍要四围数字齐；仅快选不开 FitMark
+- Onboarding 增加可选 Body type Picker（可 Skip）
+- `BodyFitConfidence`：none / visualOnly / provisional / measured / mixed

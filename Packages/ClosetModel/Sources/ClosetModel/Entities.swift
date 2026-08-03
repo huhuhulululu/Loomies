@@ -18,6 +18,7 @@ public final class Person {
 }
 
 /// 身体维度：独立本地存储域（D5，不进 CloudKit），以 personID 软引用 Person。
+/// 双轨：快选大众体型（popularShapeOverride）+ 四围实测（R13 合身门）。
 @Model
 public final class PersonBodyProfile {
     public var id: UUID = UUID()
@@ -26,6 +27,12 @@ public final class PersonBodyProfile {
     public var waistInches: Double?
     public var hipInches: Double?
     public var highHipInches: Double?
+    /// 用户手选大众 5 类（PopularShape.rawValue）；可与实测并存。
+    public var popularShapeOverrideRaw: String?
+    /// none | visualPick | measured | mixed | provisional
+    public var shapeSourceRaw: String?
+    /// highHip 是否由腰臀启发式推断（非卷尺实测）。
+    public var highHipInferred: Bool = false
     public init(personID: UUID) { self.personID = personID }
 }
 

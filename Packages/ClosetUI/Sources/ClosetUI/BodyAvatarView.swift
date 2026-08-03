@@ -280,7 +280,7 @@ public struct BodyAvatarView: View {
         }
     }
 
-    static func bundleImage(named name: String) -> Image? {
+    public static func bundleImage(named name: String) -> Image? {
         let urls: [URL?] = [
             Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar"),
             Bundle.module.url(forResource: name, withExtension: "png"),

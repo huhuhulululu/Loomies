@@ -17,6 +17,8 @@ public final class OnboardingViewModel {
     public var waistInches: Double?
     public var hipInches: Double?
     public var highHipInches: Double?
+    /// 可选快选大众体型（可无四围）。
+    public var popularShapePick: PopularShape?
 
     public private(set) var person: Person?
     public private(set) var wardrobe: Wardrobe?
@@ -45,12 +47,18 @@ public final class OnboardingViewModel {
         context.insert(wardrobe)
 
         var profile: PersonBodyProfile?
-        if bustInches != nil || waistInches != nil || hipInches != nil || highHipInches != nil {
+        let hasMeasures = bustInches != nil || waistInches != nil || hipInches != nil || highHipInches != nil
+        let hasPick = popularShapePick != nil
+        if hasMeasures || hasPick {
             let p = PersonBodyProfile(personID: person.id)
             p.bustInches = bustInches
             p.waistInches = waistInches
             p.hipInches = hipInches
             p.highHipInches = highHipInches
+            if let pick = popularShapePick {
+                p.popularShapeOverrideRaw = pick.rawValue
+            }
+            BodyProfileService.refreshSource(on: p)
             context.insert(p)
             profile = p
         }
@@ -62,10 +70,16 @@ public final class OnboardingViewModel {
         return true
     }
 
-    /// 当前 body profile 是否已激活 FFIT（R13）。
+    /// 当前 body profile 是否已激活 FFIT（R13 四围齐）。
     public var bodyShapeReady: Bool {
         guard let p = bodyProfile else { return false }
         return BodyProfileService.isComplete(p)
+    }
+
+    /// 快选或 FFIT 任一可用。
+    public var hasBodyReference: Bool {
+        guard let p = bodyProfile else { return false }
+        return BodyProfileService.displayPopularShape(from: p) != nil
     }
 
     public var bodyShape: BodyShape? {

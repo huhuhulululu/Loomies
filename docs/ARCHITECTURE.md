@@ -13,7 +13,7 @@
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
 | ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/缩放/槽位** | `swift test` |
-| ClosetModel | `Packages/ClosetModel/` | SwiftData + ItemStatus/Editor/Storage/Favorite + Diagnostics | `swift test` |
+| ClosetModel | `Packages/ClosetModel/` | SwiftData + BodyProfile 双轨（快选/实测）+ ItemStatus/… | `swift test` |
 | ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360°（yaw 切帧 + BodyAvatar 写实 PNG）** | `swift test` + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 

@@ -61,4 +61,17 @@ struct OnboardingViewModelTests {
         #expect(vm.bodyShapeReady)
         #expect(vm.bodyShape != nil)
     }
+
+    @Test func finishWithVisualPickOnly() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "Alex"; vm.city = "NYC"
+        vm.popularShapePick = .pear
+        #expect(vm.finish(in: ctx))
+        #expect(vm.bodyProfile != nil)
+        #expect(!vm.bodyShapeReady)
+        #expect(vm.hasBodyReference)
+        #expect(vm.bodyProfile?.popularShapeOverrideRaw == PopularShape.pear.rawValue)
+        #expect(vm.bodyShape == .triangle)
+    }
 }

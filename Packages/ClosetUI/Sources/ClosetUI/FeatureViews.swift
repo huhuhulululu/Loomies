@@ -22,7 +22,7 @@ public struct ItemDetailView: View {
             Section("Details") {
                 TextField("Name", text: $vm.name)
                 Picker("Type", selection: $vm.slotRaw) {
-                    ForEach(["top","bottom","dress","outerwear","shoes","accessory"], id: \.self) {
+                    ForEach(["top", "bottom", "dress", "outerwear", "shoes", "accessory"], id: \.self) {
                         Text($0.capitalized).tag($0)
                     }
                 }
@@ -117,7 +117,7 @@ struct TransferSheet: View {
     }
 }
 
-// MARK: - Body profile
+// MARK: - Body profile (dual-track: quick pick + measures)
 
 public struct BodyProfileView: View {
     @Environment(\.modelContext) private var context
@@ -130,48 +130,186 @@ public struct BodyProfileView: View {
     public var body: some View {
         Form {
             Section {
-                BodyAvatarView.from(
-                    measurements: vm.liveMeasurements,
-                    fitCaption: vm.isComplete
-                        ? "Fit model reference for \(vm.popularShape.rawValue)."
-                        : "Enter all four measures to match a body reference.")
+                BodyAvatarView(
+                    shape: vm.popularShape,
+                    scale: vm.liveMeasurements.map { BodyAvatarScaler.scale(from: $0) }
+                        ?? BodyAvatarScale(widthScale: 1, hipScale: 1, waistScale: 1),
+                    fitCaption: previewCaption)
                 .frame(maxWidth: .infinity)
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowBackground(Color.clear)
             } header: {
                 Text("Body reference")
             } footer: {
-                Text("360° fit-model guide (drag to rotate) — not a selfie try-on; static frames, no spin animation.")
+                Text("360° guide — drag to rotate. Not a selfie try-on.")
                     .font(.caption2)
             }
 
-            Section("Measurements (inches)") {
-                TextField("Bust", text: $vm.bust)
-                    .onChange(of: vm.bust) { _, _ in vm.refreshPreview() }
-                TextField("Waist", text: $vm.waist)
-                    .onChange(of: vm.waist) { _, _ in vm.refreshPreview() }
-                TextField("Hip", text: $vm.hip)
-                    .onChange(of: vm.hip) { _, _ in vm.refreshPreview() }
-                TextField("High hip", text: $vm.highHip)
-                    .onChange(of: vm.highHip) { _, _ in vm.refreshPreview() }
+            Section {
+                LabeledContent("Fit confidence", value: vm.confidence.userLabel)
+                LabeledContent("Measures", value: "\(vm.measureProgress)/4")
             }
-            Section("FFIT") {
-                if vm.isComplete, let shape = vm.shapeLabel {
-                    LabeledContent("Shape", value: shape)
+
+            Section {
+                Text("Which looks most like you?")
+                    .font(.subheadline.weight(.medium))
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 12
+                ) {
+                    ForEach(BodyProfileViewModel.allPopular, id: \.rawValue) { shape in
+                        shapePickCard(shape)
+                    }
+                }
+                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+            } header: {
+                Text("Quick pick")
+            } footer: {
+                Text("30-second start. Add measures below for fit tips.")
+                    .font(.caption2)
+            }
+
+            Section {
+                Toggle("Use centimeters", isOn: $vm.usesMetric)
+            }
+
+            Section {
+                measureRow(title: "Bust", value: vm.bustInches) {
+                    vm.stepBust($0); vm.refreshPreview()
+                }
+                measureRow(title: "Waist", value: vm.waistInches) {
+                    vm.stepWaist($0); vm.refreshPreview()
+                }
+                measureRow(title: "Hip", value: vm.hipInches) {
+                    vm.stepHip($0); vm.refreshPreview()
+                }
+                measureRow(title: "High hip", value: vm.highHipInches, inferred: vm.highHipInferred) {
+                    vm.stepHighHip($0); vm.refreshPreview()
+                }
+                if vm.highHipInferred {
+                    Text("High hip is estimated")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
+                Button("Estimate high hip from waist & hip") {
+                    vm.applyInferredHighHip()
+                }
+                .disabled(vm.waistInches == nil || vm.hipInches == nil)
+            } header: {
+                Text("Measurements (\(vm.unitLabel))")
+            } footer: {
+                Button(vm.showMeasureTips ? "Hide measuring tips" : "How to measure") {
+                    vm.showMeasureTips.toggle()
+                }
+                .font(.caption)
+            }
+
+            if vm.showMeasureTips {
+                Section("Measuring tips") {
+                    Text("Stand relaxed, soft tape snug (not tight).")
+                    Text("Bust: fullest point. Waist: natural waist. Hip: fullest seat.")
+                    Text("High hip: ~3–4 in (7–10 cm) below the waist, at the hip bones.")
+                        .font(.caption)
+                        .foregroundStyle(DS.muted)
+                }
+            }
+
+            Section("Shape analysis") {
+                if let shape = vm.shapeLabel {
+                    LabeledContent("FFIT", value: shape)
+                } else if vm.selectedPopular != nil {
+                    Text("Visual type set. Enter four measures for FFIT classification.")
+                        .font(.caption).foregroundStyle(DS.muted)
                 } else {
-                    Text("Enter all four to unlock body-shape weighting.")
+                    Text("Pick a look-alike or enter measures to unlock body-shape weighting.")
                         .font(.caption).foregroundStyle(DS.muted)
                 }
             }
+
             if !vm.message.isEmpty {
                 Section { Text(vm.message).foregroundStyle(DS.accent) }
             }
+
             Section {
-                Button("Save") { vm.save(in: context) }
+                Button("Save measurements") { vm.save(in: context) }
             }
         }
         .navigationTitle("Body")
         .onAppear { vm.load(in: context) }
+    }
+
+    private var previewCaption: String {
+        if vm.confidence == .none {
+            return "Pick a body type or enter measures."
+        }
+        return "\(vm.displayTitle(vm.popularShape)) · \(vm.confidence.userLabel)"
+    }
+
+    @ViewBuilder
+    private func shapePickCard(_ shape: PopularShape) -> some View {
+        let selected = vm.selectedPopular == shape
+        Button {
+            vm.selectPopularShape(shape, in: context)
+        } label: {
+            VStack(spacing: 6) {
+                Group {
+                    if let img = BodyAvatarView.bundleImage(
+                        named: BodyAvatarAsset.croquisName(for: shape, yaw: .deg0))
+                        ?? BodyAvatarView.bundleImage(named: BodyAvatarAsset.legacyFrontName(for: shape)) {
+                        img.resizable().aspectRatio(contentMode: .fit)
+                    } else {
+                        PlaceholderCroquis(shape: shape)
+                    }
+                }
+                .frame(height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                Text(vm.displayTitle(shape))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(DS.ink)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.8)
+            }
+            .padding(6)
+            .background(DS.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.radius)
+                    .stroke(selected ? DS.accent : Color.clear, lineWidth: 2)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(vm.displayTitle(shape))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func measureRow(
+        title: String,
+        value: Double?,
+        inferred: Bool = false,
+        step: @escaping (Double) -> Void
+    ) -> some View {
+        HStack {
+            Text(title)
+            if inferred {
+                Text("est.").font(.caption2).foregroundStyle(.orange)
+            }
+            Spacer()
+            Button { step(vm.usesMetric ? -1 : -0.5) } label: {
+                Image(systemName: "minus.circle.fill").foregroundStyle(DS.accent)
+            }
+            .buttonStyle(.plain)
+            Text(vm.displayValue(inches: value))
+                .font(.body.monospacedDigit().weight(.medium))
+                .frame(minWidth: 48)
+            Button { step(vm.usesMetric ? 1 : 0.5) } label: {
+                Image(systemName: "plus.circle.fill").foregroundStyle(DS.accent)
+            }
+            .buttonStyle(.plain)
+            Text(vm.unitLabel)
+                .font(.caption)
+                .foregroundStyle(DS.muted)
+                .frame(width: 24, alignment: .leading)
+        }
     }
 }
 

@@ -49,21 +49,58 @@ struct FeatureGapViewModelTests {
         let ctx = try makeContext()
         let pid = UUID()
         let vm = BodyProfileViewModel(personID: pid)
-        vm.bust = "36"; vm.waist = "26"; vm.hip = "36"; vm.highHip = "34"
+        vm.bustInches = 36
+        vm.waistInches = 26
+        vm.hipInches = 36
+        vm.highHipInches = 34
         vm.save(in: ctx)
         #expect(vm.isComplete)
         #expect(vm.shapeLabel != nil)
         #expect(vm.liveMeasurements != nil)
         #expect(vm.popularShape == .hourglass)
+        #expect(vm.confidence == .measured)
     }
 
     @Test func bodyProfileLivePreviewWithoutSave() {
         let vm = BodyProfileViewModel(personID: UUID())
-        vm.bust = "34"; vm.waist = "30"; vm.hip = "42"; vm.highHip = "38"
+        vm.bustInches = 34
+        vm.waistInches = 30
+        vm.hipInches = 42
+        vm.highHipInches = 38
         vm.refreshPreview()
         #expect(vm.isComplete)
         #expect(vm.popularShape == .pear)
         #expect(vm.liveMeasurements?.hip == 42)
+    }
+
+    @Test func bodyProfileQuickPickWithoutMeasures() throws {
+        let ctx = try makeContext()
+        let pid = UUID()
+        let vm = BodyProfileViewModel(personID: pid)
+        vm.selectPopularShape(.apple, in: ctx)
+        #expect(vm.selectedPopular == .apple)
+        #expect(vm.popularShape == .apple)
+        #expect(vm.confidence == .visualOnly)
+        #expect(!vm.isComplete)
+        #expect(vm.profile?.popularShapeOverrideRaw == PopularShape.apple.rawValue)
+    }
+
+    @Test func bodyProfileInferHighHip() {
+        let vm = BodyProfileViewModel(personID: UUID())
+        vm.waistInches = 28
+        vm.hipInches = 40
+        vm.applyInferredHighHip()
+        #expect(vm.highHipInferred)
+        #expect(vm.highHipInches != nil)
+        #expect(vm.highHipInches! > 28 && vm.highHipInches! < 40)
+    }
+
+    @Test func bodyProfileMetricDisplay() {
+        let vm = BodyProfileViewModel(personID: UUID())
+        vm.bustInches = 36
+        vm.usesMetric = true
+        let s = vm.displayValue(inches: 36)
+        #expect(s == "91" || s.hasPrefix("91"))
     }
 
     @Test func outfitActionsSaveAndPlan() throws {
@@ -74,7 +111,7 @@ struct FeatureGapViewModelTests {
             i.occasionsRaw = ["work"]; i.warmthRaw = Warmth.light.rawValue
             i.colorIsNeutral = true; i.statusRaw = "available"; ctx.insert(i); return i
         }
-        let t = mk("t", "top"); let b = mk("b", "bottom"); let s = mk("s", "shoes")
+        let t = mk("t", "top"); let _ = mk("b", "bottom"); let _ = mk("s", "shoes")
         try ctx.save()
         let scored = RecommendationService.suggestions(
             for: w, anchors: [t], occasion: "work", daytimeTempF: 75).first
