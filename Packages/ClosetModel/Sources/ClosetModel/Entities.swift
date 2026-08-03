@@ -79,6 +79,10 @@ public final class Item {
     public var brand: String?
     public var sizeLabel: String?                // 原始尺码标签 "M"/"8"/"160/84A"
     public var sizeSystemRaw: String?            // SizeSystem rawValue（us/eu/...）
+    // 平铺实测（F2 实测层，optional；喂 FitEngine 最小合身标记）— 加法 schema，不破冻
+    public var chestFlatWidthInches: Double?     // 上装胸宽
+    public var waistFlatWidthInches: Double?     // 裤/裙腰宽
+    public var hipFlatWidthInches: Double?       // 臀宽（可选）
     public init(name: String = "") { self.name = name }
 }
 

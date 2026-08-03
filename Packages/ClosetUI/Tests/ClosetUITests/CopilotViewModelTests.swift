@@ -59,4 +59,14 @@ struct CopilotViewModelTests {
         vm.toggleAnchor(top); #expect(vm.isAnchored(top))
         vm.toggleAnchor(top); #expect(!vm.isAnchored(top))
     }
+
+    @Test func refreshAcceptsBodyShapeAndWornIDs() throws {
+        let (_, w, top) = try setup()
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        vm.bodyShape = .hourglass
+        vm.wornWithin7DaysIDs = ["some-other-id"]
+        vm.toggleAnchor(top)
+        vm.refresh()
+        #expect(!vm.suggestions.isEmpty)
+    }
 }

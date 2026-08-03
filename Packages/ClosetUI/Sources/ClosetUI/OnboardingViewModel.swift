@@ -1,0 +1,75 @@
+import Foundation
+import Observation
+import SwiftData
+import ClosetModel
+import ClosetCore
+
+/// 冷启动 onboarding（DESIGN §F4 冷启动 / M1 激活漏斗）：限 2–3 题。
+/// 1) 称呼  2) 主衣柜城市  3) 可选四围（跳过则 FFIT 簇隐藏）。
+/// 纯逻辑可 swift test；渲染另接 View。
+@MainActor
+@Observable
+public final class OnboardingViewModel {
+    public var displayName: String = ""
+    public var city: String = ""
+    /// 可选身体四围（英寸）。任一项非空即尝试写 profile；四围齐才激活 FFIT。
+    public var bustInches: Double?
+    public var waistInches: Double?
+    public var hipInches: Double?
+    public var highHipInches: Double?
+
+    public private(set) var person: Person?
+    public private(set) var wardrobe: Wardrobe?
+    public private(set) var bodyProfile: PersonBodyProfile?
+    public private(set) var completed: Bool = false
+
+    public init() {}
+
+    /// 名 + 城非空即可完成；身体全可选。
+    public var canFinish: Bool {
+        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 落库 Person + 主衣柜；若有任一身体字段则写 PersonBodyProfile。
+    @discardableResult
+    public func finish(in context: ModelContext) -> Bool {
+        guard canFinish else { return false }
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cityTrim = city.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let person = Person(name: name)
+        context.insert(person)
+        let wardrobe = Wardrobe(name: "Main", locationCity: cityTrim)
+        wardrobe.owner = person
+        context.insert(wardrobe)
+
+        var profile: PersonBodyProfile?
+        if bustInches != nil || waistInches != nil || hipInches != nil || highHipInches != nil {
+            let p = PersonBodyProfile(personID: person.id)
+            p.bustInches = bustInches
+            p.waistInches = waistInches
+            p.hipInches = hipInches
+            p.highHipInches = highHipInches
+            context.insert(p)
+            profile = p
+        }
+        try? context.save()
+        self.person = person
+        self.wardrobe = wardrobe
+        self.bodyProfile = profile
+        self.completed = true
+        return true
+    }
+
+    /// 当前 body profile 是否已激活 FFIT（R13）。
+    public var bodyShapeReady: Bool {
+        guard let p = bodyProfile else { return false }
+        return BodyProfileService.isComplete(p)
+    }
+
+    public var bodyShape: BodyShape? {
+        guard let p = bodyProfile else { return nil }
+        return BodyProfileService.bodyShape(from: p)
+    }
+}

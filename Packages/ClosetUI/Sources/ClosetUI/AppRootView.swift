@@ -2,9 +2,9 @@ import SwiftUI
 import ClosetModel
 import ClosetCore
 
-/// App 导航壳（DESIGN §10.2：底部 TabView）。组装 copilot 主屏 + 衣柜浏览。
-/// 入库（IntakeView）经 Closet 页「+」以 sheet 呈现（真机接相机/服务）；本壳经 swift build 验证。
-/// 真机 target 再加 Liquid Glass 自定义玻璃、tabBarMinimizeBehavior、日历/我的页。
+/// App 导航壳（DESIGN §10.2：底部 TabView ≤5 tab）。
+/// Today / Closet / Calendar / Me；入库经 Closet「+」sheet（真机接相机）。
+/// 真机 target 再加 Liquid Glass、tabBarMinimizeBehavior、WeatherKit。
 public struct AppRootView: View {
     let wardrobe: Wardrobe
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -15,8 +15,55 @@ public struct AppRootView: View {
                 .tabItem { Label("Today", systemImage: "sparkles") }
             ClosetGridView(wardrobe: wardrobe)
                 .tabItem { Label("Closet", systemImage: "square.grid.2x2") }
+            CalendarPlaceholderView(wardrobe: wardrobe)
+                .tabItem { Label("Calendar", systemImage: "calendar") }
+            MePlaceholderView()
+                .tabItem { Label("Me", systemImage: "person") }
         }
         .tint(DS.accent)
+    }
+}
+
+/// 日历 tab 占位（逻辑在 CalendarPlanService；完整 UI 待 Xcode 渲染迭代）。
+public struct CalendarPlaceholderView: View {
+    let wardrobe: Wardrobe
+    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
+
+    public var body: some View {
+        NavigationStack {
+            ContentUnavailableView(
+                "Calendar",
+                systemImage: "calendar",
+                description: Text("Plan outfits by day. Plans for \(wardrobe.name.isEmpty ? "this closet" : wardrobe.name) will show here.")
+            )
+            .background(DS.bg.ignoresSafeArea())
+            .navigationTitle("Calendar")
+        }
+    }
+}
+
+/// 我的 tab 占位（设置 IA 见 DESIGN §10.6；身体档案/导出待接）。
+public struct MePlaceholderView: View {
+    public init() {}
+
+    public var body: some View {
+        NavigationStack {
+            List {
+                Section("Profile") {
+                    Label("Body measurements", systemImage: "figure.stand")
+                    Label("Personal color", systemImage: "paintpalette")
+                }
+                Section("Closets & units") {
+                    Label("Wardrobes", systemImage: "cabinet")
+                    Label("Units", systemImage: "ruler")
+                }
+                Section("Data") {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label("Delete all data", systemImage: "trash")
+                }
+            }
+            .navigationTitle("Me")
+        }
     }
 }
 
