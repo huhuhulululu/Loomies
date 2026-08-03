@@ -18,6 +18,7 @@
 | Build 7 | ✅ Delivery `7403fdf0-d564-4efc-85eb-b14cdef12330`（保留乳贴+丁字裤：扫描线双线性 + 双保护带） |
 | Build 8 | ✅ Delivery `0a170ea3-6a8b-4f70-bdbd-f0c251f5d8b9`（日历/Me/合身网格/城市气候补全） |
 | Build 9 | ✅ Delivery `b49717d4-4422-41e1-b61f-fcc7f8ace131`（棚灰统一+写实+PHPicker） |
+| Build 10 | ✅ Delivery `393636e5-9b21-428e-a41b-e50eec6c00ce`（相机/Vision/本地缩略图） |
 
 **坑**：① CLI 全局 `PROVISIONING_PROFILE_SPECIFIER` 会污染 SPM 资源包；② export 时 PATH 勿让 Homebrew rsync 抢先（见 D35）。
 
