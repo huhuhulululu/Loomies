@@ -30,10 +30,11 @@ public struct BodyMorphParams: Equatable, Sendable {
 
     public static let neutral = BodyMorphParams()
 
-    public static let scaleLo: Double = 0.86
-    public static let scaleHi: Double = 1.16
-    public static let heightLo: Double = 0.94
-    public static let heightHi: Double = 1.06
+    /// 比旧 0.86…1.16 更紧：过大胸/腰差会撕乳贴与条带。
+    public static let scaleLo: Double = 0.90
+    public static let scaleHi: Double = 1.10
+    public static let heightLo: Double = 0.96
+    public static let heightHi: Double = 1.04
 
     public func clamped() -> BodyMorphParams {
         BodyMorphParams(
@@ -43,6 +44,16 @@ public struct BodyMorphParams: Equatable, Sendable {
             shoulder: Self.clamp(shoulder, Self.scaleLo, Self.scaleHi),
             height: Self.clamp(height, Self.heightLo, Self.heightHi)
         )
+    }
+
+    /// 视觉上可直出原图（跳过分条/栅格变形，防压缩感碎裂）。
+    public var isVisuallyNeutral: Bool {
+        let m = clamped()
+        return abs(m.chest - 1) < 0.012
+            && abs(m.waist - 1) < 0.012
+            && abs(m.hip - 1) < 0.012
+            && abs(m.shoulder - 1) < 0.012
+            && abs(m.height - 1) < 0.008
     }
 
     /// 与微调偏移合成（offset 为相对 1.0 的加减，如 +0.05）。
@@ -69,28 +80,39 @@ public struct BodyMorphParams: Equatable, Sendable {
         public static let ankle: Double = 0.95
     }
 
-    /// 在归一化高度 y 处的水平缩放（脸附近强制接近 1，防崩脸）。
+    /// 乳贴锚点带（归一化 y）：此带内用**平坦**尺度，避免条带梯度把乳贴撕开/漂移。
+    public enum PastieBand {
+        public static let start: Double = 0.30
+        public static let end: Double = 0.40
+    }
+
+    /// 在归一化高度 y 处的水平缩放（脸≈1；乳贴带平坦；腿收回中性）。
     public func horizontalScale(normalizedY y: Double) -> Double {
         let y = min(1, max(0, y))
         let m = clamped()
         // 头/脸：几乎不变形
         if y < Band.headEnd {
-            return Self.lerp(1.0, m.shoulder, t: y / Band.headEnd * 0.25)
+            return Self.lerp(1.0, m.shoulder, t: y / Band.headEnd * 0.18)
         }
         // 肩
         if y < Band.shoulder {
             let t = (y - Band.headEnd) / (Band.shoulder - Band.headEnd)
             return Self.lerp(1.0, m.shoulder, t: t)
         }
-        // 肩→胸
-        if y < Band.chest {
-            let t = (y - Band.shoulder) / (Band.chest - Band.shoulder)
-            return Self.lerp(m.shoulder, m.chest, t: t)
+        // 肩→乳贴带上沿：肩 → 阻尼胸
+        let chestSoft = Self.lerp(m.shoulder, m.chest, t: 0.55)  // 乳贴区不完全跟满 chest
+        if y < PastieBand.start {
+            let t = (y - Band.shoulder) / (PastieBand.start - Band.shoulder)
+            return Self.lerp(m.shoulder, chestSoft, t: t)
         }
-        // 胸→腰
+        // 乳贴带：平坦尺度（防乳贴漂移/条带撕裂）
+        if y <= PastieBand.end {
+            return chestSoft
+        }
+        // 乳贴下沿→腰
         if y < Band.waist {
-            let t = (y - Band.chest) / (Band.waist - Band.chest)
-            return Self.lerp(m.chest, m.waist, t: t)
+            let t = (y - PastieBand.end) / (Band.waist - PastieBand.end)
+            return Self.lerp(chestSoft, m.waist, t: t)
         }
         // 腰→臀
         if y < Band.hip {

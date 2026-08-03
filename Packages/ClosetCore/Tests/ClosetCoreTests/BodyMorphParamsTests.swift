@@ -16,7 +16,21 @@ struct BodyMorphParamsTests {
         let face = m.horizontalScale(normalizedY: 0.08)
         #expect(face < 1.04)
         let chest = m.horizontalScale(normalizedY: 0.34)
-        #expect(chest > 1.08)
+        #expect(chest > 1.04)  // pastie 带阻尼后 < 满 chest，但仍明显变宽
+    }
+
+    @Test func pastieBandIsFlatAgainstShear() {
+        let m = BodyMorphParams(chest: 1.10, waist: 0.92, hip: 1.06, shoulder: 1.04, height: 1)
+        let a = m.horizontalScale(normalizedY: 0.31)
+        let b = m.horizontalScale(normalizedY: 0.35)
+        let c = m.horizontalScale(normalizedY: 0.39)
+        #expect(abs(a - b) < 0.002)
+        #expect(abs(b - c) < 0.002)
+    }
+
+    @Test func isVisuallyNeutralDetectsIdentity() {
+        #expect(BodyMorphParams.neutral.isVisuallyNeutral)
+        #expect(!BodyMorphParams(chest: 1.05, waist: 1, hip: 1, shoulder: 1, height: 1).isVisuallyNeutral)
     }
 
     @Test func waistPinchVisibleForHourglassPreset() {
@@ -75,7 +89,8 @@ struct BodyMorphParamsTests {
         let m = BodyMorphParams.from(measurements:
             BodyMeasurements(bust: 36, waist: 28, hip: 38, highHip: 34))
         let legacy = m.legacyScale
-        #expect(legacy.widthScale >= 0.88 && legacy.widthScale <= 1.14)
+        #expect(legacy.widthScale >= BodyMorphParams.scaleLo - 0.01
+                && legacy.widthScale <= BodyMorphParams.scaleHi + 0.01)
     }
 
     @Test func profileIsSmoothMonotonicSegments() {

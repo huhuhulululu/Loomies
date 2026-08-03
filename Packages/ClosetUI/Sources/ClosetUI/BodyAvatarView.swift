@@ -16,7 +16,7 @@ public struct BodyAvatarView: View {
     public var fitCaption: String?
     public var showsFitCaption: Bool
     public var enablesOrbit: Bool
-    /// 分条数：越大越平滑，成本略升
+    /// 保留参数以兼容调用方；实际走 `BodyMorphRaster` 像素行变形（非多层 mask）。
     public var morphStripCount: Int
 
     @State private var yaw: BodyAvatarYaw = .deg0
@@ -30,7 +30,7 @@ public struct BodyAvatarView: View {
         showsFitCaption: Bool = true,
         enablesOrbit: Bool = true,
         initialYaw: BodyAvatarYaw = .deg0,
-        morphStripCount: Int = 48
+        morphStripCount: Int = 96
     ) {
         self.shape = shape
         self.morph = morph
@@ -38,7 +38,7 @@ public struct BodyAvatarView: View {
         self.fitCaption = fitCaption
         self.showsFitCaption = showsFitCaption
         self.enablesOrbit = enablesOrbit
-        self.morphStripCount = max(16, morphStripCount)
+        self.morphStripCount = max(32, morphStripCount)
         _yaw = State(initialValue: initialYaw)
     }
 
@@ -111,11 +111,9 @@ public struct BodyAvatarView: View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {
-                if croquisImage(for: yaw) != nil {
-                    BodyMorphStripView(
-                        image: croquisImage(for: yaw)!,
-                        morph: morph,
-                        stripCount: morphStripCount)
+                if let name = croquisAssetName(for: yaw) {
+                    // 单次 CG 栅格变形；中性 morph 直出原图，避免 48 层 mask 碎裂
+                    BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
                 } else {
                     PlaceholderCroquis(shape: shape)
                         .scaleEffect(x: morph.legacyScale.widthScale, y: morph.height, anchor: .center)
@@ -129,6 +127,7 @@ public struct BodyAvatarView: View {
             }
             .frame(width: size.width, height: size.height)
             .clipped()
+            .drawingGroup(opaque: true)  // 合并合成，减 JPEG 感碎边
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
@@ -215,7 +214,7 @@ public struct BodyAvatarView: View {
             .onEnded { _ in dragOriginYaw = nil }
     }
 
-    private func croquisImage(for yaw: BodyAvatarYaw) -> Image? {
+    private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
         var tried: [BodyAvatarYaw] = [yaw, yaw.stepped(by: 1), yaw.stepped(by: -1)]
         let cardinals: [BodyAvatarYaw] = [.deg0, .deg90, .deg180, .deg270]
         tried.append(contentsOf: cardinals.sorted {
@@ -224,9 +223,15 @@ public struct BodyAvatarView: View {
         var seen = Set<Int>()
         for y in tried where seen.insert(y.rawValue).inserted {
             let name = BodyAvatarAsset.croquisName(for: shape, yaw: y)
-            if let img = Self.bundleImage(named: name) { return img }
+            if Self.bundleResourceURL(named: name) != nil { return name }
         }
-        return Self.bundleImage(named: BodyAvatarAsset.legacyFrontName(for: shape))
+        let legacy = BodyAvatarAsset.legacyFrontName(for: shape)
+        return Self.bundleResourceURL(named: legacy) != nil ? legacy : nil
+    }
+
+    private func croquisImage(for yaw: BodyAvatarYaw) -> Image? {
+        guard let name = croquisAssetName(for: yaw) else { return nil }
+        return Self.bundleImage(named: name)
     }
 
     @ViewBuilder
@@ -282,62 +287,57 @@ public struct BodyAvatarView: View {
         }
     }
 
+    public static func bundleResourceURL(named name: String) -> URL? {
+        Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar")
+            ?? Bundle.module.url(forResource: name, withExtension: "png")
+    }
+
     public static func bundleImage(named name: String) -> Image? {
-        let urls: [URL?] = [
-            Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar"),
-            Bundle.module.url(forResource: name, withExtension: "png"),
-        ]
-        for url in urls {
-            guard let url, let data = try? Data(contentsOf: url) else { continue }
-            #if canImport(UIKit)
-            if let ui = UIImage(data: data) { return Image(uiImage: ui) }
-            #elseif canImport(AppKit)
-            if let ns = NSImage(data: data) { return Image(nsImage: ns) }
-            #endif
-        }
+        guard let url = bundleResourceURL(named: name),
+              let data = try? Data(contentsOf: url) else { return nil }
+        #if canImport(UIKit)
+        if let ui = UIImage(data: data, scale: 1) { return Image(uiImage: ui) }
+        #elseif canImport(AppKit)
+        if let ns = NSImage(data: data) { return Image(nsImage: ns) }
+        #endif
         return nil
     }
+
+    #if canImport(UIKit)
+    /// 原图 UIImage（scale=1，避免系统二次压缩缩放）。
+    public static func bundleUIImage(named name: String) -> UIImage? {
+        guard let url = bundleResourceURL(named: name),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data, scale: 1)
+    }
+    #endif
+
+    #if canImport(AppKit) && !os(iOS)
+    public static func bundleNSImage(named name: String) -> NSImage? {
+        guard let url = bundleResourceURL(named: name),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return NSImage(data: data)
+    }
+    #endif
 }
 
-// MARK: - Strip morph renderer
+// MARK: - Legacy strip view (保留类型名，委托栅格)
 
-/// 将 croquis 切成水平条，按 `BodyMorphParams` 剖面做 X 向缩放（脸附近近 1.0）。
+/// 旧 API 名；内部已改为 `BodyMorphImageView` 路径时不应再叠 48 层 mask。
 struct BodyMorphStripView: View {
     var image: Image
     var morph: BodyMorphParams
     var stripCount: Int
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            let n = stripCount
-            let stripH = h / CGFloat(n)
-            let heightS = CGFloat(morph.clamped().height)
-            ZStack(alignment: .top) {
-                ForEach(0..<n, id: \.self) { i in
-                    let midY = (CGFloat(i) + 0.5) / CGFloat(n)
-                    let sx = CGFloat(morph.horizontalScale(normalizedY: Double(midY)))
-                    image
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: w, height: h)
-                        // 只露出第 i 条
-                        .mask(
-                            VStack(spacing: 0) {
-                                Color.clear.frame(height: stripH * CGFloat(i))
-                                Color.white.frame(height: stripH + 0.5)
-                                Spacer(minLength: 0)
-                            }
-                        )
-                        .scaleEffect(x: sx, y: heightS, anchor: .center)
-                        // 高度缩放后条带仍对齐中心
-                        .offset(y: (heightS - 1) * h * (midY - 0.5) * 0.15)
-                }
-            }
-            .frame(width: w, height: h)
-            .clipped()
-        }
+        // 无 asset 名时的降级：仅整体 scale，绝不多层 mask
+        image
+            .resizable()
+            .interpolation(.high)
+            .scaleEffect(
+                x: CGFloat(morph.clamped().legacyScale.widthScale),
+                y: CGFloat(morph.clamped().height),
+                anchor: .center)
     }
 }
 
