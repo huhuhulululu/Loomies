@@ -19,6 +19,10 @@ public struct ItemDetailView: View {
 
     public var body: some View {
         Form {
+            Section {
+                ItemThumbnailView(item: vm.item, height: 200)
+                    .listRowInsets(EdgeInsets())
+            }
             Section("Details") {
                 TextField("Name", text: $vm.name)
                 Picker("Type", selection: $vm.slotRaw) {

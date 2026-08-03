@@ -35,8 +35,9 @@
 
 | 能力 | 说明 |
 |------|------|
-| PHPicker / 相机连拍 | **PHPicker 已接线**（Closet +）；相机连拍仍后置 |
-| Vision 抠图 / OCR 真推理 | 模拟器不全 |
+| PHPicker / 相机连拍 | **相册 + 相机** 已接线（`AddPieceSheet`）；真机验相机 |
+| Vision 抠图 / OCR 真推理 | **Vision 真机优先**（`IntakeServiceFactory`）；模拟器 mock |
+| 单品本地图 | `Item.localImageRelativePath` + `ItemImageStore`；网格/详情缩略图 |
 | WeatherKit | 协议已隔离；现用城市气候表，真机可换实现 |
 | CloudKit 私有库 | D5 双域已模板，Capability 待开 |
 | AI 打标 Worker + App Attest | 独立服务 |

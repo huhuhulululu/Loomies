@@ -280,24 +280,30 @@ public struct ClosetGridView: View {
                         ItemDetailView(item: item, bodyProfile: bodyProfile)
                     } label: {
                         VStack(spacing: 6) {
-                            RoundedRectangle(cornerRadius: DS.radius)
-                                .fill(DS.surface)
-                                .frame(height: 120)
-                                .overlay(
-                                    VStack(spacing: 4) {
-                                        Text(item.slotRaw).font(.caption2).foregroundStyle(DS.muted)
-                                        if item.statusRaw != "available" {
-                                            Text(ItemStatusService.displayName(item.statusRaw))
-                                                .font(.caption2).foregroundStyle(.orange)
-                                        }
-                                        if let fit = fitBadge(for: item) {
-                                            Text(fit)
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(DS.accent)
-                                        }
+                            ZStack(alignment: .bottomTrailing) {
+                                ItemThumbnailView(item: item, height: 120)
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    if item.statusRaw != "available" {
+                                        Text(ItemStatusService.displayName(item.statusRaw))
+                                            .font(.caption2)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(.orange.opacity(0.9))
+                                            .foregroundStyle(.white)
+                                            .clipShape(Capsule())
                                     }
-                                    .padding(6)
-                                )
+                                    if let fit = fitBadge(for: item) {
+                                        Text(fit)
+                                            .font(.caption2.weight(.semibold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(DS.accent.opacity(0.9))
+                                            .foregroundStyle(.white)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                                .padding(6)
+                            }
                             Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
                         }
                     }

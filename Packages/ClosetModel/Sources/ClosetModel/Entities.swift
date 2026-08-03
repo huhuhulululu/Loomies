@@ -97,6 +97,8 @@ public final class Item {
     public var chestFlatWidthInches: Double?     // 上装胸宽
     public var waistFlatWidthInches: Double?     // 裤/裙腰宽
     public var hipFlatWidthInches: Double?       // 臀宽（可选）
+    /// 本地文件相对路径（Application Support/ItemImages/…）；不进 CloudKit 也可仅本机。
+    public var localImageRelativePath: String?
     public init(name: String = "") { self.name = name }
 }
 

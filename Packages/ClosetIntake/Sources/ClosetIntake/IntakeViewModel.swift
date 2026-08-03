@@ -39,11 +39,11 @@ public final class IntakeViewModel {
         draft = d
     }
 
-    /// 用户确认 → 落库为 Item（可用状态），清空草稿。
+    /// 用户确认 → 落库为 Item（可用状态）+ 可选本地抠图；清空草稿。
     @discardableResult
     public func confirm(into wardrobe: Wardrobe, context: ModelContext) -> Item? {
         guard let d = draft else { return nil }
-        let item = Item(name: d.name)
+        let item = Item(name: d.name.isEmpty ? "New item" : d.name)
         item.wardrobe = wardrobe
         item.slotRaw = d.slot.rawValue
         item.occasionsRaw = Array(d.occasions)
@@ -53,8 +53,18 @@ public final class IntakeViewModel {
         item.sizeLabel = d.size
         item.statusRaw = "available"
         context.insert(item)
-        try? context.save()
+        if let img = mattedImage, let rel = ItemImageStore.save(data: img, for: item.id) {
+            item.localImageRelativePath = rel
+        }
+        ModelSave.save(context, label: "intakeConfirm")
         draft = nil
+        mattedImage = nil
         return item
+    }
+
+    public func reset() {
+        draft = nil
+        mattedImage = nil
+        isProcessing = false
     }
 }

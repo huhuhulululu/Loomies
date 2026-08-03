@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D39 [2026-08-03] 入库真机链路：相机 + Vision + 本地图
+- `Item.localImageRelativePath` + `ItemImageStore`（Application Support）
+- 确认入库写抠图；Closet 网格/详情缩略图
+- `IntakeServiceFactory`：真机非模拟器 → `VisionMattingService`，否则 mock
+- `AddPieceSheet`：相册 PHPicker + 相机 UIImagePicker + 手填 + 确认预览
+
 ## D38 [2026-08-03] BodyAvatar 棚灰统一 + 写实精修 + PHPicker
 - 全库 croquis 低色度灰区 → 统一 cyclorama（角点 span ~60→~5；脚本 `unify-body-studio.py`）
 - 5 体型正面 + 若干角度 image_edit 写实 pass（保留乳贴/丁字裤；侧角偶发 moderated 则保留棚处理版）

@@ -46,7 +46,7 @@ struct IntakeTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .bottom, occasions: ["work"], warmth: .light))
-        await vm.process(Data([0x1]))
+        await vm.process(Data([0x1, 0x2, 0x3, 0x4]))
         vm.draft?.name = "grey trousers"
         let item = vm.confirm(into: w, context: ctx)
         #expect(item != nil)
@@ -55,7 +55,10 @@ struct IntakeTests {
         #expect(item?.statusRaw == "available")
         #expect(item?.wardrobe?.id == w.id)
         #expect(vm.draft == nil)   // 确认后清空
+        #expect(item?.localImageRelativePath != nil)
+        #expect(ItemImageStore.loadData(relativePath: item?.localImageRelativePath) != nil)
         #expect(try ctx.fetch(FetchDescriptor<Item>()).count == 1)
+        ItemImageStore.delete(relativePath: item?.localImageRelativePath)
     }
 
     @Test func confirmWithoutDraftReturnsNil() async throws {

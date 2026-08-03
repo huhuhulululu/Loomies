@@ -8,11 +8,13 @@ import PhotosUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit) && !os(iOS)
+import AppKit
+#endif
 
-// MARK: - PHPicker (iOS)
+// MARK: - PHPicker
 
 #if os(iOS)
-/// 系统相册选图 → JPEG Data。
 public struct PhotoLibraryPicker: UIViewControllerRepresentable {
     var onPicked: (Data?) -> Void
 
@@ -26,7 +28,6 @@ public struct PhotoLibraryPicker: UIViewControllerRepresentable {
     }
 
     public func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-
     public func makeCoordinator() -> Coordinator { Coordinator(onPicked: onPicked) }
 
     public final class Coordinator: NSObject, PHPickerViewControllerDelegate {
@@ -41,32 +42,102 @@ public struct PhotoLibraryPicker: UIViewControllerRepresentable {
                 return
             }
             provider.loadObject(ofClass: UIImage.self) { obj, _ in
-                let data = (obj as? UIImage).flatMap {
-                    $0.jpegData(compressionQuality: 0.9)
-                }
+                let data = (obj as? UIImage).flatMap { $0.jpegData(compressionQuality: 0.9) }
                 DispatchQueue.main.async { self.onPicked(data) }
             }
         }
     }
 }
+
+/// 相机拍照 → JPEG Data。
+public struct CameraCapturePicker: UIViewControllerRepresentable {
+    var onPicked: (Data?) -> Void
+
+    public func makeUIViewController(context: Context) -> UIImagePickerController {
+        let p = UIImagePickerController()
+        p.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        p.delegate = context.coordinator
+        p.allowsEditing = false
+        return p
+    }
+
+    public func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    public func makeCoordinator() -> Coordinator { Coordinator(onPicked: onPicked) }
+
+    public final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onPicked: (Data?) -> Void
+        init(onPicked: @escaping (Data?) -> Void) { self.onPicked = onPicked }
+
+        public func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            onPicked(nil)
+        }
+
+        public func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            picker.dismiss(animated: true)
+            let img = info[.originalImage] as? UIImage
+            onPicked(img?.jpegData(compressionQuality: 0.9))
+        }
+    }
+}
 #endif
 
-// MARK: - Closet + sheet
+// MARK: - Item thumbnail
 
-/// Closet「+」：相册入库（mock 打标）或手填快捷。
+public struct ItemThumbnailView: View {
+    let item: Item
+    var height: CGFloat = 120
+
+    public var body: some View {
+        Group {
+            if let data = ItemImageStore.loadData(relativePath: item.localImageRelativePath),
+               let ui = platformImage(data) {
+                ui
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    DS.surface
+                    VStack(spacing: 4) {
+                        Image(systemName: "tshirt")
+                            .foregroundStyle(DS.muted)
+                        Text(item.slotRaw)
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
+    private func platformImage(_ data: Data) -> Image? {
+        #if canImport(UIKit)
+        if let u = UIImage(data: data) { return Image(uiImage: u) }
+        #elseif canImport(AppKit) && !os(iOS)
+        if let n = NSImage(data: data) { return Image(nsImage: n) }
+        #endif
+        return nil
+    }
+}
+
+// MARK: - Add piece sheet
+
+/// Closet「+」：相册 / 相机 / 手填。
 public struct AddPieceSheet: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var mode: Mode = .choose
-    @State private var showPicker = false
-    @State private var intakeVM = IntakeViewModel(
-        matting: MockMattingService(),
-        tagging: MockTaggingService(tags: ItemTags(
-            slot: .top,
-            color: GarmentColor(hueDegrees: 0, isNeutral: true),
-            occasions: ["casual", "work"], warmth: .light)),
-        ocr: MockOCRService(info: LabelInfo()))
+    @State private var showLibrary = false
+    @State private var showCamera = false
+    @State private var intakeVM = IntakeServiceFactory.makeViewModel()
     @State private var name = ""
     @State private var slot = "top"
     @State private var occasion = "work"
@@ -82,28 +153,34 @@ public struct AddPieceSheet: View {
                 switch mode {
                 case .choose: chooseBody
                 case .manual: manualBody
-                case .intake: intakeBody
+                case .intake: intakeConfirmBody
                 }
             }
-            .navigationTitle(mode == .manual ? "Manual add" : "Add piece")
+            .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    Button(mode == .choose ? "Close" : "Back") {
+                        if mode == .choose {
+                            dismiss()
+                        } else {
+                            intakeVM.reset()
+                            mode = .choose
+                        }
+                    }
                 }
             }
             #if os(iOS)
-            .sheet(isPresented: $showPicker) {
+            .sheet(isPresented: $showLibrary) {
                 PhotoLibraryPicker { data in
-                    showPicker = false
-                    guard let data else {
-                        message = "No photo selected."
-                        return
-                    }
-                    mode = .intake
-                    Task {
-                        await intakeVM.process(data)
-                        AppLog.info("photo intake bytes=\(data.count)", .intake)
-                    }
+                    showLibrary = false
+                    handleCapture(data)
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showCamera) {
+                CameraCapturePicker { data in
+                    showCamera = false
+                    handleCapture(data)
                 }
                 .ignoresSafeArea()
             }
@@ -111,33 +188,37 @@ public struct AddPieceSheet: View {
         }
     }
 
+    private var title: String {
+        switch mode {
+        case .choose: return "Add piece"
+        case .manual: return "Manual add"
+        case .intake: return "Confirm item"
+        }
+    }
+
     private var chooseBody: some View {
-        VStack(spacing: 16) {
-            Text("Add a garment photo or enter details by hand.")
+        VStack(spacing: 14) {
+            Text("Photo goes through cutout + prefill (mock tags on simulator; Vision on device).")
                 .font(.subheadline).foregroundStyle(DS.muted)
                 .multilineTextAlignment(.center)
             #if os(iOS)
             Button {
-                showPicker = true
+                showLibrary = true
             } label: {
-                Label("Choose from Photos", systemImage: "photo.on.rectangle")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(DS.accent)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                primaryLabel("Choose from Photos", systemImage: "photo.on.rectangle")
+            }
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button {
+                    showCamera = true
+                } label: {
+                    primaryLabel("Take photo", systemImage: "camera")
+                }
             }
             #endif
             Button {
                 mode = .manual
             } label: {
-                Label("Enter manually", systemImage: "keyboard")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(DS.surface)
-                    .foregroundStyle(DS.ink)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                secondaryLabel("Enter manually", systemImage: "keyboard")
             }
             if !message.isEmpty {
                 Text(message).font(.caption).foregroundStyle(.orange)
@@ -177,18 +258,95 @@ public struct AddPieceSheet: View {
         }
     }
 
-    private var intakeBody: some View {
-        IntakeView(vm: intakeVM, wardrobe: wardrobe) {
-            // 已在 picker 中喂过 data；再点拍时重新选
-            #if os(iOS)
-            await withCheckedContinuation { cont in
-                showPicker = true
-                // 简化：二次选择走 manual
-                cont.resume(returning: nil as Data?)
+    private var intakeConfirmBody: some View {
+        Group {
+            if intakeVM.isProcessing {
+                ProgressView("Processing…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let draft = Binding($intakeVM.draft) {
+                Form {
+                    if let data = intakeVM.mattedImage {
+                        Section {
+                            #if canImport(UIKit)
+                            if let ui = UIImage(data: data) {
+                                Image(uiImage: ui)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 220)
+                                    .frame(maxWidth: .infinity)
+                                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                            }
+                            #endif
+                        }
+                    }
+                    Section("Details") {
+                        TextField("Name", text: draft.name)
+                        Picker("Type", selection: draft.slot) {
+                            ForEach(GarmentSlot.allCases, id: \.self) {
+                                Text($0.rawValue.capitalized).tag($0)
+                            }
+                        }
+                        TextField("Brand", text: brandBinding(draft))
+                        TextField("Size", text: sizeBinding(draft))
+                    }
+                    Section {
+                        Button("Add to closet") {
+                            if let item = intakeVM.confirm(into: wardrobe, context: context) {
+                                AppLog.info("intake confirmed \(item.name)", .intake)
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+            } else {
+                ContentUnavailableView("No draft", systemImage: "exclamationmark.triangle")
             }
-            #else
-            return nil
-            #endif
         }
+    }
+
+    private func handleCapture(_ data: Data?) {
+        guard let data else {
+            message = "No image."
+            return
+        }
+        mode = .intake
+        Task {
+            await intakeVM.process(data)
+            if intakeVM.draft == nil {
+                message = "Could not process image."
+                mode = .choose
+            }
+        }
+    }
+
+    private func brandBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
+        Binding(
+            get: { draft.wrappedValue.brand ?? "" },
+            set: { draft.wrappedValue.brand = $0.isEmpty ? nil : $0 })
+    }
+
+    private func sizeBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
+        Binding(
+            get: { draft.wrappedValue.size ?? "" },
+            set: { draft.wrappedValue.size = $0.isEmpty ? nil : $0 })
+    }
+
+    private func primaryLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.headline)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(DS.accent)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
+    private func secondaryLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(DS.surface)
+            .foregroundStyle(DS.ink)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 }
