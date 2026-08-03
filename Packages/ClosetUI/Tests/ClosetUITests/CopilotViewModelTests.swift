@@ -41,6 +41,8 @@ struct CopilotViewModelTests {
     @Test func fullAutoProducesSuggestions() throws {
         let (_, w, _) = try setup()
         let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        // setup 仅 3 件会触发冷启动；本用例测 full-auto 本身，压低阈值
+        vm.coldStartThreshold = 1
         vm.fullAuto = true
         vm.refresh()
         #expect(!vm.suggestions.isEmpty)
@@ -66,6 +68,47 @@ struct CopilotViewModelTests {
         vm.bodyShape = .hourglass
         vm.wornWithin7DaysIDs = ["some-other-id"]
         vm.toggleAnchor(top)
+        vm.refresh()
+        #expect(!vm.suggestions.isEmpty)
+    }
+
+    @Test func coldStartBlocksFullAutoWithoutAnchor() throws {
+        let (_, w, top) = try setup()
+        // setup 有 3 available < default threshold 8 → cold start
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        #expect(vm.isColdStart)
+        vm.fullAuto = true
+        vm.refresh()
+        #expect(vm.suggestions.isEmpty)  // 无锚定 → 空
+
+        vm.toggleAnchor(top)
+        vm.refresh()
+        #expect(!vm.suggestions.isEmpty) // 有锚定 → 可补全
+    }
+
+    @Test func largeClosetAllowsFullAuto() throws {
+        let (ctx, w, _) = try setup()
+        // 再塞够件数越过阈值
+        for i in 0..<10 {
+            let item = Item(name: "extra\(i)")
+            item.slotRaw = i % 2 == 0 ? "top" : "bottom"
+            item.wardrobe = w
+            item.occasionsRaw = ["work"]
+            item.warmthRaw = Warmth.light.rawValue
+            item.colorIsNeutral = true
+            item.statusRaw = "available"
+            ctx.insert(item)
+        }
+        // 再补鞋若干
+        for i in 0..<3 {
+            let s = Item(name: "shoes\(i)"); s.slotRaw = "shoes"; s.wardrobe = w
+            s.occasionsRaw = ["work"]; s.warmthRaw = Warmth.light.rawValue
+            s.colorIsNeutral = true; s.statusRaw = "available"; ctx.insert(s)
+        }
+        try ctx.save()
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        #expect(!vm.isColdStart)
+        vm.fullAuto = true
         vm.refresh()
         #expect(!vm.suggestions.isEmpty)
     }

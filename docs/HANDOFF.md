@@ -1,19 +1,19 @@
 # 交接文档（HANDOFF）
 
-> 2026-08-03。v1.0 **CLI 可验证面**完整（**139 tests** 全绿 + UI 编译通过）。
+> 2026-08-03。v1.0 **CLI 可验证面**（**154 tests** 全绿 + UI 编译通过）。
 > 这份文档是你在 Xcode 接手时的入口。
 
 ## 一句话状态
 
-方向已定 **copilot**（用户掌舵、App 跑腿），数据模型冻结，**推荐引擎 + 数据层服务全集 + UI 逻辑 + 记录/日历/检索/体型门/合身标记**均可命令行验证；剩下是 Xcode 组装 + 真机验证（渲染/CloudKit/Vision/WeatherKit）。
+方向已定 **copilot**，数据模型冻结；引擎 + 数据服务 + UI 逻辑（含检索/衣柜切换/冷启动/拼贴草稿/遥测 schema）均可命令行验证。剩下是 Xcode 组装 + 真机（渲染/CloudKit/Vision/WeatherKit）。
 
 ## 已建并验证（命令行 swift test/build，无需模拟器）
 
 | 包 | 内容 | 验证 |
 |----|------|------|
-| `Packages/ClosetCore` | FFIT / ease / F4 四条正确性 / 组套 / 配色 / 体型加权 / 场合 / **copilot 补全器** / **WeatherProviding** | **87 tests** |
-| `Packages/ClosetModel` | 7 实体 + §2.3 全语义 + 适配层 + RecommendationService + 打卡防重复 + **Search / BodyProfile(R13) / FitMark / CalendarPlan** + 平铺宽字段 | **35 tests** |
-| `Packages/ClosetUI` | DesignSystem + Copilot（wear/body/weather 注入）+ IntakeView + **Onboarding/CheckIn VM** + **AppRoot 4-tab**（Today/Closet/Calendar/Me） | **13 tests** + swift build |
+| `Packages/ClosetCore` | FFIT / ease / F4 / copilot 补全 / WeatherProviding / **FitMarkCopy** / **TelemetryEvents** | **92 tests** |
+| `Packages/ClosetModel` | 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan + **OutfitDraft** | **38 tests** |
+| `Packages/ClosetUI` | DesignSystem + Copilot（冷启动门）+ Onboarding/CheckIn/**Search/WardrobeSwitcher** + 4-tab 壳 | **20 tests** + build |
 | `Packages/ClosetIntake` | F1 capability seam + VisionMattingService | **4 tests** + Vision build |
 
 一键回归：

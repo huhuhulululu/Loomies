@@ -1,7 +1,7 @@
 # App 外壳组装（需 Xcode）
 
 > 这里是**唯一需要 Xcode 才能构建/运行**的部分（薄壳）。核心逻辑与 UI 都在 SPM 包里，已 swift build/test 验证：
-> `ClosetCore` 87 + `ClosetModel` 35 + `ClosetUI` 13 + `ClosetIntake` 4 = **139 tests** 全绿。
+> `ClosetCore` 92 + `ClosetModel` 38 + `ClosetUI` 20 + `ClosetIntake` 4 = **154 tests** 全绿。
 
 ## 组装步骤
 

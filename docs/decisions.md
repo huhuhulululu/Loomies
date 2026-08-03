@@ -100,3 +100,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 新增：SearchService（跨柜检索）、BodyProfileService（R13 四围门）、FitMarkService（ease→紧/合/松）、CalendarPlanService、WeatherProviding seam、Onboarding/CheckIn ViewModel、AppRoot 4-tab、Item 平铺宽加法字段。
 - 结果：四包 **139 tests** 全绿；ARCHITECTURE/HANDOFF 同步。
 - 下一步硬边界仍是 Xcode 组装 + 真机（Vision/CloudKit/WeatherKit）。
+
+## D23 [2026-08-03] Wave B：检索/切换/拼贴/冷启动/遥测 schema
+用户指令「先 A 后 B」：A=commit D22；B=继续 CLI 可做项。
+- SearchViewModel、WardrobeSwitcherViewModel
+- OutfitDraftService（手动拼贴强制跨柜不变量）
+- Copilot 冷启动门（可用件 < 阈值 → 禁 full-auto、须锚定）
+- FitMarkCopy en-US 文案；TelemetryEvent + Payload 白名单/身体红线
+- 结果：**154 tests** 全绿。
