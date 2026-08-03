@@ -42,8 +42,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.pinglin.closet
-        PRODUCT_NAME: Closet
-        INFOPLIST_KEY_CFBundleDisplayName: Closet
+        PRODUCT_NAME: Loomies
+        INFOPLIST_KEY_CFBundleDisplayName: Loomies
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
