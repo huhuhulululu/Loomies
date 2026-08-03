@@ -47,7 +47,8 @@ enum BodyMorphRaster {
         let hasAlpha = true
 
         // 棚灰底 RGB
-        let bgR: UInt8 = 184, bgG: UInt8 = 184, bgB: UInt8 = 186
+        // 与 BodyAvatar 统一棚灰 TARGET≈158 对齐
+        let bgR: UInt8 = 158, bgG: UInt8 = 158, bgB: UInt8 = 158
         var out = [UInt8](repeating: 255, count: outW * outH * 4)
         let outCx = Double(outW - 1) / 2
         let srcCx = Double(srcW - 1) / 2

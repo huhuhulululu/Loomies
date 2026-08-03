@@ -131,7 +131,8 @@ public struct BodyAvatarView: View {
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
-        .background(DS.surface)
+        // 与 croquis 统一棚灰（≈ RGB 158）对齐，避免画布/图底色差
+        .background(Color(red: 158 / 255, green: 158 / 255, blue: 158 / 255))
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 

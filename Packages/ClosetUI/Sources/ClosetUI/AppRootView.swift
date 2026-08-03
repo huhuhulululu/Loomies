@@ -237,7 +237,7 @@ public struct ClosetGridView: View {
                 }
             }
             .sheet(isPresented: $showIntake) {
-                QuickAddSheet(wardrobe: wardrobe)
+                AddPieceSheet(wardrobe: wardrobe)
             }
             .onAppear { loadBodyProfile() }
         }

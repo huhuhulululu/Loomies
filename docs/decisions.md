@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D38 [2026-08-03] BodyAvatar 棚灰统一 + 写实精修 + PHPicker
+- 全库 croquis 低色度灰区 → 统一 cyclorama（角点 span ~60→~5；脚本 `unify-body-studio.py`）
+- 5 体型正面 + 若干角度 image_edit 写实 pass（保留乳贴/丁字裤；侧角偶发 moderated 则保留棚处理版）
+- UI 画布 / morph 填色对齐 RGB≈158
+- Closet「+」→ `AddPieceSheet`：Photos PHPicker + mock 打标 / 手填
+
 ## D37 [2026-08-03] 本地 v1.0 功能补全波
 闭合 placeholder / 服务未接线项（仍不做真机云）：
 - CalendarView：收藏排期、needsAttention 过滤、删除

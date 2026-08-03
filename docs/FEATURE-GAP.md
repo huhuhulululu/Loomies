@@ -35,7 +35,7 @@
 
 | 能力 | 说明 |
 |------|------|
-| PHPicker / 相机连拍 | 需 PhotosUI 真机 |
+| PHPicker / 相机连拍 | **PHPicker 已接线**（Closet +）；相机连拍仍后置 |
 | Vision 抠图 / OCR 真推理 | 模拟器不全 |
 | WeatherKit | 协议已隔离；现用城市气候表，真机可换实现 |
 | CloudKit 私有库 | D5 双域已模板，Capability 待开 |
