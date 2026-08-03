@@ -35,21 +35,27 @@ Onboarding → 入库 → 管理（多衣柜/转移/删除/跨柜检索）
               日历计划 ↔ Outfit 缺件 needsAttention
 ```
 
-## 你接手要做的（需 Xcode / 真机）
+## Xcode 状态（2026-08-03）
 
-1. **组装 Xcode App target**：见 `app-shell/README.md` + `ClosetApp.swift.template`（填 CloudKit container id）。加四个本地 SPM 包（含 ClosetIntake）。
-2. **真机验证**：
-   - Copilot / Onboarding / CheckIn 渲染与交互（模拟器可先）
-   - CloudKit 私有库真同步 + 双机竞态（真机 ×2）
-   - Vision 抠图 / OCR（真机）
-   - WeatherKit 实现 `WeatherProviding`（替换 Fixed）
-   - Liquid Glass 自定义玻璃 ≤2 处
-3. **未建 / 真机侧待补**：
+**已本地组装并模拟器跑通**：
+- `app-shell/project.yml` + `xcodegen generate` → `ClosetApp.xcodeproj`
+- `xcodebuild` → **BUILD SUCCEEDED**（iPhone 17 Pro / iOS 26.2）
+- `simctl launch com.pinglin.closet` 已起；`open ClosetApp.xcodeproj` 可继续改
+
+```bash
+cd app-shell && xcodegen generate
+open ClosetApp.xcodeproj   # ⌘R 跑模拟器
+```
+
+## 你接手要做的（真机 / 产品化）
+
+1. **真机**：Signing Team 已填 `28626PSX5Y`；开 iCloud CloudKit 后改 mainConfig 为 `.private("iCloud.com.pinglin.closet")`。
+2. **真机验证**：CloudKit 双机、Vision 抠图/OCR、WeatherKit 实接 `WeatherProviding`、Liquid Glass ≤2。
+3. **未建 / 待补**：
    - 连拍/PHPicker 全流水线 UI 接线
-   - 洗标 OCR 真实现、设置页完整、通知、遥测接入
-   - Calendar/Me 从 placeholder → 完整 View（服务已就绪）
-   - 幂等转移操作记录 DL-6（CloudKit 合并，D15 降级 v1.x）
-   - AI Worker + App Attest（v1.0 最小打标基建）
+   - 洗标 OCR 真实现、设置页完整、通知、遥测 SDK 接入
+   - Calendar/Me 从 placeholder → 完整 View
+   - DL-6 幂等转移（D15 降 v1.x）、AI Worker + App Attest
 
 ## 关键决策速查（详见 `docs/decisions.md`）
 

@@ -108,3 +108,9 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - Copilot 冷启动门（可用件 < 阈值 → 禁 full-auto、须锚定）
 - FitMarkCopy en-US 文案；TelemetryEvent + Payload 白名单/身体红线
 - 结果：**154 tests** 全绿。
+
+## D24 [2026-08-03] 本地 Xcode 组装 + 模拟器跑通
+用 XcodeGen 生成 `app-shell/ClosetApp.xcodeproj`，挂四个本地 SPM 包；CloudKit 默认 off 以便模拟器启动。
+- `xcodebuild` iPhone 17 Pro / iOS 26.2 → **BUILD SUCCEEDED**
+- `simctl launch com.pinglin.closet` 成功；工程可 `open ClosetApp.xcodeproj`
+- 首启 Onboarding（名+城）→ AppRoot 4-tab；真机再开 CloudKit / Vision / WeatherKit

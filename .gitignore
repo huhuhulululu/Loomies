@@ -5,3 +5,14 @@ preview/
 # SwiftPM
 .build/
 Packages/*/.build/
+
+# Claude 工作产物
+.claude/worktrees/
+.planning/
+.shots/
+
+# Xcode user state
+**/xcuserdata/
+**/*.xcuserstate
+Packages/*/.swiftpm/
+app-shell/ClosetApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved

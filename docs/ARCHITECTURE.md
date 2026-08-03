@@ -17,7 +17,7 @@
 | ClosetUI | `Packages/ClosetUI/` | DesignSystem + Copilot（wear/body/weather/**冷启动门**）+ Intake + Onboarding/CheckIn + **SearchViewModel** + **WardrobeSwitcherViewModel** + AppRoot 4-tab | `swift test` **20 tests** + `swift build` |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` **4 tests** + Vision swift build |
 
-> App 外壳（`app-shell/`，需 Xcode）：ClosetApp 入口模板（双域 ModelConfiguration，D5）+ 组装 README。
+> App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
 
 > 计划中完整 SPM 结构见 `MVP-PLAN.md §3`。当前 4 包覆盖 RulesEngine 先行部分 + 数据层 + UI 逻辑 + 入库 seam。
 

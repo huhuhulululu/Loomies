@@ -1,0 +1,60 @@
+# XcodeGen spec — 生成 ClosetApp.xcodeproj
+# 用法：cd app-shell && xcodegen generate
+name: ClosetApp
+options:
+  bundleIdPrefix: com.pinglin
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  defaultConfig: Debug
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    DEVELOPMENT_TEAM: 28626PSX5Y
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.1.0"
+
+packages:
+  ClosetCore:
+    path: ../Packages/ClosetCore
+  ClosetModel:
+    path: ../Packages/ClosetModel
+  ClosetUI:
+    path: ../Packages/ClosetUI
+  ClosetIntake:
+    path: ../Packages/ClosetIntake
+
+targets:
+  ClosetApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: ClosetApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pinglin.closet
+        PRODUCT_NAME: Closet
+        INFOPLIST_KEY_CFBundleDisplayName: Closet
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan garments into your closet."
+        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: "Import garment photos into your closet."
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # 本地模拟器：不强制 CloudKit / Push；真机再开 Capabilities
+        CODE_SIGN_ENTITLEMENTS: ClosetApp/ClosetApp.entitlements
+    dependencies:
+      - package: ClosetCore
+      - package: ClosetModel
+      - package: ClosetUI
+      - package: ClosetIntake
+    scheme:
+      testTargets: []
+      gatherCoverageData: false
