@@ -188,12 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
-## D36 [2026-08-03] 乳贴漂移 + 分条碎裂修复
-真机反馈「乳贴验证漂移 / 图片压缩破碎」：
-- **根因**：`BodyMorphStripView` 多层 SwiftUI mask+scaleEffect 在胸带产生水平碎裂缝，乳贴被条带梯度撕开
-- **修**：`BodyMorphRaster` 单次 CG 裁条绘制 + 1px 重叠；中性 morph 直出原 PNG（scale=1 解码）
-- **乳贴带** y∈[0.30,0.40] 平坦尺度（`chestSoft` 阻尼）；scale 夹紧 0.90…1.10
-- `drawingGroup(opaque:)` 合并合成，减碎边
+## D36 [2026-08-03] 乳贴+丁字裤：保留装，修变形层
+产品硬约束：**保留乳贴与丁字裤**（不靠去装躲问题）。
+- **根因**：多层 SwiftUI mask+scale 碎裂 + 胸/髋带行梯度剪切贴身件
+- **修 v2**：`BodyMorphRaster` **扫描线双线性 warp**（无 crop 接缝）；RGBA 无损解码
+- **保护带**：乳贴 y∈[0.29,0.41]、丁字裤 y∈[0.48,0.58] **平坦** scale；smoothstep 过渡
+- 中性 morph 直出原 PNG；预设幅度收紧；位图缓存；去掉 drawingGroup 二次栅格
 
 ## D35 [2026-08-03] TestFlight build 4/5 签名与导出
 - Archive：仅 App 目标 Manual + profile `Closet App Store TF2`（勿 CLI 全局 `PROVISIONING_PROFILE`，会污染 SPM 资源包 ClosetUI_ClosetUI）

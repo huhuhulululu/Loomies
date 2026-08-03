@@ -14,6 +14,7 @@
 | ASC API 上传 | ✅ Key `YFRZC2GC2V` + Issuer 已接线 |
 | Build 4 | ✅ Delivery `1971ce14-573b-4b50-857a-fbdbbb58f7ad`（BodyMorph） |
 | Build 5 | ✅ Delivery `d4a70b44-09d3-4e38-a73f-6fa3f48428ed`（fine-tune 持久化） |
+| Build 6 | ✅ Delivery `575a6095-4748-4c85-aab0-ceab48518d6f`（乳贴带平坦 + CG morph，修碎裂） |
 
 **坑**：① CLI 全局 `PROVISIONING_PROFILE_SPECIFIER` 会污染 SPM 资源包；② export 时 PATH 勿让 Homebrew rsync 抢先（见 D35）。
 

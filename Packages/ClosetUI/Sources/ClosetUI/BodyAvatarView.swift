@@ -127,7 +127,7 @@ public struct BodyAvatarView: View {
             }
             .frame(width: size.width, height: size.height)
             .clipped()
-            .drawingGroup(opaque: true)  // 合并合成，减 JPEG 感碎边
+            // 不用 drawingGroup：会再栅格一次，加重「压缩破碎」感；warp 已是位图
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)

@@ -28,6 +28,15 @@ struct BodyMorphParamsTests {
         #expect(abs(b - c) < 0.002)
     }
 
+    @Test func thongBandIsFlatAgainstShear() {
+        let m = BodyMorphParams(chest: 1.05, waist: 0.94, hip: 1.08, shoulder: 1.02, height: 1)
+        let a = m.horizontalScale(normalizedY: 0.50)
+        let b = m.horizontalScale(normalizedY: 0.54)
+        let c = m.horizontalScale(normalizedY: 0.57)
+        #expect(abs(a - b) < 0.002)
+        #expect(abs(b - c) < 0.002)
+    }
+
     @Test func isVisuallyNeutralDetectsIdentity() {
         #expect(BodyMorphParams.neutral.isVisuallyNeutral)
         #expect(!BodyMorphParams(chest: 1.05, waist: 1, hip: 1, shoulder: 1, height: 1).isVisuallyNeutral)
