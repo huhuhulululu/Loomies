@@ -153,7 +153,14 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 ## D30 [2026-08-03] 人体可视化：真人参考、不要动画
 用户明确「不需要动画 要真人」：
 - **不做** 体型过渡动画 / 抽象单色 croquis 主路径 / 自拍 VTON
-- **做** 5 大众体型写实时尚目录站姿（bodysuit）PNG 作底图；FFIT→PopularShape 选图；围度仅轻微宽度缩放
+- **做** 5 大众体型写实时尚目录站姿 PNG 作底图；FFIT→PopularShape 选图；围度仅轻微宽度缩放
 - Core：`BodyAvatarLayout`（槽位锚点、z-order、scaler clamp、composer）
 - UI：`BodyAvatarView` + `Resources/BodyAvatar/croquis_*.png`；Me → Body 页顶部预览
 - 叠衣槽位仍为表达层色块/可选 asset；完整抠图叠衣与「不怪异」验收仍属 v1.x 精修
+
+## D31 [2026-08-03] 体型 360° 多角度视图
+用户要「全面 360 视图」：
+- **8 静态帧**（每 45°）：`BodyAvatarYaw` + 资源名 `croquis_{shape}_yaw{000…315}`
+- UI：拖拽 / 方位点 / 左右按钮瞬时切帧（`transaction.animation = nil`），不做插值旋转动画
+- 资产：hourglass 满 8 角；其余 4 体型主方位 0/90/180/270 实拍生成，中间角就近回退
+- 贴肤极简内衣（全裸生成被审核拦截）；叠衣层仅正面 yaw000 显示

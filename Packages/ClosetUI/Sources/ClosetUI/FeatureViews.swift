@@ -141,7 +141,7 @@ public struct BodyProfileView: View {
             } header: {
                 Text("Body reference")
             } footer: {
-                Text("Photoreal fit-model guide by body type — not a selfie try-on, no animation.")
+                Text("360° fit-model guide (drag to rotate) — not a selfie try-on; static frames, no spin animation.")
                     .font(.caption2)
             }
 

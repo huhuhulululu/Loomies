@@ -8,34 +8,44 @@ import UIKit
 import AppKit
 #endif
 
-/// 真人站姿体型参考 + 槽位叠衣（DESIGN §F6 表达层，非 VTON / 非动画）。
-/// 资产：`Resources/BodyAvatar/croquis_*.png`（写实时尚目录 bodysuit 站姿，5 大众体型）。
+/// 真人站姿体型参考 + **360° 静态多角度** + 槽位叠衣（DESIGN §F6，非 VTON）。
+/// 拖拽/点选切换偏航角（每 45° 一帧）；**无插值动画**。
+/// 资产：`Resources/BodyAvatar/croquis_{shape}_yaw{000…315}.png`
 public struct BodyAvatarView: View {
     public var shape: PopularShape
     public var scale: BodyAvatarScale
     public var layers: [BodyAvatarLayer]
     public var fitCaption: String?
     public var showsFitCaption: Bool
+    public var enablesOrbit: Bool
+
+    @State private var yaw: BodyAvatarYaw = .deg0
+    @State private var dragOriginYaw: BodyAvatarYaw?
 
     public init(
         shape: PopularShape = .rectangle,
         scale: BodyAvatarScale = BodyAvatarScale(widthScale: 1, hipScale: 1, waistScale: 1),
         layers: [BodyAvatarLayer] = [],
         fitCaption: String? = nil,
-        showsFitCaption: Bool = true
+        showsFitCaption: Bool = true,
+        enablesOrbit: Bool = true,
+        initialYaw: BodyAvatarYaw = .deg0
     ) {
         self.shape = shape
         self.scale = scale
         self.layers = layers
         self.fitCaption = fitCaption
         self.showsFitCaption = showsFitCaption
+        self.enablesOrbit = enablesOrbit
+        _yaw = State(initialValue: initialYaw)
     }
 
-    /// 从测量 + 单品槽位构建（静态；无体型切换动画）。
+    /// 从测量 + 单品槽位构建。
     public static func from(
         measurements: BodyMeasurements?,
         slotAssets: [BodyAvatarSlot: String] = [:],
-        fitCaption: String? = nil
+        fitCaption: String? = nil,
+        enablesOrbit: Bool = true
     ) -> BodyAvatarView {
         let shape = BodyAvatarComposer.resolveShape(from: measurements)
         let scale = measurements.map { BodyAvatarScaler.scale(from: $0) }
@@ -44,60 +54,133 @@ public struct BodyAvatarView: View {
             shape: shape,
             scale: scale,
             layers: BodyAvatarComposer.layers(slots: slotAssets),
-            fitCaption: fitCaption)
+            fitCaption: fitCaption,
+            enablesOrbit: enablesOrbit)
     }
 
     public var body: some View {
         VStack(spacing: 10) {
-            GeometryReader { geo in
-                let w = geo.size.width
-                // 真人图只做轻微宽度缩放，避免 scaleEffect 扭脸；体型主要靠 5 套底图切换。
-                let displayWidth = w * min(max(scale.widthScale, 0.92), 1.08) * 0.94
-                ZStack {
-                    Group {
-                        if let img = Self.bundleImage(named: BodyAvatarAsset.croquisName(for: shape)) {
-                            img
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: displayWidth)
-                        } else {
-                            PlaceholderCroquis(shape: shape)
-                                .frame(width: displayWidth)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            modelCanvas
+                .gesture(enablesOrbit ? orbitDrag : nil)
+                .accessibilityHint(enablesOrbit ? "Drag left or right to rotate view" : "")
 
+            if enablesOrbit {
+                orbitChrome
+            }
+
+            if showsFitCaption {
+                captionBlock
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Body shape \(shape.rawValue), \(yaw.shortLabel) view")
+        .onChange(of: shape) { _, _ in
+            // 换体型时回到正面（瞬时，无动画）
+            yaw = .deg0
+        }
+    }
+
+    // MARK: - Canvas
+
+    private var modelCanvas: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let displayWidth = w * min(max(scale.widthScale, 0.92), 1.08) * 0.94
+            ZStack {
+                Group {
+                    if let img = croquisImage(for: yaw) {
+                        img
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: displayWidth)
+                    } else {
+                        PlaceholderCroquis(shape: shape)
+                            .frame(width: displayWidth)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 叠衣锚点按正面标定；仅正面显示槽位层
+                if yaw == .deg0 {
                     ForEach(layers) { layer in
                         garmentLayer(layer, canvas: geo.size)
                     }
                 }
-                .frame(width: w, height: geo.size.height)
-                .clipped()
             }
-            .aspectRatio(2 / 3, contentMode: .fit)
-            .background(DS.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+            .frame(width: w, height: geo.size.height)
+            .clipped()
+            // 禁止隐式动画：换帧瞬时
+            .transaction { $0.animation = nil }
+        }
+        .aspectRatio(2 / 3, contentMode: .fit)
+        .background(DS.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
 
-            if showsFitCaption {
-                VStack(spacing: 4) {
-                    Text(displayShapeTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(DS.ink)
-                    if let fitCaption, !fitCaption.isEmpty {
-                        Text(fitCaption)
-                            .font(.caption)
-                            .foregroundStyle(DS.muted)
-                            .multilineTextAlignment(.center)
-                    } else {
-                        Text("Real-body proportion guide — not a photo try-on.")
-                            .font(.caption2)
-                            .foregroundStyle(DS.muted)
-                    }
+    private var orbitChrome: some View {
+        VStack(spacing: 8) {
+            // 8 点方位指示
+            HStack(spacing: 6) {
+                ForEach(BodyAvatarYaw.allCases, id: \.rawValue) { a in
+                    Circle()
+                        .fill(a == yaw ? DS.accent : DS.muted.opacity(0.35))
+                        .frame(width: a == yaw ? 8 : 6, height: a == yaw ? 8 : 6)
+                        .onTapGesture {
+                            yaw = a
+                        }
+                        .accessibilityLabel(a.shortLabel)
                 }
             }
+            HStack {
+                Button {
+                    yaw = yaw.stepped(by: -1)
+                } label: {
+                    Image(systemName: "chevron.left.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(DS.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Previous angle")
+
+                Spacer()
+                Text("360° · \(yaw.shortLabel) · \(yaw.rawValue)°")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(DS.muted)
+                Spacer()
+
+                Button {
+                    yaw = yaw.stepped(by: 1)
+                } label: {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(DS.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Next angle")
+            }
+            .padding(.horizontal, 4)
+
+            Text("Swipe or tap dots · static frames, no spin animation")
+                .font(.caption2)
+                .foregroundStyle(DS.muted)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Body shape \(shape.rawValue)")
+    }
+
+    private var captionBlock: some View {
+        VStack(spacing: 4) {
+            Text(displayShapeTitle)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DS.ink)
+            if let fitCaption, !fitCaption.isEmpty {
+                Text(fitCaption)
+                    .font(.caption)
+                    .foregroundStyle(DS.muted)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("Real-body proportion guide — not a photo try-on.")
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+            }
+        }
     }
 
     private var displayShapeTitle: String {
@@ -108,6 +191,43 @@ public struct BodyAvatarView: View {
         case .rectangle: return "Rectangle"
         case .invertedTriangle: return "Inverted triangle"
         }
+    }
+
+    /// 水平拖拽：约每 36pt 切一档（8 档覆盖 360°）。
+    private var orbitDrag: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                if dragOriginYaw == nil { dragOriginYaw = yaw }
+                let origin = dragOriginYaw ?? yaw
+                let stepPx: CGFloat = 36
+                let steps = Int((value.translation.width / stepPx).rounded())
+                // 向右拖 → 看左侧（角度减小）；向左拖 → 向右转
+                let next = origin.stepped(by: -steps)
+                if next != yaw { yaw = next }
+            }
+            .onEnded { _ in
+                dragOriginYaw = nil
+            }
+    }
+
+    // MARK: - Images
+
+    private func croquisImage(for yaw: BodyAvatarYaw) -> Image? {
+        // 精确角 → 相邻 45° → 主方位(0/90/180/270) → 正面 / 旧名
+        var tried: [BodyAvatarYaw] = [yaw]
+        tried.append(yaw.stepped(by: 1))
+        tried.append(yaw.stepped(by: -1))
+        let cardinals: [BodyAvatarYaw] = [.deg0, .deg90, .deg180, .deg270]
+        tried.append(contentsOf: cardinals.sorted {
+            abs($0.rawValue - yaw.rawValue) < abs($1.rawValue - yaw.rawValue)
+                || (abs($0.rawValue - yaw.rawValue) == abs($1.rawValue - yaw.rawValue) && $0.rawValue < $1.rawValue)
+        })
+        var seen = Set<Int>()
+        for y in tried where seen.insert(y.rawValue).inserted {
+            let name = BodyAvatarAsset.croquisName(for: shape, yaw: y)
+            if let img = Self.bundleImage(named: name) { return img }
+        }
+        return Self.bundleImage(named: BodyAvatarAsset.legacyFrontName(for: shape))
     }
 
     @ViewBuilder
@@ -160,7 +280,6 @@ public struct BodyAvatarView: View {
         }
     }
 
-    /// 从 SPM module 加载 `BodyAvatar/<name>.png`（静态，无 asset catalog 依赖）。
     static func bundleImage(named name: String) -> Image? {
         let urls: [URL?] = [
             Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar"),
@@ -178,7 +297,7 @@ public struct BodyAvatarView: View {
     }
 }
 
-/// 无 PNG 时的程序化剪影（保证无资产也能编 UI）。
+/// 无 PNG 时的程序化剪影。
 struct PlaceholderCroquis: View {
     var shape: PopularShape
     var body: some View {

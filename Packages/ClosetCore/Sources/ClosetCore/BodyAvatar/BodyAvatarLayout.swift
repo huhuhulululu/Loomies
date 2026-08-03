@@ -80,19 +80,92 @@ public enum BodyAvatarScaler {
     }
 }
 
-/// croquis 资源名（无扩展名，对应 Assets / Bundle）。
-public enum BodyAvatarAsset {
-    public static func croquisName(for shape: PopularShape) -> String {
-        switch shape {
-        case .hourglass: return "croquis_hourglass"
-        case .pear: return "croquis_pear"
-        case .apple: return "croquis_apple"
-        case .rectangle: return "croquis_rectangle"
-        case .invertedTriangle: return "croquis_invertedTriangle"
+/// 360° 体型参考偏航角（每 45° 一帧，静态切帧，不做插值动画）。
+public enum BodyAvatarYaw: Int, CaseIterable, Sendable, Comparable {
+    case deg0 = 0       // 正面
+    case deg45 = 45     // 右前 3/4
+    case deg90 = 90     // 右侧
+    case deg135 = 135   // 右后 3/4
+    case deg180 = 180   // 背面
+    case deg225 = 225   // 左后 3/4
+    case deg270 = 270   // 左侧
+    case deg315 = 315   // 左前 3/4
+
+    public static func < (lhs: BodyAvatarYaw, rhs: BodyAvatarYaw) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    /// 资源后缀：`yaw000` … `yaw315`
+    public var assetSuffix: String {
+        String(format: "yaw%03d", rawValue)
+    }
+
+    public var shortLabel: String {
+        switch self {
+        case .deg0: return "Front"
+        case .deg45: return "¾ R"
+        case .deg90: return "Right"
+        case .deg135: return "¾ BR"
+        case .deg180: return "Back"
+        case .deg225: return "¾ BL"
+        case .deg270: return "Left"
+        case .deg315: return "¾ L"
         }
     }
 
-    public static let allNames: [String] = PopularShape.allCases.map { croquisName(for: $0) }
+    /// 拖拽步进：delta>0 向右转（角度增加）。
+    public func stepped(by steps: Int) -> BodyAvatarYaw {
+        let all = Self.allCases
+        guard let i = all.firstIndex(of: self) else { return self }
+        let n = all.count
+        let j = ((i + steps) % n + n) % n
+        return all[j]
+    }
+
+    /// 将任意角度（度）吸附到最近的 45° 档。
+    public static func nearest(degrees: Double) -> BodyAvatarYaw {
+        var d = degrees.truncatingRemainder(dividingBy: 360)
+        if d < 0 { d += 360 }
+        let idx = Int((d / 45.0).rounded()) % allCases.count
+        return allCases[idx]
+    }
+}
+
+/// croquis 资源名（无扩展名，对应 Bundle PNG）。
+public enum BodyAvatarAsset {
+    /// 兼容旧名：无 yaw 后缀 = 正面（yaw000）。
+    public static func croquisName(for shape: PopularShape) -> String {
+        croquisName(for: shape, yaw: .deg0)
+    }
+
+    public static func croquisName(for shape: PopularShape, yaw: BodyAvatarYaw) -> String {
+        "croquis_\(shapeKey(shape))_\(yaw.assetSuffix)"
+    }
+
+    /// 旧正面资源名（无 yaw）；加载时作 fallback。
+    public static func legacyFrontName(for shape: PopularShape) -> String {
+        "croquis_\(shapeKey(shape))"
+    }
+
+    public static func shapeKey(_ shape: PopularShape) -> String {
+        switch shape {
+        case .hourglass: return "hourglass"
+        case .pear: return "pear"
+        case .apple: return "apple"
+        case .rectangle: return "rectangle"
+        case .invertedTriangle: return "invertedTriangle"
+        }
+    }
+
+    /// 全部 5 体型 × 8 角资源名。
+    public static var allNames: [String] {
+        PopularShape.allCases.flatMap { shape in
+            BodyAvatarYaw.allCases.map { croquisName(for: shape, yaw: $0) }
+        }
+    }
+
+    public static var angleCount: Int { BodyAvatarYaw.allCases.count }
+    public static var shapeCount: Int { PopularShape.allCases.count }
 }
 
 /// 叠衣层描述（UI 只消费此结构）。

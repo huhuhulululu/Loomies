@@ -50,8 +50,30 @@ struct BodyAvatarLayoutTests {
         for shape in PopularShape.allCases {
             let n = BodyAvatarAsset.croquisName(for: shape)
             #expect(n.hasPrefix("croquis_"))
+            #expect(n.contains("yaw000"))
         }
-        #expect(BodyAvatarAsset.allNames.count == PopularShape.allCases.count)
+        #expect(BodyAvatarAsset.allNames.count == PopularShape.allCases.count * BodyAvatarYaw.allCases.count)
+        #expect(BodyAvatarAsset.angleCount == 8)
+    }
+
+    @Test func yawStepsWrapAround() {
+        #expect(BodyAvatarYaw.deg0.stepped(by: 1) == .deg45)
+        #expect(BodyAvatarYaw.deg315.stepped(by: 1) == .deg0)
+        #expect(BodyAvatarYaw.deg0.stepped(by: -1) == .deg315)
+        #expect(BodyAvatarYaw.deg90.stepped(by: 2) == .deg180)
+    }
+
+    @Test func yawNearestSnapsTo45() {
+        #expect(BodyAvatarYaw.nearest(degrees: 10) == .deg0)
+        #expect(BodyAvatarYaw.nearest(degrees: 50) == .deg45)
+        #expect(BodyAvatarYaw.nearest(degrees: 200) == .deg180)
+        #expect(BodyAvatarYaw.nearest(degrees: -10) == .deg0)
+    }
+
+    @Test func multiAngleAssetNamesUnique() {
+        let names = BodyAvatarAsset.allNames
+        #expect(Set(names).count == names.count)
+        #expect(BodyAvatarAsset.croquisName(for: .pear, yaw: .deg180) == "croquis_pear_yaw180")
     }
 
     @Test func resolveShapeDefaultsRectangleWhenNil() {

@@ -19,7 +19,7 @@
 | **存放位置树** | StorageLocationService |
 | **收藏搭配 + 入日历** | OutfitFavoriteService + OutfitActionsViewModel |
 | **身体四围 + FFIT** | BodyProfileViewModel |
-| **真人体型参考（5 大众型）** | BodyAvatarLayout + BodyAvatarView + Me 体型页（写实站姿，非 VTON / 无动画） |
+| **真人体型参考 + 360°** | BodyAvatarYaw 8 角切帧 + 5 体型写实图；Me 体型页拖拽/点选（非 VTON / 无插值动画） |
 | **衣柜管理/切换** | WardrobeManageView + Root menu |
 | **About** | AboutView |
 | TestFlight build 3 上传 | Loomies ASC |

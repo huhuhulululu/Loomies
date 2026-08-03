@@ -14,7 +14,7 @@
 |------|------|------|------|
 | ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/缩放/槽位** | `swift test` |
 | ClosetModel | `Packages/ClosetModel/` | SwiftData + ItemStatus/Editor/Storage/Favorite + Diagnostics | `swift test` |
-| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView（Resources/BodyAvatar 写实 PNG）** + 体型页预览 | `swift test` + build |
+| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360°（yaw 切帧 + BodyAvatar 写实 PNG）** | `swift test` + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
