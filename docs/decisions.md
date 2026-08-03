@@ -142,3 +142,10 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - DebugSettings：verbose / forceColdStart / disableAntiRepeat / status 条（UserDefaults + `-debugVerbose` / `LOOMIES_DEBUG=1`）
 - Copilot empty reason + 耗时；Calendar 计划列表；ModelSave 统一落库日志
 - 164 tests；build 3；iOS 模拟器 BUILD SUCCEEDED
+
+## D29 [2026-08-03] v1.0 功能缺口全面补齐（CLI+UI）
+对照 DESIGN §7 v1.0，补可验证缺口（真机 Vision/CloudKit/Worker 仍后置）：
+- ItemStatus / ItemEditor / StorageLocation / OutfitFavorite 服务 + TDD
+- 单品详情+转移、身体四围+FFIT、衣柜管理、收藏、建议→Save/Plan today、About
+- Outfit 加法字段 isFavorite/occasion/source；Person personalColorSeasonRaw
+- 验收：四包 tests 绿 + 模拟器 build

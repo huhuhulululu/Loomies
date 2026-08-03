@@ -1,5 +1,4 @@
-// App 入口（本地 Xcode / 模拟器可跑）。
-// CloudKit 默认 off；真机改为 .private("iCloud.com.pinglin.closet") 并加 Capability。
+// Loomies App 入口。CloudKit 默认 off。
 import SwiftUI
 import SwiftData
 import ClosetModel
@@ -11,7 +10,6 @@ struct ClosetApp: App {
     let container: ModelContainer
 
     init() {
-        // 拉起 DebugSettings（读 launch args / LOOMIES_DEBUG=1）
         _ = DebugSettings.shared
         AppLog.notice("Loomies launch", .app)
 
@@ -20,11 +18,9 @@ struct ClosetApp: App {
             Outfit.self, WearRecord.self, CalendarPlan.self,
         ])
         let mainConfig = ModelConfiguration(
-            "main", schema: mainSchema,
-            cloudKitDatabase: .none)
+            "main", schema: mainSchema, cloudKitDatabase: .none)
         let localConfig = ModelConfiguration(
-            "local", schema: Schema([PersonBodyProfile.self]),
-            cloudKitDatabase: .none)
+            "local", schema: Schema([PersonBodyProfile.self]), cloudKitDatabase: .none)
 
         do {
             container = try ModelContainer(
@@ -46,13 +42,12 @@ struct ClosetApp: App {
     }
 }
 
-/// 根导航：无衣柜 → Onboarding；有 → 可选柜 + AppRoot。
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Wardrobe.name) private var wardrobes: [Wardrobe]
-    @Query private var people: [Person]
     @State private var onboarding = OnboardingViewModel()
     @State private var activeID: UUID?
+    @State private var showSwitcher = false
 
     private var activeWardrobe: Wardrobe? {
         if let id = activeID, let w = wardrobes.first(where: { $0.id == id }) { return w }
@@ -60,18 +55,44 @@ struct RootView: View {
     }
 
     var body: some View {
-        if let wardrobe = activeWardrobe {
-            AppRootView(wardrobe: wardrobe)
-        } else {
-            OnboardingScreen(vm: onboarding) {
-                if onboarding.finish(in: modelContext) {
-                    // 首启自动灌演示种子，模拟器立刻能玩 copilot
-                    if let w = onboarding.wardrobe {
-                        _ = DemoSeedService.seedIfEmpty(w, in: modelContext)
-                        activeID = w.id
+        Group {
+            if let wardrobe = activeWardrobe {
+                AppRootView(wardrobe: wardrobe)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if wardrobes.count > 1 {
+                            HStack {
+                                Menu {
+                                    ForEach(wardrobes, id: \.id) { w in
+                                        Button(w.name.isEmpty ? "Closet" : w.name) {
+                                            activeID = w.id
+                                            AppLog.info("switch wardrobe \(w.name)", .app)
+                                        }
+                                    }
+                                } label: {
+                                    Label(wardrobe.name.isEmpty ? "Closet" : wardrobe.name,
+                                          systemImage: "cabinet")
+                                        .font(.subheadline.weight(.semibold))
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                }
+                                Spacer()
+                            }
+                            .background(.ultraThinMaterial)
+                        }
+                    }
+            } else {
+                OnboardingScreen(vm: onboarding) {
+                    if onboarding.finish(in: modelContext) {
+                        if let w = onboarding.wardrobe {
+                            _ = DemoSeedService.seedIfEmpty(w, in: modelContext)
+                            activeID = w.id
+                        }
                     }
                 }
             }
+        }
+        .onChange(of: wardrobes.count) { _, _ in
+            if activeID == nil { activeID = wardrobes.first?.id }
         }
     }
 }
@@ -90,7 +111,7 @@ struct OnboardingScreen: View {
                         .textContentType(.addressCity)
                 }
                 Section {
-                    Text("We'll add a few sample pieces so you can try outfit suggestions right away.")
+                    Text("We'll add sample pieces so you can try outfit suggestions right away.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

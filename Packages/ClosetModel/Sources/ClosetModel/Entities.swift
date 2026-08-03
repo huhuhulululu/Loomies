@@ -10,6 +10,8 @@ public final class Person {
     public var id: UUID = UUID()
     public var name: String = ""
     public var coldBias: Int = 0   // 怕冷(+)/怕热(-)偏置
+    /// 个人色彩季型可选（R11），raw 字符串；加法字段
+    public var personalColorSeasonRaw: String?
     @Relationship(deleteRule: .cascade, inverse: \Wardrobe.owner)
     public var wardrobes: [Wardrobe]? = []
     public init(name: String = "") { self.name = name }
@@ -95,6 +97,11 @@ public final class Outfit {
     public var items: [Item]? = []
     public var missing: Bool = false             // 缺件置灰（转移后成员离柜）
     public var permanentlyMissing: Bool = false  // 永久缺件（成员被删）
+    // 加法 schema（§11.1 不破冻）
+    public var occasionRaw: String?              // 场合
+    public var isFavorite: Bool = false          // 收藏
+    public var sourceRaw: String?                // copilot | manual
+    public var notes: String?
     public init(name: String = "") { self.name = name }
 }
 

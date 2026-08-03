@@ -8,6 +8,7 @@ public struct CopilotView: View {
     @Environment(\.modelContext) private var context
     @State private var vm: CopilotViewModel
     @State private var checkInNote: String?
+    @State private var actions = OutfitActionsViewModel()
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
@@ -157,20 +158,19 @@ public struct CopilotView: View {
                 Text(names.joined(separator: " · "))
                     .font(.caption).foregroundStyle(DS.ink)
             }
-            Button { checkIn(scored) } label: {
-                Text("I wore this")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(DS.surface)
-                    .foregroundStyle(DS.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DS.radius)
-                            .stroke(DS.accent.opacity(0.4), lineWidth: 1)
-                    )
+            HStack(spacing: 8) {
+                actionBtn("Save") {
+                    actions.saveFavorite(scored: scored, occasion: vm.occasion,
+                                         in: vm.wardrobe, context: context)
+                    checkInNote = actions.message
+                }
+                actionBtn("Plan today") {
+                    actions.planToday(scored: scored, occasion: vm.occasion,
+                                      in: vm.wardrobe, context: context)
+                    checkInNote = actions.message
+                }
+                actionBtn("I wore this") { checkIn(scored) }
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -184,6 +184,23 @@ public struct CopilotView: View {
             .filter { ids.contains($0.id.uuidString) }
             .map(\.name)
             .sorted()
+    }
+
+    private func actionBtn(_ title: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(DS.surface)
+                .foregroundStyle(DS.accent)
+                .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.radius)
+                        .stroke(DS.accent.opacity(0.4), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func checkIn(_ scored: ScoredOutfit) {

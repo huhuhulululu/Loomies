@@ -119,9 +119,27 @@ public struct MePlaceholderView: View {
                         Text(seedMessage).font(.caption).foregroundStyle(DS.muted)
                     }
                 }
+                Section("Wardrobes") {
+                    NavigationLink("Manage wardrobes") {
+                        WardrobeManageView()
+                    }
+                }
+                Section("Looks") {
+                    NavigationLink("Favorites") {
+                        FavoritesView(wardrobe: wardrobe)
+                    }
+                }
                 Section("Profile") {
-                    Label("Body measurements", systemImage: "figure.stand")
+                    NavigationLink {
+                        // soft person id from wardrobe owner or zero UUID fallback
+                        BodyProfileView(personID: wardrobe.owner?.id ?? UUID())
+                    } label: {
+                        Label("Body measurements", systemImage: "figure.stand")
+                    }
                     Label("Personal color", systemImage: "paintpalette")
+                }
+                Section("About") {
+                    NavigationLink("About Loomies") { AboutView() }
                 }
                 Section("Support") {
                     Button("Export diagnostics") {
@@ -268,13 +286,26 @@ public struct ClosetGridView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
                 ForEach(items, id: \.id) { item in
-                    VStack(spacing: 6) {
-                        RoundedRectangle(cornerRadius: DS.radius)
-                            .fill(DS.surface)
-                            .frame(height: 120)
-                            .overlay(Text(item.slotRaw).font(.caption2).foregroundStyle(DS.muted))
-                        Text(item.name).font(.caption).lineLimit(1)
+                    NavigationLink {
+                        ItemDetailView(item: item)
+                    } label: {
+                        VStack(spacing: 6) {
+                            RoundedRectangle(cornerRadius: DS.radius)
+                                .fill(DS.surface)
+                                .frame(height: 120)
+                                .overlay(
+                                    VStack {
+                                        Text(item.slotRaw).font(.caption2).foregroundStyle(DS.muted)
+                                        if item.statusRaw != "available" {
+                                            Text(ItemStatusService.displayName(item.statusRaw))
+                                                .font(.caption2).foregroundStyle(.orange)
+                                        }
+                                    }
+                                )
+                            Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(16)
