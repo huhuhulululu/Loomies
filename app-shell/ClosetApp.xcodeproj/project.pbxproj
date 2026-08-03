@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0757D48D49CF43721EBF2BC7 /* ClosetCore in Frameworks */ = {isa = PBXBuildFile; productRef = F4375A4BAB3860BC3F455E13 /* ClosetCore */; };
 		373133250AECC5B7FA11A19A /* ClosetModel in Frameworks */ = {isa = PBXBuildFile; productRef = E06703110E6F15B79E52FB95 /* ClosetModel */; };
+		59A0910EC266026FB31A80E2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */; };
 		84903C872BC58F6E02917424 /* ClosetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */; };
 		B739281490AEEFE7C05CD181 /* ClosetUI in Frameworks */ = {isa = PBXBuildFile; productRef = 086BA91D9A7B43D44EB82826 /* ClosetUI */; };
 		DE3673039A14C4D82378556A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 754D8304F540F1CB0B9D66CD /* Assets.xcassets */; };
@@ -16,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		08716002FFFADE1BE320A7A6 /* ClosetIntake */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetIntake; path = ../Packages/ClosetIntake; sourceTree = SOURCE_ROOT; };
 		4F122F048969F3CEEBE8024B /* ClosetCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetCore; path = ../Packages/ClosetCore; sourceTree = SOURCE_ROOT; };
 		50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosetApp.swift; sourceTree = "<group>"; };
@@ -75,6 +77,7 @@
 				754D8304F540F1CB0B9D66CD /* Assets.xcassets */,
 				7D07F0B7CF9771838267AB09 /* ClosetApp.entitlements */,
 				50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */,
+				03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */,
 			);
 			path = ClosetApp;
 			sourceTree = "<group>";
@@ -151,6 +154,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DE3673039A14C4D82378556A /* Assets.xcassets in Resources */,
+				59A0910EC266026FB31A80E2 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -175,20 +179,25 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ClosetApp/ClosetApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Closet;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan garments into your closet.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import garment photos into your closet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet;
 				PRODUCT_NAME = Closet;
 				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -200,20 +209,27 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ClosetApp/ClosetApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Closet;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan garments into your closet.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Import garment photos into your closet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet;
 				PRODUCT_NAME = Closet;
 				SDKROOT = iphoneos;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -253,7 +269,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 28626PSX5Y;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -314,7 +330,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 28626PSX5Y;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

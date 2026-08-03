@@ -34,6 +34,10 @@ Onboarding → 入库 → 管理（多衣柜/转移/删除/跨柜检索）
               日历计划 ↔ Outfit 缺件 needsAttention
 ```
 
+## Xcode / TestFlight 状态（2026-08-03）
+
+发版预备见 `app-shell/TESTFLIGHT.md`：图标/隐私/脚本已就绪；**须在 Terminal.app 解锁钥匙串后 archive**，并提供 ASC **Issuer ID**（Key `YFRZC2GC2V` 已在 `~/.appstoreconnect/private_keys/`）。
+
 ## Xcode 状态（2026-08-03）
 
 **已本地组装并模拟器跑通**：

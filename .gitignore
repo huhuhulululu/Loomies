@@ -16,3 +16,9 @@ Packages/*/.build/
 **/*.xcuserstate
 Packages/*/.swiftpm/
 app-shell/ClosetApp.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# TestFlight / local secrets
+app-shell/build/
+app-shell/.env.asc
+**/*.ipa
+**/*.xcarchive
