@@ -21,10 +21,11 @@
 | **身体四围 + FFIT** | BodyProfileViewModel |
 | **真人体型参考 + 360°** | BodyAvatarYaw 8 角切帧 + 5 体型写实图；Me 体型页拖拽/点选（非 VTON / 无插值动画） |
 | **连续 BodyMorph** | `BodyMorphParams` + 分条变形；测量/预设/精调滑杆（胸腰臀高）实时预览；非 SMPL |
+| **BodyMorph fine-tune 持久化** | `PersonBodyProfile.fine*` + saveFineTune；重进 Me 保留 |
 | **体型双轨录入** | 5 图快选 + 四围 Stepper（in/cm）+ 上臀推断 + Fit confidence；Onboarding 可选体型 |
 | **衣柜管理/切换** | WardrobeManageView + Root menu |
 | **About** | AboutView |
-| TestFlight build 3 上传 | Loomies ASC |
+| TestFlight build 4/5 | Loomies ASC；b4=BodyMorph，b5=fine-tune 持久化 |
 
 ## 真机 / 云端仍缺（不阻塞本地闭环）
 
@@ -41,4 +42,4 @@
 
 ## v1.x（明确后置）
 
-embedding 语义搜、LLM 编排、尺码表种子、统计簇、差旅、IAP；纸娃娃叠衣精细化（肩线微调 / 小样本「不怪异」验收）；真 3D/SMPL 体型；BodyMorph fine-tune 持久化
+embedding 语义搜、LLM 编排、尺码表种子、统计簇、差旅、IAP；纸娃娃叠衣精细化（肩线微调 / 小样本「不怪异」验收）；真 3D/SMPL 体型

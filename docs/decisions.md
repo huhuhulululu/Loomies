@@ -186,3 +186,9 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 合成：测量优先 → 否则 5 体型 preset → 再 × fineTune（0.90…1.10）
 - UI：`BodyMorphStripView` ~48 水平条 X 缩放；Me 页 Continuous fine-tune 滑杆实时预览
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
+- fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
+
+## D35 [2026-08-03] TestFlight build 4/5 签名与导出
+- Archive：仅 App 目标 Manual + profile `Closet App Store TF2`（勿 CLI 全局 `PROVISIONING_PROFILE`，会污染 SPM 资源包 ClosetUI_ClosetUI）
+- Export：PATH 须优先 `/usr/bin`（Homebrew rsync 3.x 不认 Apple rsync `-E` → "Copy failed"）
+- Build 4 上传 Delivery `1971ce14-573b-4b50-857a-fbdbbb58f7ad`（BodyMorph）；build 5 含 fine-tune 持久化

@@ -18,7 +18,7 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     DEVELOPMENT_TEAM: 28626PSX5Y
     CODE_SIGN_STYLE: Automatic
-    CURRENT_PROJECT_VERSION: "3"
+    CURRENT_PROJECT_VERSION: "5"
     MARKETING_VERSION: "0.1.0"
 
 packages:
@@ -62,12 +62,16 @@ targets:
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
       configs:
         Release:
-          # Automatic signing picks Distribution cert on archive; do not force identity
+          # 仅 App 目标 Manual（勿在 CLI 全局设 PROVISIONING_PROFILE，会污染 SPM 资源包）
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "iPhone Distribution: Ping Lin (28626PSX5Y)"
+          PROVISIONING_PROFILE_SPECIFIER: "Closet App Store TF2"
           ONLY_ACTIVE_ARCH: NO
           SWIFT_OPTIMIZATION_LEVEL: -O
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
         Debug:
           ONLY_ACTIVE_ARCH: YES
+          CODE_SIGN_STYLE: Automatic
     dependencies:
       - package: ClosetCore
       - package: ClosetModel

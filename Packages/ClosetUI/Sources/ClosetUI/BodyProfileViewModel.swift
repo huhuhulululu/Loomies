@@ -53,6 +53,11 @@ public final class BodyProfileViewModel {
         recompute()
     }
 
+    public func resetFineTune(in context: ModelContext) {
+        resetFineTune()
+        saveFineTune(in: context)
+    }
+
     // MARK: - Display helpers (in/cm)
 
     public func displayValue(inches: Double?) -> String {
@@ -91,6 +96,10 @@ public final class BodyProfileViewModel {
             highHipInches = p.highHipInches
             highHipInferred = p.highHipInferred
             selectedPopular = BodyProfileService.parsePopular(p.popularShapeOverrideRaw)
+            fineChest = Self.clampFine(p.fineChest)
+            fineWaist = Self.clampFine(p.fineWaist)
+            fineHip = Self.clampFine(p.fineHip)
+            fineHeight = Self.clampFine(p.fineHeight)
         }
         recompute()
     }
@@ -103,6 +112,17 @@ public final class BodyProfileViewModel {
         recompute()
         message = saveMessage
         AppLog.info("body save complete=\(isComplete) conf=\(confidence.rawValue)", .data)
+    }
+
+    /// 精调即时落库（滑杆松手或 onChange 后调用）。
+    public func saveFineTune(in context: ModelContext) {
+        let p = ensureProfile(in: context)
+        p.fineChest = Self.clampFine(fineChest)
+        p.fineWaist = Self.clampFine(fineWaist)
+        p.fineHip = Self.clampFine(fineHip)
+        p.fineHeight = Self.clampFine(fineHeight)
+        ModelSave.save(context, label: "bodyFineTune")
+        recompute()
     }
 
     /// 快选体型并立即落库。
@@ -153,6 +173,14 @@ public final class BodyProfileViewModel {
         p.highHipInches = highHipInches
         p.highHipInferred = highHipInferred && highHipInches != nil
         p.popularShapeOverrideRaw = selectedPopular?.rawValue
+        p.fineChest = Self.clampFine(fineChest)
+        p.fineWaist = Self.clampFine(fineWaist)
+        p.fineHip = Self.clampFine(fineHip)
+        p.fineHeight = Self.clampFine(fineHeight)
+    }
+
+    private static func clampFine(_ v: Double) -> Double {
+        min(1.10, max(0.90, v.isFinite ? v : 1))
     }
 
     private var saveMessage: String {

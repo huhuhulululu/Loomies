@@ -126,6 +126,25 @@ struct FeatureGapViewModelTests {
         #expect(vm.morph.waist < 1.0)
     }
 
+    @Test func bodyFineTunePersistsAcrossLoad() throws {
+        let ctx = try makeContext()
+        let pid = UUID()
+        let vm = BodyProfileViewModel(personID: pid)
+        vm.selectedPopular = .pear
+        vm.fineChest = 1.05
+        vm.fineWaist = 0.94
+        vm.fineHip = 1.08
+        vm.fineHeight = 1.02
+        vm.save(in: ctx)
+        let vm2 = BodyProfileViewModel(personID: pid)
+        vm2.load(in: ctx)
+        #expect(abs(vm2.fineChest - 1.05) < 0.001)
+        #expect(abs(vm2.fineWaist - 0.94) < 0.001)
+        #expect(abs(vm2.fineHip - 1.08) < 0.001)
+        #expect(abs(vm2.fineHeight - 1.02) < 0.001)
+        #expect(vm2.morph.hip > 1.0)
+    }
+
     @Test func outfitActionsSaveAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

@@ -174,7 +174,7 @@ public struct BodyProfileView: View {
                 morphSlider("Waist", value: $vm.fineWaist)
                 morphSlider("Hip", value: $vm.fineHip)
                 morphSlider("Height", value: $vm.fineHeight)
-                Button("Reset fine-tune") { vm.resetFineTune() }
+                Button("Reset fine-tune") { vm.resetFineTune(in: context) }
                     .font(.caption)
             } header: {
                 Text("Continuous fine-tune")
@@ -182,10 +182,10 @@ public struct BodyProfileView: View {
                 Text("Stepless multipliers on top of measures/preset (0.90–1.10). Live preview.")
                     .font(.caption2)
             }
-            .onChange(of: vm.fineChest) { _, _ in vm.refreshPreview() }
-            .onChange(of: vm.fineWaist) { _, _ in vm.refreshPreview() }
-            .onChange(of: vm.fineHip) { _, _ in vm.refreshPreview() }
-            .onChange(of: vm.fineHeight) { _, _ in vm.refreshPreview() }
+            .onChange(of: vm.fineChest) { _, _ in vm.refreshPreview(); vm.saveFineTune(in: context) }
+            .onChange(of: vm.fineWaist) { _, _ in vm.refreshPreview(); vm.saveFineTune(in: context) }
+            .onChange(of: vm.fineHip) { _, _ in vm.refreshPreview(); vm.saveFineTune(in: context) }
+            .onChange(of: vm.fineHeight) { _, _ in vm.refreshPreview(); vm.saveFineTune(in: context) }
 
             Section {
                 Toggle("Use centimeters", isOn: $vm.usesMetric)

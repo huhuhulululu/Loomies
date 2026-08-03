@@ -33,6 +33,11 @@ public final class PersonBodyProfile {
     public var shapeSourceRaw: String?
     /// highHip 是否由腰臀启发式推断（非卷尺实测）。
     public var highHipInferred: Bool = false
+    /// BodyMorph 精调乘数（1 = 不偏置）；会话间持久化。
+    public var fineChest: Double = 1
+    public var fineWaist: Double = 1
+    public var fineHip: Double = 1
+    public var fineHeight: Double = 1
     public init(personID: UUID) { self.personID = personID }
 }
 

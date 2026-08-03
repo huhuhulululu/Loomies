@@ -8,10 +8,14 @@
 | App Icon 1024 | ✅ |
 | PrivacyInfo.xcprivacy | ✅ |
 | 出口合规 `ITSAppUsesNonExemptEncryption=NO` | ✅ |
-| 版本 `0.1.0` (2) | ✅ |
-| `scripts/testflight.sh` | ✅ |
-| Archive codesign | ⛔ login keychain 在本 agent 环境不可交互解锁（`errSecInternalComponent`） |
-| ASC API 上传 | ⛔ 缺 **Issuer ID**（已有 Key `YFRZC2GC2V` + p8） |
+| 版本 `0.1.0` (build 4+) | ✅ |
+| `scripts/tf-upload-now.sh` | ✅ 一键 archive+export+altool |
+| Archive codesign | ✅ Manual + profile `Closet App Store TF2`（仅 App 目标） |
+| ASC API 上传 | ✅ Key `YFRZC2GC2V` + Issuer 已接线 |
+| Build 4 | ✅ Delivery `1971ce14-573b-4b50-857a-fbdbbb58f7ad`（BodyMorph） |
+| Build 5 | 上传含 fine-tune 持久化 |
+
+**坑**：① CLI 全局 `PROVISIONING_PROFILE_SPECIFIER` 会污染 SPM 资源包；② export 时 PATH 勿让 Homebrew rsync 抢先（见 D35）。
 
 ## 你本机 Terminal.app 一键（推荐）
 
