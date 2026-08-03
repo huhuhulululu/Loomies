@@ -114,3 +114,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - `xcodebuild` iPhone 17 Pro / iOS 26.2 → **BUILD SUCCEEDED**
 - `simctl launch com.pinglin.closet` 成功；工程可 `open ClosetApp.xcodeproj`
 - 首启 Onboarding（名+城）→ AppRoot 4-tab；真机再开 CloudKit / Vision / WeatherKit
+
+## D25 [2026-08-03] 模拟器可用闭环
+用户「提交 你推进」：提交残留 docs 后继续模拟器闭环。
+- DemoSeedService：首启/空柜灌可组套演示单品
+- Closet：搜索、快捷手填入库、空柜 Load samples
+- Today：建议卡「I wore this」打卡 + 冷启动文案
+- Me：Load sample pieces
+- 结果：Model 40 + 其余 = **156 tests**；xcodebuild 再绿

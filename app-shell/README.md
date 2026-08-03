@@ -1,7 +1,8 @@
 # App 外壳（Xcode）
 
 > 薄壳 App target + 四个本地 SPM 包。逻辑/UI 在 `Packages/`，本目录只负责组装与运行。
-> 包测试：Core 92 + Model 38 + UI 20 + Intake 4 = **154 tests**。
+> 包测试：Core 92 + Model 40 + UI 20 + Intake 4 = **156 tests**。
+> 首启自动灌 sample pieces；Closet「+」手填入库；Today 建议可「I wore this」。
 
 ## 一键：生成 / 构建 / 跑模拟器
 

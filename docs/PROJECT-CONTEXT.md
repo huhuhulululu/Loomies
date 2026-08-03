@@ -10,9 +10,9 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 
 ## 当前状态
 
-- **154 tests** 全绿（Core 92 / Model 38 / UI 20 / Intake 4）
-- **Xcode 已组装**：`app-shell/ClosetApp.xcodeproj`，模拟器 iPhone 17 Pro / iOS 26.2 **BUILD SUCCEEDED** 且可 launch
-- CloudKit 默认 off；首启 Onboarding → AppRoot 4-tab
+- **156 tests** 全绿（Core 92 / Model 40 / UI 20 / Intake 4）
+- **Xcode 已组装**且模拟器闭环可用：种子数据、快捷入库、建议打卡、搜索
+- CloudKit 默认 off；首启 Onboarding（自动灌 sample pieces）→ AppRoot 4-tab
 
 ## 里程碑
 
@@ -21,12 +21,13 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 | v1.0 CLI 完整性 | 2026-08 | search/fit/calendar/onboarding/check-in |
 | Wave B | 2026-08-03 | 检索/切换 VM + 拼贴 + 冷启动 + 遥测 schema |
 | Xcode 模拟器 | 2026-08-03 | XcodeGen + sim build/launch |
+| 模拟器闭环 | 2026-08-03 | DemoSeed + Closet+/打卡（D25） |
 
 ## 下一步
 
-1. 模拟器可用闭环：演示种子数据 + Closet「+」入库 mock + 建议打卡 + 衣柜切换
-2. 真机：CloudKit / Vision / WeatherKit
-3. Calendar/Me 从 placeholder 补全
+1. 真机：CloudKit / Vision / WeatherKit
+2. Calendar/Me 从 placeholder 补全
+3. 多衣柜切换 UI 接到壳上
 
 ## 关键约束
 

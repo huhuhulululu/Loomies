@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — Wave B（检索 VM / 衣柜切换 / 拼贴草稿 / 冷启动 / 遥测 schema；**154 tests**）。
+> 最近同步：2026-08-03 — 模拟器闭环 D25（DemoSeed + 入库/打卡；**156 tests**）。
 
 ## 项目定位
 
@@ -13,8 +13,8 @@
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
 | ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑（无 iOS SDK）：FFIT 9 类 + ease 合身 + F4 推荐流水线 + copilot 补全器 + WeatherProviding + **FitMarkCopy 文案** + **TelemetryEvents/Payload 白名单** | `swift test` **92 tests** |
-| ClosetModel | `Packages/ClosetModel/` | SwiftData 7 实体 + §2.3 全语义 + Recommendation/CheckIn + Search/BodyProfile/FitMark/CalendarPlan + **OutfitDraftService（手动拼贴不变量）** | `swift test` **38 tests** |
-| ClosetUI | `Packages/ClosetUI/` | DesignSystem + Copilot（wear/body/weather/**冷启动门**）+ Intake + Onboarding/CheckIn + **SearchViewModel** + **WardrobeSwitcherViewModel** + AppRoot 4-tab | `swift test` **20 tests** + `swift build` |
+| ClosetModel | `Packages/ClosetModel/` | SwiftData 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft + **DemoSeedService** | `swift test` **40 tests** |
+| ClosetUI | `Packages/ClosetUI/` | DesignSystem + Copilot（打卡/冷启动）+ Closet 网格（搜索/+ 快捷入库/空柜种子）+ Onboarding/CheckIn/Search/WardrobeSwitcher + AppRoot 4-tab | `swift test` **20 tests** + `swift build` |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` **4 tests** + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
@@ -74,7 +74,7 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 | 模块 | 关键类型/服务 | 说明 |
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 遥测 schema |
-| ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/Recommendation/CheckIn | 持久化 + 语义服务 |
+| ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn | 持久化 + 语义服务 |
 | ClosetUI | Copilot/Onboarding/CheckIn/Search/WardrobeSwitcher VMs, AppRootView | UI 逻辑 + 壳 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->

@@ -1,11 +1,13 @@
 import SwiftUI
+import SwiftData
 import ClosetModel
 import ClosetCore
 
-/// copilot 主屏（DESIGN §F4/§10）：用户锚定几件 → 求 AI 补全候选供选；full-auto 可选。
-/// 渲染需 iOS 模拟器；本文件经 swift build 验证编译。真机 target 再加 Liquid Glass 自定义玻璃与 WeatherKit 接线。
+/// copilot 主屏（DESIGN §F4/§10）：锚定 → 补全候选；可打卡；冷启动提示。
 public struct CopilotView: View {
+    @Environment(\.modelContext) private var context
     @State private var vm: CopilotViewModel
+    @State private var checkInNote: String?
 
     public init(wardrobe: Wardrobe) {
         _vm = State(initialValue: CopilotViewModel(wardrobe: wardrobe))
@@ -17,18 +19,41 @@ public struct CopilotView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    if vm.isColdStart {
+                        coldStartBanner
+                    }
                     controls
-                    if !vm.fullAuto { anchorGrid }
+                    if !vm.fullAuto || vm.isColdStart { anchorGrid }
                     suggestionsSection
+                    if let checkInNote {
+                        Text(checkInNote)
+                            .font(.caption).foregroundStyle(DS.accent)
+                    }
                 }
                 .padding(20)
             }
             .background(DS.bg.ignoresSafeArea())
             .navigationTitle("Today")
+            .onAppear {
+                // 注入近 7 天穿着，供防重复
+                vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+            }
         }
     }
 
-    // 场合 + full-auto 开关 + 求建议
+    private var coldStartBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Getting started")
+                .font(.subheadline.weight(.semibold))
+            Text("Your closet is still small. Anchor at least one piece, or load samples from the Closet or Me tab.")
+                .font(.caption).foregroundStyle(DS.muted)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.accent.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
     private var controls: some View {
         VStack(alignment: .leading, spacing: 14) {
             Picker("Occasion", selection: $vm.occasion) {
@@ -36,13 +61,16 @@ public struct CopilotView: View {
             }
             .pickerStyle(.segmented)
 
-            Toggle("Just decide for me (full-auto)", isOn: $vm.fullAuto)
-                .tint(DS.accent)
+            if !vm.isColdStart {
+                Toggle("Just decide for me (full-auto)", isOn: $vm.fullAuto)
+                    .tint(DS.accent)
+            }
 
             Button {
+                vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
                 vm.refresh()
             } label: {
-                Text(vm.fullAuto ? "Pick my outfit" : "Complete my look")
+                Text(vm.fullAuto && !vm.isColdStart ? "Pick my outfit" : "Complete my look")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -53,19 +81,16 @@ public struct CopilotView: View {
         }
     }
 
-    // 可用单品网格，点选锚定（copilot：你先选几件）
     private var anchorGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Anchor a few pieces")
+            Text(vm.availableItems.isEmpty
+                 ? "No available pieces — add some in Closet"
+                 : "Anchor a few pieces")
                 .font(.subheadline).foregroundStyle(DS.muted)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                 ForEach(vm.availableItems, id: \.id) { item in
-                    Button {
-                        vm.toggleAnchor(item)
-                    } label: {
-                        itemChip(item)
-                    }
-                    .buttonStyle(.plain)
+                    Button { vm.toggleAnchor(item) } label: { itemChip(item) }
+                        .buttonStyle(.plain)
                 }
             }
         }
@@ -89,11 +114,12 @@ public struct CopilotView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 
-    // 补全候选：每套显示件数 + 「为什么推荐」reasons
     private var suggestionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if vm.suggestions.isEmpty {
-                Text("Tap the button for suggestions built from your closet.")
+                Text(vm.isColdStart
+                     ? "Pick an anchor piece, then tap Complete my look."
+                     : "Tap the button for suggestions from your closet.")
                     .font(.subheadline).foregroundStyle(DS.muted)
             } else {
                 Text("Suggestions")
@@ -113,10 +139,49 @@ public struct CopilotView: View {
                 Label(reason, systemImage: "checkmark.circle")
                     .font(.caption).foregroundStyle(DS.muted)
             }
+            // 显示单品名（从 wardrobe 反查 id）
+            let names = itemNames(for: scored)
+            if !names.isEmpty {
+                Text(names.joined(separator: " · "))
+                    .font(.caption).foregroundStyle(DS.ink)
+            }
+            Button {
+                checkIn(scored)
+            } label: {
+                Text("I wore this")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(DS.surface)
+                    .foregroundStyle(DS.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DS.radius)
+                            .stroke(DS.accent.opacity(0.4), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(DS.surface)
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
+    private func itemNames(for scored: ScoredOutfit) -> [String] {
+        let ids = Set(scored.outfit.itemIDs)
+        return (vm.wardrobe.items ?? [])
+            .filter { ids.contains($0.id.uuidString) }
+            .map(\.name)
+            .sorted()
+    }
+
+    private func checkIn(_ scored: ScoredOutfit) {
+        let ids = Set(scored.outfit.itemIDs)
+        let items = (vm.wardrobe.items ?? []).filter { ids.contains($0.id.uuidString) }
+        guard !items.isEmpty else { return }
+        _ = CheckInService.recordWear(items: items, on: Date(), in: vm.wardrobe, in: context)
+        vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+        checkInNote = "Checked in \(items.count) pieces. They'll be de-prioritized for 7 days."
     }
 }
