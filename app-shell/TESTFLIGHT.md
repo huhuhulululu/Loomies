@@ -74,3 +74,10 @@ xcodebuild -exportArchive -archivePath build/ClosetApp.xcarchive \
 xcrun altool --upload-app --type ios --file build/export/Closet.ipa \
   --apiKey YFRZC2GC2V --apiIssuer "$ASC_ISSUER_ID"
 ```
+
+## 状态更新（2026-08-03）
+
+- App ASC 名：**Loomies**（id `6797632035`，bundle `com.pinglin.closet`，SKU `Loomy001`）
+- IPA 已上传成功：Delivery UUID `cd57d7c8-f970-4516-8f16-980fa0ddcb78`
+- TestFlight：https://appstoreconnect.apple.com/apps/6797632035/testflight/ios
+- 展示名后续 build 改为 Loomies（project.yml）
