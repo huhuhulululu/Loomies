@@ -141,7 +141,7 @@ public struct BodyProfileView: View {
             } header: {
                 Text("Body reference")
             } footer: {
-                Text("360° base with minimal nude basewear (covers private areas) for lingerie layering — not a selfie try-on.")
+                Text("360° base: same model, pasties + thong only — for lingerie try-on layering.")
                     .font(.caption2)
             }
 
