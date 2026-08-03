@@ -12,11 +12,15 @@ let package = Package(
         .package(path: "../ClosetIntake"),
     ],
     targets: [
-        .target(name: "ClosetUI", dependencies: [
-            .product(name: "ClosetModel", package: "ClosetModel"),
-            .product(name: "ClosetCore", package: "ClosetCore"),
-            .product(name: "ClosetIntake", package: "ClosetIntake"),
-        ]),
+        .target(
+            name: "ClosetUI",
+            dependencies: [
+                .product(name: "ClosetModel", package: "ClosetModel"),
+                .product(name: "ClosetCore", package: "ClosetCore"),
+                .product(name: "ClosetIntake", package: "ClosetIntake"),
+            ],
+            resources: [.process("Resources")]
+        ),
         .testTarget(name: "ClosetUITests", dependencies: ["ClosetUI"]),
     ]
 )

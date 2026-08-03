@@ -129,11 +129,31 @@ public struct BodyProfileView: View {
 
     public var body: some View {
         Form {
+            Section {
+                BodyAvatarView.from(
+                    measurements: vm.liveMeasurements,
+                    fitCaption: vm.isComplete
+                        ? "Fit model reference for \(vm.popularShape.rawValue)."
+                        : "Enter all four measures to match a body reference.")
+                .frame(maxWidth: .infinity)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+                .listRowBackground(Color.clear)
+            } header: {
+                Text("Body reference")
+            } footer: {
+                Text("Photoreal fit-model guide by body type — not a selfie try-on, no animation.")
+                    .font(.caption2)
+            }
+
             Section("Measurements (inches)") {
                 TextField("Bust", text: $vm.bust)
+                    .onChange(of: vm.bust) { _, _ in vm.refreshPreview() }
                 TextField("Waist", text: $vm.waist)
+                    .onChange(of: vm.waist) { _, _ in vm.refreshPreview() }
                 TextField("Hip", text: $vm.hip)
+                    .onChange(of: vm.hip) { _, _ in vm.refreshPreview() }
                 TextField("High hip", text: $vm.highHip)
+                    .onChange(of: vm.highHip) { _, _ in vm.refreshPreview() }
             }
             Section("FFIT") {
                 if vm.isComplete, let shape = vm.shapeLabel {

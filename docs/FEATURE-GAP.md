@@ -19,6 +19,7 @@
 | **存放位置树** | StorageLocationService |
 | **收藏搭配 + 入日历** | OutfitFavoriteService + OutfitActionsViewModel |
 | **身体四围 + FFIT** | BodyProfileViewModel |
+| **真人体型参考（5 大众型）** | BodyAvatarLayout + BodyAvatarView + Me 体型页（写实站姿，非 VTON / 无动画） |
 | **衣柜管理/切换** | WardrobeManageView + Root menu |
 | **About** | AboutView |
 | TestFlight build 3 上传 | Loomies ASC |
@@ -34,7 +35,8 @@
 | AI 打标 Worker + App Attest | 独立服务 |
 | 通知 / Widget | 权限与真机 |
 | 合身标记全量 UI 网格 | 服务已有，详情页已挂 |
+| 叠衣槽位真图 | 纸娃娃锚点已有；衣物 PNG 叠层待入库抠图 |
 
 ## v1.x（明确后置）
 
-纸娃娃、embedding 语义搜、LLM 编排、尺码表种子、统计簇、差旅、IAP
+embedding 语义搜、LLM 编排、尺码表种子、统计簇、差旅、IAP；纸娃娃叠衣精细化（肩线微调 / 小样本「不怪异」验收）

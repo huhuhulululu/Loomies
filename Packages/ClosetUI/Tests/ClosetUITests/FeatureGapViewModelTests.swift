@@ -53,6 +53,17 @@ struct FeatureGapViewModelTests {
         vm.save(in: ctx)
         #expect(vm.isComplete)
         #expect(vm.shapeLabel != nil)
+        #expect(vm.liveMeasurements != nil)
+        #expect(vm.popularShape == .hourglass)
+    }
+
+    @Test func bodyProfileLivePreviewWithoutSave() {
+        let vm = BodyProfileViewModel(personID: UUID())
+        vm.bust = "34"; vm.waist = "30"; vm.hip = "42"; vm.highHip = "38"
+        vm.refreshPreview()
+        #expect(vm.isComplete)
+        #expect(vm.popularShape == .pear)
+        #expect(vm.liveMeasurements?.hip == 42)
     }
 
     @Test func outfitActionsSaveAndPlan() throws {

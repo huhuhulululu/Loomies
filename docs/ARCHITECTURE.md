@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — Debug 最大化（AppLog/诊断导出/调试台；**173 tests**）+ Loomies TF。
+> 最近同步：2026-08-03 — 真人 BodyAvatar（5 体型写实 PNG + 锚点叠衣层；Me 体型页）+ 既有 Debug/TF。
 
 ## 项目定位
 
@@ -12,10 +12,10 @@
 
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
-| ClosetCore | `Packages/ClosetCore/` | 引擎 + **AppLog（OSLog+环形缓冲+timed）** + Weather/FitMark/Telemetry | `swift test` **96 tests** |
-| ClosetModel | `Packages/ClosetModel/` | SwiftData + ItemStatus/Editor/Storage/Favorite + Diagnostics | `swift test` **47 tests** |
-| ClosetUI | `Packages/ClosetUI/` | 全 tab 接线：详情/转移/体型/收藏/衣柜/About/调试 | `swift test` **26 tests** + build |
-| ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` **4 tests** + Vision swift build |
+| ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/缩放/槽位** | `swift test` |
+| ClosetModel | `Packages/ClosetModel/` | SwiftData + ItemStatus/Editor/Storage/Favorite + Diagnostics | `swift test` |
+| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView（Resources/BodyAvatar 写实 PNG）** + 体型页预览 | `swift test` + build |
+| ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
 

@@ -4,7 +4,7 @@ import SwiftData
 import ClosetModel
 import ClosetCore
 
-/// 身体四围录入 + FFIT 展示（R13 门）。
+/// 身体四围录入 + FFIT 展示 + 真人参考体型预览（R13 门）。
 @MainActor
 @Observable
 public final class BodyProfileViewModel {
@@ -17,6 +17,10 @@ public final class BodyProfileViewModel {
     public private(set) var isComplete: Bool = false
     public private(set) var message: String = ""
     public private(set) var profile: PersonBodyProfile?
+    /// 表单当前四围（未存也可预览）；不完整为 nil。
+    public private(set) var liveMeasurements: BodyMeasurements?
+    /// 大众体型（驱动真人 croquis 底图）。
+    public private(set) var popularShape: PopularShape = .rectangle
 
     public init(personID: UUID) { self.personID = personID }
 
@@ -49,15 +53,32 @@ public final class BodyProfileViewModel {
         AppLog.info("body profile complete=\(isComplete)", .data)
     }
 
+    /// 表单字段变化时刷新 FFIT + 体型预览（无动画，即时切换底图）。
+    public func refreshPreview() {
+        recompute()
+    }
+
     private func recompute() {
-        guard let p = profile else {
-            isComplete = false; shapeLabel = nil; return
-        }
-        isComplete = BodyProfileService.isComplete(p)
-        if let shape = BodyProfileService.bodyShape(from: p) {
+        if let b = Double(bust), let w = Double(waist), let h = Double(hip), let hh = Double(highHip),
+           b > 0, w > 0, h > 0, hh > 0 {
+            let m = BodyMeasurements(bust: b, waist: w, hip: h, highHip: hh)
+            liveMeasurements = m
+            isComplete = true
+            let shape = FFITClassifier.classify(m)
+            popularShape = shape.popularCategory
+            shapeLabel = "\(shape.rawValue) → \(shape.popularCategory.rawValue)"
+        } else if let p = profile, BodyProfileService.isComplete(p),
+                  let m = BodyProfileService.measurements(from: p) {
+            liveMeasurements = m
+            isComplete = true
+            let shape = FFITClassifier.classify(m)
+            popularShape = shape.popularCategory
             shapeLabel = "\(shape.rawValue) → \(shape.popularCategory.rawValue)"
         } else {
+            liveMeasurements = nil
+            isComplete = false
             shapeLabel = nil
+            popularShape = .rectangle
         }
     }
 }

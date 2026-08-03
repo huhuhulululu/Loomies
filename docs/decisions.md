@@ -149,3 +149,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 单品详情+转移、身体四围+FFIT、衣柜管理、收藏、建议→Save/Plan today、About
 - Outfit 加法字段 isFavorite/occasion/source；Person personalColorSeasonRaw
 - 验收：四包 tests 绿 + 模拟器 build
+
+## D30 [2026-08-03] 人体可视化：真人参考、不要动画
+用户明确「不需要动画 要真人」：
+- **不做** 体型过渡动画 / 抽象单色 croquis 主路径 / 自拍 VTON
+- **做** 5 大众体型写实时尚目录站姿（bodysuit）PNG 作底图；FFIT→PopularShape 选图；围度仅轻微宽度缩放
+- Core：`BodyAvatarLayout`（槽位锚点、z-order、scaler clamp、composer）
+- UI：`BodyAvatarView` + `Resources/BodyAvatar/croquis_*.png`；Me → Body 页顶部预览
+- 叠衣槽位仍为表达层色块/可选 asset；完整抠图叠衣与「不怪异」验收仍属 v1.x 精修
