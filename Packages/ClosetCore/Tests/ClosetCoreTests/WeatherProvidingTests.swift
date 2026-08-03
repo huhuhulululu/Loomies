@@ -17,4 +17,27 @@ struct WeatherProvidingTests {
         #expect(a == 40)
         #expect(b == 40)
     }
+
+    @Test func cityClimateVariesByCity() async throws {
+        let p = CityClimateWeatherProvider()
+        // 用 4 月减弱季节偏置差异，比的是城市 base
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        let april = cal.date(from: DateComponents(year: 2026, month: 4, day: 15))!
+        let miami = try await p.daytimeTemperatureF(forCity: "Miami", on: april)
+        let seattle = try await p.daytimeTemperatureF(forCity: "Seattle", on: april)
+        #expect(miami > seattle)
+    }
+
+    @Test func cityClimateSeasonalSummerWarmerThanWinterNorth() {
+        let jul = CityClimateWeatherProvider.seasonalOffsetF(month: 7, forCity: "New York")
+        let jan = CityClimateWeatherProvider.seasonalOffsetF(month: 1, forCity: "New York")
+        #expect(jul > jan)
+    }
+
+    @Test func personalColorSeasonParse() {
+        #expect(PersonalColorSeason.parse("autumn") == .autumn)
+        #expect(PersonalColorSeason.parse(nil) == .unknown)
+        #expect(PersonalColorSeason.spring.displayName == "Spring")
+    }
 }

@@ -10,9 +10,10 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 
 ## 当前状态
 
-- **156 tests** 全绿（Core 92 / Model 40 / UI 20 / Intake 4）
-- **Xcode 已组装**且模拟器闭环可用：种子数据、快捷入库、建议打卡、搜索
-- CloudKit 默认 off；首启 Onboarding（自动灌 sample pieces）→ AppRoot 4-tab
+- **~215 tests** 全绿（Core 123 / Model 54 / UI 34 / Intake 4）
+- **本地 v1.0 UI 闭环**：Today/Closet/Calendar/Me + BodyMorph + 合身网格 + 城市气候
+- CloudKit 默认 off；TestFlight build 7+ 在 ASC
+- 真机/云（WeatherKit 真接、Vision、相机、CK）仍后置
 
 ## 里程碑
 
@@ -22,13 +23,14 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 | Wave B | 2026-08-03 | 检索/切换 VM + 拼贴 + 冷启动 + 遥测 schema |
 | Xcode 模拟器 | 2026-08-03 | XcodeGen + sim build/launch |
 | 模拟器闭环 | 2026-08-03 | DemoSeed + Closet+/打卡（D25） |
+| BodyMorph + TF | 2026-08-03 | 连续塑形 / 乳贴保护 / build 4–7 |
+| 本地功能补全 | 2026-08-03 | Calendar/Me/Fit 网格/城市气候（D37） |
 
 ## 下一步
 
-1. 真机：CloudKit / Vision / WeatherKit
-2. Calendar/Me 从 placeholder 补全
-3. 多衣柜切换 UI 接到壳上
-
+1. 真机：CloudKit / Vision / WeatherKit 真 SDK
+2. 叠衣真图（入库抠图后）
+3. 通知 / Widget
 ## 关键约束
 
 - copilot（D19）；ClosetCore 零 iOS SDK；依赖 UI → Model → Core

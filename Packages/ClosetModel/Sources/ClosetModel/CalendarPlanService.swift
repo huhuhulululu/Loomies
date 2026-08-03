@@ -44,7 +44,29 @@ public enum CalendarPlanService {
         return all.first { calendarDay($0.date) == day }
     }
 
-    private static func calendarDay(_ date: Date) -> Date {
+    /// 全部计划，新→旧。
+    public static func allPlans(in context: ModelContext) -> [CalendarPlan] {
+        let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
+        return all.sorted { $0.date > $1.date }
+    }
+
+    /// 某柜相关计划（outfit.wardrobe 匹配）。
+    public static func plans(for wardrobe: Wardrobe, in context: ModelContext) -> [CalendarPlan] {
+        allPlans(in: context).filter { $0.outfit?.wardrobe?.id == wardrobe.id }
+    }
+
+    /// 仅 needsAttention。
+    public static func attentionPlans(in context: ModelContext) -> [CalendarPlan] {
+        allPlans(in: context).filter(\.needsAttention)
+    }
+
+    /// 删除计划。
+    public static func remove(_ plan: CalendarPlan, in context: ModelContext) {
+        context.delete(plan)
+        ModelSave.save(context, label: "calendarRemove")
+    }
+
+    public static func calendarDay(_ date: Date) -> Date {
         Calendar.current.startOfDay(for: date)
     }
 }

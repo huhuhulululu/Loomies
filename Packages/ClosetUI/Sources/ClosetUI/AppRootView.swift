@@ -19,79 +19,21 @@ public struct AppRootView: View {
                 .tabItem { Label("Today", systemImage: "sparkles") }
             ClosetGridView(wardrobe: wardrobe)
                 .tabItem { Label("Closet", systemImage: "square.grid.2x2") }
-            CalendarPlaceholderView(wardrobe: wardrobe)
+            CalendarView(wardrobe: wardrobe)
                 .tabItem { Label("Calendar", systemImage: "calendar") }
-            MePlaceholderView(wardrobe: wardrobe)
+            MeView(wardrobe: wardrobe)
                 .tabItem { Label("Me", systemImage: "person") }
         }
         .tint(DS.accent)
     }
 }
 
-/// 日历：列出计划 + 缺件 needsAttention（CalendarPlanService）。
-public struct CalendarPlaceholderView: View {
-    let wardrobe: Wardrobe
-    @Environment(\.modelContext) private var context
-    @State private var plans: [CalendarPlan] = []
+/// 兼容旧名。
+public typealias CalendarPlaceholderView = CalendarView
+public typealias MePlaceholderView = MeView
 
-    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
-
-    public var body: some View {
-        NavigationStack {
-            Group {
-                if plans.isEmpty {
-                    ContentUnavailableView(
-                        "No plans yet",
-                        systemImage: "calendar",
-                        description: Text("Plan outfits from Today suggestions (coming soon). Plans for \(wardrobe.name.isEmpty ? "this closet" : wardrobe.name) show here.")
-                    )
-                } else {
-                    List(plans, id: \.id) { plan in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(plan.date, style: .date)
-                                    .font(.headline)
-                                Text(plan.outfit?.name.isEmpty == false
-                                     ? (plan.outfit?.name ?? "Outfit")
-                                     : "Outfit")
-                                    .font(.caption)
-                                    .foregroundStyle(DS.muted)
-                            }
-                            Spacer()
-                            if plan.needsAttention {
-                                Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                }
-            }
-            .background(DS.bg.ignoresSafeArea())
-            .navigationTitle("Calendar")
-            .onAppear { reload() }
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        reload()
-                        AppLog.debug("calendar reload \(plans.count)", .app)
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
-        }
-    }
-
-    private func reload() {
-        let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        plans = all.sorted { $0.date > $1.date }
-    }
-}
-
-/// 我的 tab：衣柜信息 + 演示种子 + 调试台 + 诊断导出。
-public struct MePlaceholderView: View {
+/// 我的 tab：衣柜 / 体型 / 色彩 / 存放 / 诊断。
+public struct MeView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @State private var seedMessage: String?
@@ -106,9 +48,16 @@ public struct MePlaceholderView: View {
             List {
                 Section("This closet") {
                     LabeledContent("Name", value: wardrobe.name.isEmpty ? "—" : wardrobe.name)
-                    LabeledContent("City", value: wardrobe.locationCity ?? "—")
+                    NavigationLink {
+                        ClosetCityEditView(wardrobe: wardrobe)
+                    } label: {
+                        LabeledContent("City", value: wardrobe.locationCity ?? "Set city")
+                    }
                     LabeledContent("Items", value: "\((wardrobe.items ?? []).count)")
                     LabeledContent("Available", value: "\((wardrobe.items ?? []).filter { $0.statusRaw == "available" }.count)")
+                    NavigationLink("Storage locations") {
+                        StorageLocationsView(wardrobe: wardrobe)
+                    }
                 }
                 Section("Demo") {
                     Button("Load sample pieces") {
@@ -131,12 +80,15 @@ public struct MePlaceholderView: View {
                 }
                 Section("Profile") {
                     NavigationLink {
-                        // soft person id from wardrobe owner or zero UUID fallback
                         BodyProfileView(personID: wardrobe.owner?.id ?? UUID())
                     } label: {
                         Label("Body measurements", systemImage: "figure.stand")
                     }
-                    Label("Personal color", systemImage: "paintpalette")
+                    NavigationLink {
+                        PersonalColorView(personID: wardrobe.owner?.id ?? UUID())
+                    } label: {
+                        Label("Personal color", systemImage: "paintpalette")
+                    }
                 }
                 Section("About") {
                     NavigationLink("About Loomies") { AboutView() }
@@ -231,18 +183,25 @@ struct ActivityView: UIViewControllerRepresentable {
 }
 #endif
 
-/// 衣柜浏览网格 + 入库 / 搜索 / 空柜种子。
+/// 衣柜浏览网格 + 状态过滤 / 合身标记 / 入库 / 搜索。
 public struct ClosetGridView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @State private var showIntake = false
     @State private var showSearch = false
     @State private var searchVM = SearchViewModel()
+    @State private var statusFilter: String = "all"
+    @State private var bodyProfile: PersonBodyProfile?
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
-    private var items: [Item] {
+    private var allItems: [Item] {
         (wardrobe.items ?? []).sorted { $0.name < $1.name }
+    }
+
+    private var items: [Item] {
+        if statusFilter == "all" { return allItems }
+        return allItems.filter { $0.statusRaw == statusFilter }
     }
 
     public var body: some View {
@@ -251,7 +210,10 @@ public struct ClosetGridView: View {
                 if showSearch {
                     searchResults
                 } else {
-                    grid
+                    VStack(spacing: 0) {
+                        statusFilterBar
+                        grid
+                    }
                 }
             }
             .background(DS.bg.ignoresSafeArea())
@@ -275,11 +237,39 @@ public struct ClosetGridView: View {
                 }
             }
             .sheet(isPresented: $showIntake) {
-                // 模拟器：mock 采集（空 data → process 仍可走 mock tagging 若接 IntakeViewModel）
-                // 简化：手动快捷加一件 demo 单品表单
                 QuickAddSheet(wardrobe: wardrobe)
             }
+            .onAppear { loadBodyProfile() }
         }
+    }
+
+    private var statusFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip("all", title: "All")
+                filterChip("available", title: "Available")
+                filterChip("inWash", title: "In wash")
+                filterChip("idle", title: "Idle")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func filterChip(_ key: String, title: String) -> some View {
+        let on = statusFilter == key
+        return Button {
+            statusFilter = key
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(on ? DS.accent : DS.surface)
+                .foregroundStyle(on ? Color.white : DS.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var grid: some View {
@@ -287,20 +277,26 @@ public struct ClosetGridView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
                 ForEach(items, id: \.id) { item in
                     NavigationLink {
-                        ItemDetailView(item: item)
+                        ItemDetailView(item: item, bodyProfile: bodyProfile)
                     } label: {
                         VStack(spacing: 6) {
                             RoundedRectangle(cornerRadius: DS.radius)
                                 .fill(DS.surface)
                                 .frame(height: 120)
                                 .overlay(
-                                    VStack {
+                                    VStack(spacing: 4) {
                                         Text(item.slotRaw).font(.caption2).foregroundStyle(DS.muted)
                                         if item.statusRaw != "available" {
                                             Text(ItemStatusService.displayName(item.statusRaw))
                                                 .font(.caption2).foregroundStyle(.orange)
                                         }
+                                        if let fit = fitBadge(for: item) {
+                                            Text(fit)
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(DS.accent)
+                                        }
                                     }
+                                    .padding(6)
                                 )
                             Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
                         }
@@ -315,17 +311,35 @@ public struct ClosetGridView: View {
                 ContentUnavailableView {
                     Label("Empty closet", systemImage: "square.grid.2x2")
                 } description: {
-                    Text("Add a piece or load samples to try copilot.")
+                    Text(statusFilter == "all"
+                         ? "Add a piece or load samples to try copilot."
+                         : "No pieces in this status.")
                 } actions: {
-                    Button("Load samples") {
-                        _ = DemoSeedService.seedIfEmpty(wardrobe, in: context)
+                    if statusFilter == "all" {
+                        Button("Load samples") {
+                            _ = DemoSeedService.seedIfEmpty(wardrobe, in: context)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(DS.accent)
+                        Button("Add piece") { showIntake = true }
+                    } else {
+                        Button("Show all") { statusFilter = "all" }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DS.accent)
-                    Button("Add piece") { showIntake = true }
                 }
             }
         }
+    }
+
+    private func fitBadge(for item: Item) -> String? {
+        guard let bodyProfile,
+              let v = FitMarkService.mark(item: item, profile: bodyProfile) else { return nil }
+        return FitMarkCopy.label(v)
+    }
+
+    private func loadBodyProfile() {
+        guard let pid = wardrobe.owner?.id else { bodyProfile = nil; return }
+        let all = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+        bodyProfile = all.first { $0.personID == pid }
     }
 
     private var searchResults: some View {

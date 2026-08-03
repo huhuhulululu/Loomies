@@ -37,9 +37,18 @@ public struct CopilotView: View {
             }
             .background(DS.bg.ignoresSafeArea())
             .navigationTitle("Today")
-            .onAppear {
+            .task {
                 vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
-                AppLog.debug("Copilot appear items=\(vm.availableItems.count)", .copilot)
+                // 离线城市气候表；日后可换 WeatherKit 实现同一协议
+                await vm.applyWeather(CityClimateWeatherProvider())
+                // 注入体型加权（若有档案）
+                if let pid = vm.wardrobe.owner?.id {
+                    let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+                    if let p = profiles.first(where: { $0.personID == pid }) {
+                        vm.bodyShape = BodyProfileService.bodyShape(from: p)
+                    }
+                }
+                AppLog.debug("Copilot appear items=\(vm.availableItems.count) temp=\(vm.daytimeTempF)", .copilot)
             }
         }
     }
@@ -77,6 +86,20 @@ public struct CopilotView: View {
             if !vm.isColdStart {
                 Toggle("Just decide for me (full-auto)", isOn: $vm.fullAuto)
                     .tint(DS.accent)
+            }
+
+            HStack {
+                Label(
+                    String(format: "%.0f°F · %@", vm.daytimeTempF, vm.wardrobe.locationCity ?? "default climate"),
+                    systemImage: "cloud.sun")
+                    .font(.caption)
+                    .foregroundStyle(DS.muted)
+                Spacer()
+                if let shape = vm.bodyShape {
+                    Text(shape.rawValue)
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                }
             }
 
             Button {

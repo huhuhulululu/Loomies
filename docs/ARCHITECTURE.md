@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — BodyMorph 连续塑形 + fine-tune 持久化 + 真人 360° + TF build 4/5。
+> 最近同步：2026-08-03 — 日历/Me/合身网格/城市气候 + BodyMorph 乳贴保护 + TF。
 
 ## 项目定位
 
@@ -75,7 +75,7 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
 | ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn | 持久化 + 语义服务 |
-| ClosetUI | BodyAvatarView/BodyMorphStripView, BodyProfileViewModel, Copilot/Onboarding/CheckIn VMs, AppRootView | UI 逻辑 + 体型预览 + 壳 |
+| ClosetUI | BodyAvatarView/BodyMorphRaster, CalendarView, MeView, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 体型 + 日历/Me 闭环 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 

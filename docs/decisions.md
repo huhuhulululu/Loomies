@@ -188,6 +188,14 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D37 [2026-08-03] 本地 v1.0 功能补全波
+闭合 placeholder / 服务未接线项（仍不做真机云）：
+- CalendarView：收藏排期、needsAttention 过滤、删除
+- Me：城市、PersonalColorSeason、StorageLocationsView
+- Closet：状态过滤 + FitMark 网格徽章；详情注入 bodyProfile
+- CityClimateWeatherProvider：离线城市气候 → Today 温区（WeatherKit 后置）
+- Copilot onAppear：天气 + bodyShape 注入
+
 ## D36 [2026-08-03] 乳贴+丁字裤：保留装，修变形层
 产品硬约束：**保留乳贴与丁字裤**（不靠去装躲问题）。
 - **根因**：多层 SwiftUI mask+scale 碎裂 + 胸/髋带行梯度剪切贴身件

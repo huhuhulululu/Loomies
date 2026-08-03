@@ -62,4 +62,16 @@ struct CalendarPlanServiceTests {
         let all = try ctx.fetch(FetchDescriptor<CalendarPlan>())
         #expect(all.count == 1)
     }
+
+    @Test func listAndRemovePlans() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let item = Item(name: "t"); item.wardrobe = w; ctx.insert(item)
+        let o = Outfit(name: "look"); o.wardrobe = w; o.items = [item]; ctx.insert(o)
+        try ctx.save()
+        let p = CalendarPlanService.plan(outfit: o, on: Date(), in: ctx)
+        #expect(CalendarPlanService.plans(for: w, in: ctx).count == 1)
+        CalendarPlanService.remove(p, in: ctx)
+        #expect(CalendarPlanService.plans(for: w, in: ctx).isEmpty)
+    }
 }

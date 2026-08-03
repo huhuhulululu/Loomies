@@ -25,7 +25,11 @@
 | **体型双轨录入** | 5 图快选 + 四围 Stepper（in/cm）+ 上臀推断 + Fit confidence；Onboarding 可选体型 |
 | **衣柜管理/切换** | WardrobeManageView + Root menu |
 | **About** | AboutView |
-| TestFlight build 4/5 | Loomies ASC；b4=BodyMorph，b5=fine-tune 持久化 |
+| **日历完整 UI** | CalendarView：列表/关注/从收藏排期/删除 |
+| **Me 补全** | 城市编辑、个人色彩季型、存放位置树 |
+| **合身标记网格** | Closet 格徽章 + 状态过滤；详情页 FitMark |
+| **离线城市天气** | CityClimateWeatherProvider → Today 温区 |
+| TestFlight build 7+ | 乳贴/丁字裤 morph 修复；功能补全续推 |
 
 ## 真机 / 云端仍缺（不阻塞本地闭环）
 
@@ -33,11 +37,10 @@
 |------|------|
 | PHPicker / 相机连拍 | 需 PhotosUI 真机 |
 | Vision 抠图 / OCR 真推理 | 模拟器不全 |
-| WeatherKit | 实接 WeatherProviding |
+| WeatherKit | 协议已隔离；现用城市气候表，真机可换实现 |
 | CloudKit 私有库 | D5 双域已模板，Capability 待开 |
 | AI 打标 Worker + App Attest | 独立服务 |
 | 通知 / Widget | 权限与真机 |
-| 合身标记全量 UI 网格 | 服务已有，详情页已挂 |
 | 叠衣槽位真图 | 纸娃娃锚点已有；衣物 PNG 叠层待入库抠图 |
 
 ## v1.x（明确后置）
