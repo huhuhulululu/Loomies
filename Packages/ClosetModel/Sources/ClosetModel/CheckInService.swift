@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import ClosetCore
 
 /// 穿着打卡（DESIGN §F5，v1.0「记录」环）：记录当天穿了哪些单品，固化衣柜快照。
 public enum CheckInService {
@@ -13,7 +14,8 @@ public enum CheckInService {
         rec.wardrobeSnapshotID = wardrobe.id
         rec.fitFeedback = fitFeedback
         context.insert(rec)
-        try? context.save()
+        ModelSave.save(context, label: "checkIn")
+        AppLog.info("checkIn \(items.count) items wardrobe=\(wardrobe.name)", .data)
         return rec
     }
 }

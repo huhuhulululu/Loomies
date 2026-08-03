@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import ClosetCore
 
 /// 穿搭日历计划（DESIGN §F5 / 实体 CalendarPlan）。
 /// v1.0 最小：某日绑定本柜 Outfit；Outfit 缺件 → needsAttention。
@@ -23,7 +24,7 @@ public enum CalendarPlanService {
             context.insert(plan)
         }
         plan.needsAttention = outfit.missing || !WardrobeInvariant.isValid(outfit)
-        try? context.save()
+        ModelSave.save(context, label: "calendarPlan")
         return plan
     }
 
@@ -33,7 +34,7 @@ public enum CalendarPlanService {
         for p in plans where p.outfit?.id == outfit.id {
             p.needsAttention = outfit.missing || !WardrobeInvariant.isValid(outfit)
         }
-        try? context.save()
+        ModelSave.save(context, label: "calendarRefresh")
     }
 
     /// 查询某日计划（按日历日对齐）。

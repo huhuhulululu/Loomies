@@ -11,6 +11,10 @@ struct ClosetApp: App {
     let container: ModelContainer
 
     init() {
+        // 拉起 DebugSettings（读 launch args / LOOMIES_DEBUG=1）
+        _ = DebugSettings.shared
+        AppLog.notice("Loomies launch", .app)
+
         let mainSchema = Schema([
             Person.self, Wardrobe.self, StorageLocation.self, Item.self,
             Outfit.self, WearRecord.self, CalendarPlan.self,
@@ -27,7 +31,9 @@ struct ClosetApp: App {
                 for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
                     Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
                 configurations: mainConfig, localConfig)
+            AppLog.info("ModelContainer ready", .data)
         } catch {
+            AppLog.fault("ModelContainer failed: \(error)", .data)
             fatalError("ModelContainer failed: \(error)")
         }
     }

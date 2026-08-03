@@ -8,6 +8,13 @@ import ClosetCore
 @MainActor
 struct CopilotViewModelTests {
 
+    init() {
+        // 避免 DebugSettings 单例污染用例
+        DebugSettings.shared.forceColdStart = false
+        DebugSettings.shared.disableAntiRepeat = false
+        AppLog.setMinLevel(.debug)
+    }
+
     func setup() throws -> (ModelContext, Wardrobe, Item) {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -86,8 +93,18 @@ struct CopilotViewModelTests {
         #expect(!vm.suggestions.isEmpty) // 有锚定 → 可补全
     }
 
+    @Test func coldStartWithoutAnchorSetsStatusMessage() throws {
+        let (_, w, _) = try setup()
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        vm.refresh()
+        #expect(vm.suggestions.isEmpty)
+        #expect(vm.statusMessage.contains("Cold start") || vm.statusMessage.contains("anchor"))
+        #expect(vm.lastRefreshMS >= 0)
+    }
+
     @Test func largeClosetAllowsFullAuto() throws {
         let (ctx, w, _) = try setup()
+        DebugSettings.shared.forceColdStart = false
         // 再塞够件数越过阈值
         for i in 0..<10 {
             let item = Item(name: "extra\(i)")

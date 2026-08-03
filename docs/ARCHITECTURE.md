@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — 模拟器闭环 D25（DemoSeed + 入库/打卡；**156 tests**）。
+> 最近同步：2026-08-03 — Debug 最大化（AppLog/诊断导出/调试台；**164 tests**）+ Loomies TF。
 
 ## 项目定位
 
@@ -12,9 +12,9 @@
 
 | 模块 | 路径 | 职责 | 验证 |
 |------|------|------|------|
-| ClosetCore | `Packages/ClosetCore/` | 纯 Swift 逻辑（无 iOS SDK）：FFIT 9 类 + ease 合身 + F4 推荐流水线 + copilot 补全器 + WeatherProviding + **FitMarkCopy 文案** + **TelemetryEvents/Payload 白名单** | `swift test` **92 tests** |
-| ClosetModel | `Packages/ClosetModel/` | SwiftData 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft + **DemoSeedService** | `swift test` **40 tests** |
-| ClosetUI | `Packages/ClosetUI/` | DesignSystem + Copilot（打卡/冷启动）+ Closet 网格（搜索/+ 快捷入库/空柜种子）+ Onboarding/CheckIn/Search/WardrobeSwitcher + AppRoot 4-tab | `swift test` **20 tests** + `swift build` |
+| ClosetCore | `Packages/ClosetCore/` | 引擎 + **AppLog（OSLog+环形缓冲+timed）** + Weather/FitMark/Telemetry | `swift test` **96 tests** |
+| ClosetModel | `Packages/ClosetModel/` | SwiftData 服务全集 + DemoSeed + **DiagnosticsExport** + **ModelSave** | `swift test` **42 tests** |
+| ClosetUI | `Packages/ClosetUI/` | Copilot（status/耗时）+ **DebugSettings 调试台** + 诊断导出 + 日历列表 + Closet 网格 | `swift test` **22 tests** + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` **4 tests** + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。

@@ -134,3 +134,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 绕过旧钥匙串：新建 IOS_DISTRIBUTION 证书 + 临时 keychain 签名
 - IPA 上传成功 Delivery UUID `cd57d7c8-f970-4516-8f16-980fa0ddcb78`
 - 展示名 project.yml → Loomies（下次 build）
+
+## D28 [2026-08-03] Debug 最大化 + 可观测性
+全面优化 debug workflow：
+- AppLog（OSLog + 200 条 ring + timed）贯穿 copilot/data/intake
+- DiagnosticsExport JSON（无身体围度明文）+ Me 导出
+- DebugSettings：verbose / forceColdStart / disableAntiRepeat / status 条（UserDefaults + `-debugVerbose` / `LOOMIES_DEBUG=1`）
+- Copilot empty reason + 耗时；Calendar 计划列表；ModelSave 统一落库日志
+- 164 tests；build 3；iOS 模拟器 BUILD SUCCEEDED

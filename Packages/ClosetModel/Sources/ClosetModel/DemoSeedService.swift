@@ -42,7 +42,8 @@ public enum DemoSeedService {
             context.insert(item)
             count += 1
         }
-        try? context.save()
+        ModelSave.save(context, label: "demoSeed")
+        AppLog.notice("demoSeed +\(count) items into \(wardrobe.name)", .data)
         return count
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import ClosetCore
 
 // 单品状态枚举复用 ClosetCore.ItemStatus（见 Adapter.swift）；此处只存 statusRaw String。
 
@@ -25,7 +26,7 @@ public enum TransferService {
             recomputeMissing(outfit)
             propagateToCalendarPlans(outfit, in: context)
         }
-        try? context.save()
+        ModelSave.save(context, label: "transfer")
     }
 
     /// 重算某搭配的缺件状态：有成员不在本搭配所属衣柜 → 缺件。

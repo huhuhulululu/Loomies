@@ -3,11 +3,12 @@ import SwiftData
 import ClosetModel
 import ClosetCore
 
-/// copilot 主屏（DESIGN §F4/§10）：锚定 → 补全候选；可打卡；冷启动提示。
+/// copilot 主屏（DESIGN §F4/§10）：锚定 → 补全；打卡；状态条 / 耗时。
 public struct CopilotView: View {
     @Environment(\.modelContext) private var context
     @State private var vm: CopilotViewModel
     @State private var checkInNote: String?
+    private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
         _vm = State(initialValue: CopilotViewModel(wardrobe: wardrobe))
@@ -19,8 +20,9 @@ public struct CopilotView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if vm.isColdStart {
-                        coldStartBanner
+                    if vm.isColdStart { coldStartBanner }
+                    if debug.showEmptyReason && !vm.statusMessage.isEmpty {
+                        statusBanner
                     }
                     controls
                     if !vm.fullAuto || vm.isColdStart { anchorGrid }
@@ -35,17 +37,27 @@ public struct CopilotView: View {
             .background(DS.bg.ignoresSafeArea())
             .navigationTitle("Today")
             .onAppear {
-                // 注入近 7 天穿着，供防重复
                 vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+                AppLog.debug("Copilot appear items=\(vm.availableItems.count)", .copilot)
             }
         }
+    }
+
+    private var statusBanner: some View {
+        Text(vm.statusMessage)
+            .font(.caption)
+            .foregroundStyle(DS.muted)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(DS.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 
     private var coldStartBanner: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Getting started")
                 .font(.subheadline.weight(.semibold))
-            Text("Your closet is still small. Anchor at least one piece, or load samples from the Closet or Me tab.")
+            Text("Your closet is still small. Anchor at least one piece, or load samples from Closet or Me.")
                 .font(.caption).foregroundStyle(DS.muted)
         }
         .padding(12)
@@ -67,7 +79,8 @@ public struct CopilotView: View {
             }
 
             Button {
-                vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+                vm.wornWithin7DaysIDs = DebugSettings.shared.disableAntiRepeat
+                    ? [] : CheckInViewModel.recentlyWornIDs(in: context)
                 vm.refresh()
             } label: {
                 Text(vm.fullAuto && !vm.isColdStart ? "Pick my outfit" : "Complete my look")
@@ -117,9 +130,9 @@ public struct CopilotView: View {
     private var suggestionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if vm.suggestions.isEmpty {
-                Text(vm.isColdStart
-                     ? "Pick an anchor piece, then tap Complete my look."
-                     : "Tap the button for suggestions from your closet.")
+                Text(vm.statusMessage.isEmpty
+                     ? "Tap the button for suggestions from your closet."
+                     : vm.statusMessage)
                     .font(.subheadline).foregroundStyle(DS.muted)
             } else {
                 Text("Suggestions")
@@ -139,15 +152,12 @@ public struct CopilotView: View {
                 Label(reason, systemImage: "checkmark.circle")
                     .font(.caption).foregroundStyle(DS.muted)
             }
-            // 显示单品名（从 wardrobe 反查 id）
             let names = itemNames(for: scored)
             if !names.isEmpty {
                 Text(names.joined(separator: " · "))
                     .font(.caption).foregroundStyle(DS.ink)
             }
-            Button {
-                checkIn(scored)
-            } label: {
+            Button { checkIn(scored) } label: {
                 Text("I wore this")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
@@ -183,5 +193,6 @@ public struct CopilotView: View {
         _ = CheckInService.recordWear(items: items, on: Date(), in: vm.wardrobe, in: context)
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         checkInNote = "Checked in \(items.count) pieces. They'll be de-prioritized for 7 days."
+        AppLog.info("ui checkIn \(items.count)", .copilot)
     }
 }
