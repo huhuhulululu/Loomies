@@ -82,7 +82,7 @@ enum BodyMorphRaster {
                 sampleBilinear(
                     src: srcRGBA, stride: srcStride, w: srcW, h: srcH,
                     x: srcX, y: srcY,
-                    hasAlpha: hasAlpha || srcBPP >= 4,
+                    hasAlpha: hasAlpha,
                     into: &out, at: o,
                     bgR: bgR, bgG: bgG, bgB: bgB)
             }
