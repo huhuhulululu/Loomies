@@ -11,6 +11,9 @@ public struct CopilotView: View {
     @State private var checkInNote: String?
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
+    @State private var isExportingCinematic = false
+    @State private var cinematicShareURL: URL?
+    @State private var showCinematicShare = false
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
@@ -81,12 +84,42 @@ public struct CopilotView: View {
                     .padding(4)
                     .allowsHitTesting(false)
 
-                if vm.isRefreshing {
-                    ProgressView()
-                        .padding(12)
+                HStack {
+                    // 2s 电影感分享预览（yaw + 视差 MP4）
+                    Button {
+                        Task { await exportCinematicPreview(backdrop: heroBackdrop) }
+                    } label: {
+                        Group {
+                            if isExportingCinematic {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "film")
+                                    .font(.body.weight(.semibold))
+                            }
+                        }
+                        .foregroundStyle(DS.ink)
+                        .frame(width: 36, height: 36)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
-                        .padding(14)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isExportingCinematic)
+                    .accessibilityLabel("Export cinematic preview")
+                    .padding(14)
+                    Spacer()
+                    if vm.isRefreshing {
+                        ProgressView()
+                            .padding(12)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                            .padding(14)
+                    }
+                }
+            }
+            .sheet(isPresented: $showCinematicShare) {
+                if let url = cinematicShareURL {
+                    ShareSheet(items: [url])
                 }
             }
 
@@ -502,6 +535,29 @@ public struct CopilotView: View {
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    private func exportCinematicPreview(backdrop: AvatarBackdrop) async {
+        isExportingCinematic = true
+        defer { isExportingCinematic = false }
+        do {
+            let url = try await AvatarCinematicExporter.exportMP4(
+                .init(
+                    shape: heroShape,
+                    morph: bodyMorph,
+                    layers: heroLayers,
+                    backdrop: backdrop,
+                    width: 720,
+                    height: 1080,
+                    duration: 2.0,
+                    fps: 24))
+            cinematicShareURL = url
+            showCinematicShare = true
+            flash("Preview ready to share")
+        } catch {
+            flash("Couldn’t export preview")
+            AppLog.error("cinematic export: \(error)", .copilot)
+        }
     }
 
     // MARK: - Data helpers

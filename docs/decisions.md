@@ -188,6 +188,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D45 [2026-08-03] 叠衣归一 + date 空中景 + 2s 电影分享
+1. **叠衣服帖**：`GarmentLayerNormalizer` 入库时紧 bbox + 512×768 槽位肩/腰/脚对齐 PNG；UI 槽位顶/底对齐 + 外套略放宽
+2. **date 背景**：去掉近景蜡烛，改为空中景玫瑰金 bokeh + 净地
+3. **分享预览**：`AvatarCinematicExporter` 约 2s H.264（yaw 往返 + 背景视差 + 正面叠衣）；Today 英雄区 film 按钮 → ShareSheet
+
 ## D44 [2026-08-03] 场合位图背景 + 人像分离（效果优先续）
 - 5 张写实场景 PNG：`Resources/Backdrops/backdrop_{studio,work,date,gala,casual}.png`（768×1152）
 - `AvatarBackdropView` 位图优先，程序化渐变托底；脚区压暗 + 体积光/bokeh

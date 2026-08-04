@@ -386,14 +386,17 @@ public struct BodyAvatarView: View {
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
         let f = layer.frame
-        // 槽位框随对应 band 水平缩放，避免叠衣与体型脱节
+        // 槽位框随对应 band 水平缩放；外套略放宽贴肩
         let midY = f.y + f.height / 2
         let sx = morph.horizontalScale(normalizedY: midY)
-        let rect = CGRect(
-            x: 0.5 * canvas.width + (f.x - 0.5) * canvas.width * sx,
-            y: f.y * canvas.height * morph.height,
-            width: f.width * canvas.width * sx,
-            height: f.height * canvas.height * morph.height)
+        let pad: CGFloat = layer.slot == .outerwear ? 1.06 : (layer.slot == .top ? 1.02 : 1.0)
+        let w = f.width * canvas.width * sx * pad
+        let h = f.height * canvas.height * morph.height
+        let cx = 0.5 * canvas.width + (f.x + f.width / 2 - 0.5) * canvas.width * sx
+        // 高度 morph 时保持锚点区相对 croquis
+        let cy = (f.y + f.height / 2) * canvas.height * morph.height
+            + (morph.height - 1) * canvas.height * 0.02
+        let rect = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
         Group {
             if let img = Self.layerImage(layer) {
                 img
@@ -404,10 +407,20 @@ public struct BodyAvatarView: View {
                 slotPlaceholder(layer.slot)
             }
         }
-        .frame(width: rect.width, height: rect.height)
+        // 上装/裙顶对齐肩线，鞋贴底，下装略靠上（腰）
+        .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
-        .opacity(layer.hasVisual ? 0.92 : 0.72)
+        .opacity(layer.hasVisual ? 0.94 : 0.72)
+        .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+    }
+
+    private func garmentAlignment(_ slot: BodyAvatarSlot) -> Alignment {
+        switch slot {
+        case .top, .outerwear, .dress: return .top
+        case .bottom: return .top
+        case .shoes: return .bottom
+        }
     }
 
     /// 本地入库图优先，其次 bundle / UIImage named。

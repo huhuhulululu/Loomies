@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — 场合位图 Backdrops + 景深视差 + 透明 croquis + 纸娃娃 + BodyMorph + TF。
+> 最近同步：2026-08-03 — 叠衣归一 + 电影分享导出 + 场合 Backdrops + 景深视差 + 透明 croquis + TF。
 
 ## 项目定位
 
@@ -75,7 +75,8 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
 | ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn/**DataLifecycle** | 持久化 + 语义服务 + 导出/删除全部 |
-| ClosetUI | BodyAvatarView/AvatarBackdrop/DepthParallax/BodyMorphRaster, CalendarView, MeView, Copilot/Onboarding VMs | 透明 croquis + 场合底 + 景深视差 + 日历/Me |
+| ClosetUI | BodyAvatarView/AvatarBackdrop/DepthParallax/AvatarCinematicExporter/BodyMorphRaster, CalendarView, MeView, Copilot | 景深场合 + 2s 分享导出 + 日历/Me |
+| ClosetModel | … + **GarmentLayerNormalizer**（入库叠衣标准画布） | 叠衣层 PNG 归一 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 

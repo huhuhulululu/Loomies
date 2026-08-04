@@ -53,8 +53,13 @@ public final class IntakeViewModel {
         item.sizeLabel = d.size
         item.statusRaw = "available"
         context.insert(item)
-        if let img = mattedImage, let rel = ItemImageStore.save(data: img, for: item.id) {
-            item.localImageRelativePath = rel
+        if let img = mattedImage {
+            // 叠衣层归一：紧 bbox + 槽位肩/腰/脚对齐标准画布
+            let slot = BodyAvatarComposer.mapSlot(item.slotRaw) ?? .top
+            let layerPNG = GarmentLayerNormalizer.normalize(imageData: img, slot: slot) ?? img
+            if let rel = ItemImageStore.save(data: layerPNG, for: item.id, ext: "png") {
+                item.localImageRelativePath = rel
+            }
         }
         ModelSave.save(context, label: "intakeConfirm")
         draft = nil
