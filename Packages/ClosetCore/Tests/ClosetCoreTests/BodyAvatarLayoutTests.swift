@@ -19,6 +19,21 @@ struct BodyAvatarLayoutTests {
         #expect(BodyAvatarAnchors.zIndex(for: .top) < BodyAvatarAnchors.zIndex(for: .outerwear))
     }
 
+    @Test func defaultFitPullsTopsUpForShoulder() {
+        let top = BodyAvatarLayer.defaultFit(for: .top)
+        #expect(top.scale > 1.0)
+        #expect(top.offsetY < 0)
+        let shoes = BodyAvatarLayer.defaultFit(for: .shoes)
+        #expect(shoes.offsetY >= 0)
+    }
+
+    @Test func composerAppliesDefaultFit() {
+        let layers = BodyAvatarComposer.layers(slots: [.top: "tee"])
+        #expect(layers.count == 1)
+        #expect(layers[0].fitScale > 1.0)
+        #expect(layers[0].fitOffsetY < 0)
+    }
+
     @Test func scaleClampsExtremeMeasurements() {
         let tiny = BodyMeasurements(bust: 20, waist: 18, hip: 22, highHip: 20)
         let s = BodyAvatarScaler.scale(from: tiny)

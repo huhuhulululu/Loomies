@@ -188,6 +188,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D49 [2026-08-04] 叠衣肩线贴合
+- `BodyAvatarAnchors` 槽位框收紧；`BodyAvatarLayer.fitScale/fitOffsetY` 默认上装上移放大贴肩
+- `GarmentLayerNormalizer.contentRect` 与锚点同构；UI 叠衣顶对齐 + clipped
+- 视觉 croquis 3/4 角「white」指标多为软肤边缘误报，洋红合成已干净
+
 ## D48 [2026-08-03] loop 打磨：脚底灰影 + morph 预乘采样
 - 实测 pear 侧视脚底灰 blob：低饱和 flood 清理全部 yaw090/270
 - BodyMorphRaster 预乘双线性采样，边缘更干净

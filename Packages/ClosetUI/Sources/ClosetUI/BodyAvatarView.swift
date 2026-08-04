@@ -381,33 +381,33 @@ public struct BodyAvatarView: View {
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
         let f = layer.frame
-        // 槽位框随对应 band 水平缩放；外套略放宽贴肩
+        // 槽位框随 band 水平缩放 + fitScale 贴肩
         let midY = f.y + f.height / 2
         let sx = morph.horizontalScale(normalizedY: midY)
-        let pad: CGFloat = layer.slot == .outerwear ? 1.06 : (layer.slot == .top ? 1.02 : 1.0)
-        let w = f.width * canvas.width * sx * pad
-        let h = f.height * canvas.height * morph.height
+        let fit = CGFloat(max(0.85, min(1.25, layer.fitScale)))
+        let w = f.width * canvas.width * sx * fit
+        let h = f.height * canvas.height * morph.height * fit
         let cx = 0.5 * canvas.width + (f.x + f.width / 2 - 0.5) * canvas.width * sx
-        // 高度 morph 时保持锚点区相对 croquis
-        let cy = (f.y + f.height / 2) * canvas.height * morph.height
-            + (morph.height - 1) * canvas.height * 0.02
+        let cy = (f.y + f.height / 2 + layer.fitOffsetY) * canvas.height * morph.height
+            + (morph.height - 1) * canvas.height * 0.015
         let rect = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
         Group {
             if let img = Self.layerImage(layer) {
                 img
                     .resizable()
                     .interpolation(.high)
+                    // 宽向填满槽位，高度按比例；顶对齐肩
                     .aspectRatio(contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: garmentAlignment(layer.slot))
             } else {
                 slotPlaceholder(layer.slot)
             }
         }
-        // 上装/裙顶对齐肩线，鞋贴底，下装略靠上（腰）
         .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
+        .clipped()
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
-        .opacity(layer.hasVisual ? 0.96 : 0.72)
-        // 不做白描边阴影，避免叠衣出现纸边
+        .opacity(layer.hasVisual ? 0.97 : 0.72)
     }
 
     private func garmentAlignment(_ slot: BodyAvatarSlot) -> Alignment {

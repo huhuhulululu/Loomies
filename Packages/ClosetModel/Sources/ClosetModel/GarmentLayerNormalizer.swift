@@ -19,21 +19,17 @@ public enum GarmentLayerNormalizer {
         return encodePNG(placed)
     }
 
-    /// 槽位在标准画布上的内容安全区（略宽于人体锚点，便于肩线贴合）。
+    /// 槽位在标准画布上的内容安全区（对齐 BodyAvatarAnchors，肩线略靠上）。
     public static func contentRect(for slot: BodyAvatarSlot) -> NormalizedRect {
-        // 相对 512×768；上装顶对齐肩区
-        switch slot {
-        case .outerwear:
-            return NormalizedRect(x: 0.10, y: 0.10, width: 0.80, height: 0.58)
-        case .top:
-            return NormalizedRect(x: 0.14, y: 0.12, width: 0.72, height: 0.36)
-        case .dress:
-            return NormalizedRect(x: 0.12, y: 0.12, width: 0.76, height: 0.62)
-        case .bottom:
-            return NormalizedRect(x: 0.16, y: 0.40, width: 0.68, height: 0.42)
-        case .shoes:
-            return NormalizedRect(x: 0.22, y: 0.78, width: 0.56, height: 0.16)
-        }
+        // 相对 512×768；与 UI 锚点同构，略放宽供归一
+        let f = BodyAvatarAnchors.frame(for: slot)
+        let padX = 0.04
+        let padY: Double = slot == .shoes ? 0.01 : 0.02
+        return NormalizedRect(
+            x: max(0, f.x - padX),
+            y: max(0, f.y - padY),
+            width: min(1 - max(0, f.x - padX), f.width + padX * 2),
+            height: min(1 - max(0, f.y - padY), f.height + padY * 2))
     }
 
     // MARK: - Decode / encode

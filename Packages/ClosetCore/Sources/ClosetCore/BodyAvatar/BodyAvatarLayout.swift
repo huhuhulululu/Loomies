@@ -19,14 +19,14 @@ public struct NormalizedRect: Equatable, Sendable {
 
 /// 槽位锚点表：相对 croquis 画布的固定百分比（设计 brief）。
 public enum BodyAvatarAnchors {
-    /// 槽位框：中心水平、按人体比例纵向分区。
+    /// 槽位框：中心水平、按人体比例纵向分区（D49：肩线贴合略收紧）。
     public static func frame(for slot: BodyAvatarSlot) -> NormalizedRect {
         switch slot {
-        case .outerwear: return NormalizedRect(x: 0.18, y: 0.14, width: 0.64, height: 0.48)
-        case .top:       return NormalizedRect(x: 0.22, y: 0.16, width: 0.56, height: 0.28)
-        case .dress:     return NormalizedRect(x: 0.20, y: 0.16, width: 0.60, height: 0.52)
-        case .bottom:    return NormalizedRect(x: 0.24, y: 0.42, width: 0.52, height: 0.34)
-        case .shoes:     return NormalizedRect(x: 0.30, y: 0.82, width: 0.40, height: 0.12)
+        case .outerwear: return NormalizedRect(x: 0.16, y: 0.13, width: 0.68, height: 0.50)
+        case .top:       return NormalizedRect(x: 0.21, y: 0.155, width: 0.58, height: 0.30)
+        case .dress:     return NormalizedRect(x: 0.19, y: 0.15, width: 0.62, height: 0.54)
+        case .bottom:    return NormalizedRect(x: 0.23, y: 0.415, width: 0.54, height: 0.36)
+        case .shoes:     return NormalizedRect(x: 0.29, y: 0.815, width: 0.42, height: 0.13)
         }
     }
 
@@ -178,6 +178,10 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
     public var imageAssetName: String?
     /// Application Support 相对路径（入库抠图，可选）
     public var localRelativePath: String?
+    /// 用户/归一化微调：1 = 默认；>1 略放大贴肩
+    public var fitScale: Double
+    /// 归一化垂直偏移（相对画布高，负=上移贴肩）
+    public var fitOffsetY: Double
 
     public init(
         id: String,
@@ -185,7 +189,9 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
         frame: NormalizedRect,
         zIndex: Int,
         imageAssetName: String? = nil,
-        localRelativePath: String? = nil
+        localRelativePath: String? = nil,
+        fitScale: Double = 1,
+        fitOffsetY: Double = 0
     ) {
         self.id = id
         self.slot = slot
@@ -193,10 +199,23 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
         self.zIndex = zIndex
         self.imageAssetName = imageAssetName
         self.localRelativePath = localRelativePath
+        self.fitScale = fitScale
+        self.fitOffsetY = fitOffsetY
     }
 
     public var hasVisual: Bool {
         (imageAssetName?.isEmpty == false) || (localRelativePath?.isEmpty == false)
+    }
+
+    /// 槽位默认贴合：上装/外套略放大并上移贴肩。
+    public static func defaultFit(for slot: BodyAvatarSlot) -> (scale: Double, offsetY: Double) {
+        switch slot {
+        case .outerwear: return (1.06, -0.01)
+        case .top: return (1.04, -0.012)
+        case .dress: return (1.03, -0.008)
+        case .bottom: return (1.02, 0.0)
+        case .shoes: return (1.0, 0.01)
+        }
     }
 }
 
@@ -227,13 +246,16 @@ public enum BodyAvatarComposer {
             active[.bottom] = nil
         }
         return active.compactMap { slot, ref -> BodyAvatarLayer? in
-            BodyAvatarLayer(
+            let fit = BodyAvatarLayer.defaultFit(for: slot)
+            return BodyAvatarLayer(
                 id: "\(slot.rawValue)-\(ref.id)",
                 slot: slot,
                 frame: BodyAvatarAnchors.frame(for: slot),
                 zIndex: BodyAvatarAnchors.zIndex(for: slot),
                 imageAssetName: ref.bundleName,
-                localRelativePath: ref.localRelativePath)
+                localRelativePath: ref.localRelativePath,
+                fitScale: fit.scale,
+                fitOffsetY: fit.offsetY)
         }
         .sorted { $0.zIndex < $1.zIndex }
     }
