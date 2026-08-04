@@ -458,33 +458,68 @@ public struct CopilotView: View {
         }
     }
 
+    /// Empty looks: state + learning cue + one recovery path (NN/g empty-state).
     private var emptyLooksNote: some View {
-        Text(vm.statusMessage)
-            .font(.caption)
-            .foregroundStyle(DS.muted)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DS.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+        VStack(alignment: .leading, spacing: 10) {
+            Label("No looks matched", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DS.ink)
+            Text(vm.statusMessage)
+                .font(.caption)
+                .foregroundStyle(DS.muted)
+            if !vm.anchorIDs.isEmpty {
+                Button {
+                    vm.clearAnchors()
+                    vm.fullAuto = true
+                    runRefresh()
+                } label: {
+                    Text("Clear anchors & try full-auto")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(DS.accent)
+                }
+                .buttonStyle(.plain)
+            } else if !vm.fullAuto {
+                Button {
+                    vm.fullAuto = true
+                    runRefresh()
+                } label: {
+                    Text("Try full-auto")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(DS.accent)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
     }
 
     private func suggestionRow(_ scored: ScoredOutfit, index: Int) -> some View {
         let selected = index == vm.selectedSuggestionIndex
+        // Visual thumbnails beat abstract counts for outfit pick (D40 + HIG).
+        let layers = OutfitAvatarComposer.layers(
+            itemIDs: scored.outfit.itemIDs, in: vm.wardrobe)
+        let rowBackdrop = AvatarBackdrop.resolved(from: vm.occasion)
         return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 vm.selectSuggestion(at: index)
             }
         } label: {
             HStack(spacing: 12) {
-                // 迷你槽位色点提示件数
-                ZStack {
-                    Circle()
-                        .fill(selected ? DS.accent.opacity(0.15) : DS.bg)
-                        .frame(width: 40, height: 40)
-                    Text("\(scored.outfit.items.count)")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(selected ? DS.accent : DS.muted)
-                }
+                BodyAvatarView(
+                    shape: heroShape,
+                    morph: bodyMorph,
+                    layers: layers,
+                    showsFitCaption: false,
+                    enablesOrbit: false,
+                    backdrop: rowBackdrop,
+                    depthIntensity: .off)
+                .frame(width: 56, height: 84)
+                .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(itemNames(for: scored).joined(separator: " · "))
                         .font(.subheadline.weight(.medium))
@@ -496,6 +531,10 @@ public struct CopilotView: View {
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
                             .lineLimit(1)
+                    } else {
+                        Text("\(scored.outfit.items.count) pieces")
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
                     }
                 }
                 Spacer(minLength: 0)
@@ -513,6 +552,8 @@ public struct CopilotView: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(itemNames(for: scored).joined(separator: ", "))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func feedbackChip(_ text: String) -> some View {

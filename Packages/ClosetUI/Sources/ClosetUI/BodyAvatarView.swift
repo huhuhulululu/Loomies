@@ -139,8 +139,8 @@ public struct BodyAvatarView: View {
             yaw = .deg0
         }
         .onAppear {
-            // 资源抛光后清 morph 缓存，避免旧白边帧
-            BodyMorphImageCache.shared.clear()
+            // Cache key is versioned (v3); do NOT clear on every appear —
+            // hero + Other looks + Favorites would thrash warp and feel janky.
             if resolvedDepth != .off, !reduceMotion { depthMotion.start() }
         }
         .onDisappear { depthMotion.stop() }
