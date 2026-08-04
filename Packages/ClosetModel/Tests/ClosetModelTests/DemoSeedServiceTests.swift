@@ -35,4 +35,24 @@ struct DemoSeedServiceTests {
         #expect(slots.contains("bottom"))
         #expect(slots.contains("shoes"))
     }
+
+    @Test func seedAttachesPaperDollLayerImages() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Demo"); ctx.insert(w)
+        _ = DemoSeedService.seed(w, in: ctx)
+        let items = w.items ?? []
+        #expect(!items.isEmpty)
+        let withImage = items.filter { ($0.localImageRelativePath ?? "").isEmpty == false }
+        #expect(withImage.count == items.count)
+        // 至少一件能解码为 PNG 字节
+        let sample = try #require(withImage.first?.localImageRelativePath)
+        let data = ItemImageStore.loadData(relativePath: sample)
+        #expect(data != nil)
+        #expect((data?.count ?? 0) > 200)
+        // 叠衣 composer 应标记 hasVisual
+        let layers = OutfitAvatarComposer.layers(from: items)
+        #expect(!layers.isEmpty)
+        let visualCount = layers.filter(\.hasVisual).count
+        #expect(visualCount == layers.count)
+    }
 }

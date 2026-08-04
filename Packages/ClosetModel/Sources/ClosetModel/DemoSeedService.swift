@@ -42,6 +42,16 @@ public enum DemoSeedService {
             item.colorIsNeutral = (hue == nil) || (hue == 0)
             item.colorHue = hue
             item.wardrobe = wardrobe
+            // 纸娃娃层：程序化剪影，冷启动/示例柜也能叠衣（非色块）
+            if let avatarSlot = BodyAvatarComposer.mapSlot(slot),
+               let png = DemoGarmentSilhouette.pngData(
+                slot: avatarSlot,
+                name: name,
+                hue: hue,
+                isNeutral: item.colorIsNeutral),
+               let rel = ItemImageStore.save(data: png, for: item.id, ext: "png") {
+                item.localImageRelativePath = rel
+            }
             context.insert(item)
             count += 1
         }
