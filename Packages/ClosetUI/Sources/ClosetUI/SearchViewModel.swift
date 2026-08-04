@@ -17,6 +17,14 @@ public final class SearchViewModel {
 
     public init() {}
 
+    /// True when text or any facet filter is active (drives empty-state copy).
+    public var isFiltering: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || slotRaw != nil
+            || occasion != nil
+            || statusRaw != nil
+    }
+
     public func run(in context: ModelContext) {
         results = SearchService.searchItems(
             .init(text: text, slotRaw: slotRaw, occasion: occasion,
@@ -31,5 +39,12 @@ public final class SearchViewModel {
         statusRaw = nil
         wardrobeID = nil
         results = []
+    }
+
+    /// Drop query facets but keep wardrobe scope (Closet search is in-cabinet).
+    public func clearFiltersKeepingWardrobe() {
+        let wid = wardrobeID
+        clear()
+        wardrobeID = wid
     }
 }

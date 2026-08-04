@@ -406,6 +406,7 @@ public struct ClosetGridView: View {
                 .textFieldStyle(.roundedBorder)
                 .padding(.horizontal)
                 .padding(.top, 12)
+                .accessibilityLabel("Search name or brand")
                 .onChange(of: searchVM.text) { _, _ in
                     searchVM.wardrobeID = wardrobe.id
                     searchVM.run(in: context)
@@ -421,22 +422,52 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
-            List(searchVM.results, id: \.id) { item in
-                NavigationLink {
-                    ItemDetailView(item: item, bodyProfile: bodyProfile)
-                } label: {
-                    HStack(spacing: 12) {
-                        ItemThumbnailView(item: item, height: 48)
-                            .frame(width: 48)
-                        VStack(alignment: .leading) {
-                            Text(item.name).font(.headline)
-                            Text("\(item.slotRaw) · \(ItemStatusService.displayName(item.statusRaw))")
-                                .font(.caption).foregroundStyle(DS.muted)
+            if searchVM.results.isEmpty {
+                searchEmptyState
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(searchVM.results, id: \.id) { item in
+                    NavigationLink {
+                        ItemDetailView(item: item, bodyProfile: bodyProfile)
+                    } label: {
+                        HStack(spacing: 12) {
+                            ItemThumbnailView(item: item, height: 48)
+                                .frame(width: 48)
+                            VStack(alignment: .leading) {
+                                Text(item.name).font(.headline)
+                                Text("\(item.slotRaw.capitalized) · \(ItemStatusService.displayName(item.statusRaw))")
+                                    .font(.caption).foregroundStyle(DS.muted)
+                            }
                         }
                     }
                 }
+                .listStyle(.plain)
             }
-            .listStyle(.plain)
+        }
+    }
+
+    private var searchEmptyState: some View {
+        ContentUnavailableView {
+            Label(
+                searchVM.isFiltering ? "No matches" : "No pieces here",
+                systemImage: searchVM.isFiltering ? "magnifyingglass" : "square.grid.2x2")
+        } description: {
+            Text(searchVM.isFiltering
+                 ? "Try another name, brand, or type filter."
+                 : "Add a piece or load samples, then search.")
+        } actions: {
+            if searchVM.isFiltering {
+                Button("Clear search") {
+                    searchVM.clearFiltersKeepingWardrobe()
+                    searchVM.run(in: context)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(DS.accent)
+            } else {
+                Button("Add piece") { showIntake = true }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DS.accent)
+            }
         }
     }
 
