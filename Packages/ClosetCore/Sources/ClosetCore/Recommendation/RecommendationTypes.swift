@@ -3,6 +3,35 @@ import Foundation
 /// 搭配槽位。{上装+下装 | 连衣裙} 为基底，鞋必选，外套按温区条件加层（DESIGN §F4 outfit 语法）。
 public enum GarmentSlot: String, Sendable, CaseIterable {
     case top, bottom, dress, outerwear, shoes, accessory
+
+    /// User-facing label (never expose raw `slotRaw` in UI).
+    public var displayTitle: String {
+        switch self {
+        case .top: return "Top"
+        case .bottom: return "Bottom"
+        case .dress: return "Dress"
+        case .outerwear: return "Outerwear"
+        case .shoes: return "Shoes"
+        case .accessory: return "Accessory"
+        }
+    }
+
+    /// SF Symbol for empty / missing-image placeholders.
+    public var systemImageName: String {
+        switch self {
+        case .top: return "tshirt.fill"
+        case .bottom: return "rectangle.portrait.fill"
+        case .dress: return "figure.stand.dress"
+        case .outerwear: return "coat.fill"
+        case .shoes: return "shoe.fill"
+        case .accessory: return "sparkles"
+        }
+    }
+
+    /// Map stored `Item.slotRaw`; unknown values fall back to `.top`.
+    public static func resolved(_ raw: String) -> GarmentSlot {
+        GarmentSlot(rawValue: raw) ?? .top
+    }
 }
 
 /// 单品状态机（DESIGN §2.2）。推荐候选只取 available。

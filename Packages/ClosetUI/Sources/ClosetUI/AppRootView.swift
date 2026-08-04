@@ -435,7 +435,7 @@ public struct ClosetGridView: View {
                                 .frame(width: 48)
                             VStack(alignment: .leading) {
                                 Text(item.name).font(.headline)
-                                Text("\(item.slotRaw.capitalized) · \(ItemStatusService.displayName(item.statusRaw))")
+                                Text("\(GarmentSlot.resolved(item.slotRaw).displayTitle) · \(ItemStatusService.displayName(item.statusRaw))")
                                     .font(.caption).foregroundStyle(DS.muted)
                             }
                         }

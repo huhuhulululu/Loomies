@@ -99,22 +99,46 @@ public struct ItemThumbnailView: View {
                     .resizable()
                     .scaledToFill()
             } else {
+                // Soft gradient + SF Symbol + human label (no raw slotRaw leak).
+                let slot = GarmentSlot.resolved(item.slotRaw)
                 ZStack {
-                    DS.surface
-                    VStack(spacing: 4) {
-                        Image(systemName: "tshirt")
-                            .foregroundStyle(DS.muted)
-                        Text(item.slotRaw)
-                            .font(.caption2)
+                    LinearGradient(
+                        colors: [
+                            slotWash(slot).opacity(0.55),
+                            slotWash(slot).opacity(0.22),
+                            DS.surface,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom)
+                    VStack(spacing: 6) {
+                        Image(systemName: slot.systemImageName)
+                            .font(.system(size: height > 80 ? 22 : 16, weight: .semibold))
+                            .foregroundStyle(DS.ink.opacity(0.55))
+                            .symbolRenderingMode(.hierarchical)
+                        Text(slot.displayTitle)
+                            .font(.caption2.weight(.medium))
                             .foregroundStyle(DS.muted)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(slot.displayTitle)
             }
         }
         .frame(maxWidth: .infinity)
         .frame(height: height)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
+    private func slotWash(_ slot: GarmentSlot) -> Color {
+        switch slot {
+        case .top: return DS.accent
+        case .bottom: return Color(red: 0.30, green: 0.35, blue: 0.45)
+        case .dress: return Color(red: 0.55, green: 0.40, blue: 0.50)
+        case .outerwear: return Color(red: 0.45, green: 0.35, blue: 0.30)
+        case .shoes: return Color(red: 0.25, green: 0.25, blue: 0.28)
+        case .accessory: return Color(red: 0.50, green: 0.42, blue: 0.28)
+        }
     }
 
     private func platformImage(_ data: Data) -> Image? {
