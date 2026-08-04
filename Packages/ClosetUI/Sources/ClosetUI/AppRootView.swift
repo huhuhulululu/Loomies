@@ -32,13 +32,16 @@ public struct AppRootView: View {
 public typealias CalendarPlaceholderView = CalendarView
 public typealias MePlaceholderView = MeView
 
-/// 我的 tab：衣柜 / 体型 / 色彩 / 存放 / 诊断。
+/// 我的 tab：衣柜 / 体型 / 色彩 / 存放 / 数据生命周期 / 诊断。
 public struct MeView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @State private var seedMessage: String?
     @State private var diagText: String?
+    @State private var dataMessage: String?
     @State private var sharePayload: String?
+    @State private var includeBodyInExport = false
+    @State private var confirmDeleteAll = false
     @Bindable private var debug = DebugSettings.shared
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -90,6 +93,34 @@ public struct MeView: View {
                         Label("Personal color", systemImage: "paintpalette")
                     }
                 }
+                Section("Data") {
+                    Toggle("Include body measurements in export", isOn: $includeBodyInExport)
+                    Button("Export my data") {
+                        do {
+                            let json = try DataLifecycleService.exportJSONString(
+                                in: context, includeBodyDimensions: includeBodyInExport)
+                            #if os(iOS)
+                            sharePayload = json
+                            dataMessage = "Export ready (\(json.count) chars)."
+                            #else
+                            dataMessage = String(json.prefix(400)) + (json.count > 400 ? "…" : "")
+                            #endif
+                            AppLog.notice("data export ready body=\(includeBodyInExport)", .data)
+                        } catch {
+                            dataMessage = "Export failed: \(error.localizedDescription)"
+                            AppLog.error("data export failed: \(error)", .data)
+                        }
+                    }
+                    Button("Delete all data…", role: .destructive) {
+                        confirmDeleteAll = true
+                    }
+                    Text("Uninstalling the app does not erase iCloud-synced data. Use Delete all data to exercise your deletion rights.")
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                    if let dataMessage {
+                        Text(dataMessage).font(.caption).foregroundStyle(DS.muted)
+                    }
+                }
                 Section("About") {
                     NavigationLink("About Loomies") { AboutView() }
                 }
@@ -129,6 +160,25 @@ public struct MeView: View {
                 }
             }
             .navigationTitle("Me")
+            .confirmationDialog(
+                "Delete all data?",
+                isPresented: $confirmDeleteAll,
+                titleVisibility: .visible
+            ) {
+                Button("Delete everything", role: .destructive) {
+                    do {
+                        let receipt = try DataLifecycleService.deleteAllUserData(in: context)
+                        dataMessage = receipt.summaryLine
+                        // RootView @Query 空柜 → 自动回 Onboarding。
+                    } catch {
+                        dataMessage = "Delete failed: \(error.localizedDescription)"
+                        AppLog.error("deleteAll failed: \(error)", .data)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently removes closets, pieces, looks, wear history, plans, and local photos. Body measurements are also removed. This cannot be undone.")
+            }
             #if os(iOS)
             .sheet(item: Binding(
                 get: { sharePayload.map { ShareBox(text: $0) } },

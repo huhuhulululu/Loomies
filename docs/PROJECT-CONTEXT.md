@@ -10,8 +10,8 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 
 ## 当前状态
 
-- **~215 tests** 全绿（Core 123 / Model 54 / UI 34 / Intake 4）
-- **本地 v1.0 UI 闭环**：Today/Closet/Calendar/Me + BodyMorph + 合身网格 + 城市气候
+- **~223 tests** 全绿（Core 123 / Model 62 / UI 34 / Intake 4）
+- **本地 v1.0 UI 闭环**：Today/Closet/Calendar/Me + BodyMorph + 合身网格 + 城市气候 + 数据导出/删除全部
 - CloudKit 默认 off；TestFlight build 7+ 在 ASC
 - 真机/云（WeatherKit 真接、Vision、相机、CK）仍后置
 
@@ -25,11 +25,12 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 | 模拟器闭环 | 2026-08-03 | DemoSeed + Closet+/打卡（D25） |
 | BodyMorph + TF | 2026-08-03 | 连续塑形 / 乳贴保护 / build 4–7 |
 | 本地功能补全 | 2026-08-03 | Calendar/Me/Fit 网格/城市气候（D37） |
+| 数据生命周期 | 2026-08-03 | 全量导出 + CCPA 删除全部（D41） |
 
 ## 下一步
 
 1. 真机：CloudKit / Vision / WeatherKit 真 SDK
-2. 叠衣真图（入库抠图后）
+2. 叠衣肩线精修 / 原图 ZIP 打包
 3. 通知 / Widget
 ## 关键约束
 

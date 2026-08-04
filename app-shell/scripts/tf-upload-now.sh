@@ -7,7 +7,13 @@ export ASC_KEY_ID=YFRZC2GC2V
 export ASC_ISSUER_ID=6734863c-c46a-4788-a30e-1594a001bdf4
 export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_YFRZC2GC2V.p8"
 
-BUILD_NUM="${CURRENT_PROJECT_VERSION:-4}"
+# Prefer env, else project.yml CURRENT_PROJECT_VERSION, else fail closed (no silent “4”).
+if [[ -z "${CURRENT_PROJECT_VERSION:-}" ]]; then
+  CURRENT_PROJECT_VERSION=$(
+    sed -n 's/.*CURRENT_PROJECT_VERSION: *"\([0-9][0-9]*\)".*/\1/p' project.yml | head -1
+  )
+fi
+BUILD_NUM="${CURRENT_PROJECT_VERSION:?set CURRENT_PROJECT_VERSION or project.yml}"
 SIGN_KC="$PWD/build/signing/closet-tf.keychain-db"
 
 echo "==> Keychain status"

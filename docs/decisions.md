@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D41 [2026-08-03] 数据生命周期：全量导出 + 删除全部（CCPA）
+- `DataLifecycleService`：JSON 全实体导出（schemaVersion=1）；身体围度默认不含、显式勾选才含
+- 删除全部：清 Person/Wardrobe/Item/Outfit/Wear/Plan/Location/BodyProfile + ItemImages；回执 summary
+- Me → Data：Export my data / Delete all data（confirmationDialog）+「卸载 ≠ 删除」教育文案
+- 原图 ZIP 打包后置（路径已在 JSON）；再导入列 v1.x
+
 ## D40 [2026-08-03] 纸娃娃叠衣：入库图叠到体型
 - `BodyAvatarLayer.localRelativePath` + `OutfitAvatarComposer`（dress 压制 top/bottom）
 - Today 建议卡左侧迷你 `BodyAvatarView` 叠层预览（非 VTON）

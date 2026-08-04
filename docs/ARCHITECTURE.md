@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — 纸娃娃叠衣预览 + 入库图/相机/Vision + BodyMorph + TF。
+> 最近同步：2026-08-03 — DataLifecycle 导出/删除全部 + 纸娃娃叠衣 + 入库图/相机/Vision + BodyMorph + TF。
 
 ## 项目定位
 
@@ -74,8 +74,8 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 | 模块 | 关键类型/服务 | 说明 |
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
-| ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn | 持久化 + 语义服务 |
-| ClosetUI | BodyAvatarView/BodyMorphRaster, CalendarView, MeView, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 体型 + 日历/Me 闭环 |
+| ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn/**DataLifecycle** | 持久化 + 语义服务 + 导出/删除全部 |
+| ClosetUI | BodyAvatarView/BodyMorphRaster, CalendarView, MeView（Data 区）, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 体型 + 日历/Me 闭环 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 
