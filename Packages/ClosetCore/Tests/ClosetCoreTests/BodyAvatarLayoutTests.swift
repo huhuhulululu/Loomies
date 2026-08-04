@@ -68,6 +68,30 @@ struct BodyAvatarLayoutTests {
         #expect(w.width > n.width)
     }
 
+    @Test func fullCanvasVisualLargerThanSlotFrame() {
+        // 有图层按全身画布铺，避免「槽位套槽位」双重缩小
+        let visual = BodyAvatarLayer(
+            id: "tee", slot: .top,
+            frame: BodyAvatarAnchors.frame(for: .top),
+            zIndex: 3,
+            localRelativePath: "ItemImages/x.png",
+            fitScale: 1.0, fitOffsetY: 0)
+        let placeholder = BodyAvatarLayer(
+            id: "ph", slot: .top,
+            frame: BodyAvatarAnchors.frame(for: .top),
+            zIndex: 3, fitScale: 1.0, fitOffsetY: 0)
+        let morph = BodyMorphParams.neutral
+        let full = BodyAvatarGarmentLayout.displayFrame(
+            layer: visual, canvasWidth: 200, canvasHeight: 300, morph: morph)
+        let slot = BodyAvatarGarmentLayout.displayFrame(
+            layer: placeholder, canvasWidth: 200, canvasHeight: 300, morph: morph)
+        #expect(visual.hasVisual)
+        #expect(!placeholder.hasVisual)
+        #expect(full.width > slot.width * 1.2)
+        #expect(full.height > slot.height * 1.5)
+        #expect(abs(full.x + full.width / 2 - 100) < 1)
+    }
+
     @Test func scaleClampsExtremeMeasurements() {
         let tiny = BodyMeasurements(bust: 20, waist: 18, hip: 22, highHip: 20)
         let s = BodyAvatarScaler.scale(from: tiny)

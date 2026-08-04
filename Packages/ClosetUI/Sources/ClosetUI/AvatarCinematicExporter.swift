@@ -231,9 +231,9 @@ public enum AvatarCinematicExporter {
             height: bodyRect.height * mh)
         ctx.draw(body, in: bodyDraw)
 
-        // Garments only front — same fitScale / shoulder math as BodyAvatarView
+        // Garments only front — full-canvas pre-laid layers (same as BodyAvatarView)
         for (layer, gimg) in garments {
-            let nr = BodyAvatarGarmentLayout.pixelFrame(
+            let nr = BodyAvatarGarmentLayout.displayFrame(
                 layer: layer,
                 canvasWidth: Double(w),
                 canvasHeight: Double(h),

@@ -409,8 +409,8 @@ public struct BodyAvatarView: View {
 
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
-        // 与分享导出共用 BodyAvatarGarmentLayout（fitScale / 肩线）
-        let nr = BodyAvatarGarmentLayout.pixelFrame(
+        // hasVisual：全身画布层（normalizer/demo）；无图：槽位占位
+        let nr = BodyAvatarGarmentLayout.displayFrame(
             layer: layer,
             canvasWidth: Double(canvas.width),
             canvasHeight: Double(canvas.height),
@@ -421,22 +421,22 @@ public struct BodyAvatarView: View {
                 img
                     .resizable()
                     .interpolation(.high)
-                    // 宽向填满槽位，高度按比例；顶对齐肩
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: garmentAlignment(layer.slot))
+                    // 全身 2:3 画布直接铺满 displayFrame（勿再 aspectFit 进小槽）
+                    .frame(width: rect.width, height: rect.height)
             } else {
                 slotPlaceholder(layer.slot)
+                    .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
             }
         }
-        .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
+        .frame(width: rect.width, height: rect.height)
         .clipped()
         // 轻接触影：叠衣贴身、减「贴纸浮空」(HIG depth / paper-doll)
         .shadow(
-            color: Color.black.opacity(layer.hasVisual ? 0.14 : 0),
-            radius: 2.5, y: 1.5)
+            color: Color.black.opacity(layer.hasVisual ? 0.12 : 0),
+            radius: layer.hasVisual ? 3 : 2.5, y: 1.5)
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
-        .opacity(layer.hasVisual ? 0.97 : 0.72)
+        .opacity(layer.hasVisual ? 0.98 : 0.72)
     }
 
     private func garmentAlignment(_ slot: BodyAvatarSlot) -> Alignment {

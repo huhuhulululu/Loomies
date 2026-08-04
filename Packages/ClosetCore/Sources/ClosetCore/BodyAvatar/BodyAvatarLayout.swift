@@ -221,7 +221,7 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
 
 /// 叠衣像素框：UI 与分享导出共用，避免 fitScale / 肩线上移只在一侧生效。
 public enum BodyAvatarGarmentLayout {
-    /// 画布像素坐标（原点左上）。含 morph 水平剖面 + fitScale + fitOffsetY。
+    /// 槽位框路径：无图占位色块等「紧内容」层。
     public static func pixelFrame(
         layer: BodyAvatarLayer,
         canvasWidth: Double,
@@ -239,6 +239,48 @@ public enum BodyAvatarGarmentLayout {
         let cy = (f.y + f.height / 2 + layer.fitOffsetY) * canvasHeight * m.height
             + (m.height - 1) * canvasHeight * 0.015
         return NormalizedRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+    }
+
+    /// 入库/演示层：已铺在 512×768 **全身画布**（肩腰脚已对齐）。
+    /// 必须按全身合成，禁止再套槽位框——否则双重缩小成「胸前小贴纸」。
+    public static func fullCanvasPixelFrame(
+        layer: BodyAvatarLayer,
+        canvasWidth: Double,
+        canvasHeight: Double,
+        morph: BodyMorphParams
+    ) -> NormalizedRect {
+        let m = morph.clamped()
+        let midY = layer.frame.y + layer.frame.height / 2
+        let sx = m.horizontalScale(normalizedY: midY)
+        let fit = max(0.85, min(1.25, layer.fitScale))
+        let w = canvasWidth * sx * fit
+        let h = canvasHeight * m.height * fit
+        let cx = canvasWidth / 2
+        // 与 BodyMorphImageView 一致：height 从中心 scale；fitOffsetY 微调肩线
+        let cy = canvasHeight / 2
+            + layer.fitOffsetY * canvasHeight * m.height
+        return NormalizedRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+    }
+
+    /// 有视觉资产 → 全身画布；否则 → 槽位占位框。
+    public static func displayFrame(
+        layer: BodyAvatarLayer,
+        canvasWidth: Double,
+        canvasHeight: Double,
+        morph: BodyMorphParams
+    ) -> NormalizedRect {
+        if layer.hasVisual {
+            return fullCanvasPixelFrame(
+                layer: layer,
+                canvasWidth: canvasWidth,
+                canvasHeight: canvasHeight,
+                morph: morph)
+        }
+        return pixelFrame(
+            layer: layer,
+            canvasWidth: canvasWidth,
+            canvasHeight: canvasHeight,
+            morph: morph)
     }
 }
 
