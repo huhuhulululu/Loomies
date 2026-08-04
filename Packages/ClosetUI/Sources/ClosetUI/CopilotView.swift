@@ -102,6 +102,12 @@ public struct CopilotView: View {
                 }
             }
 
+            if !vm.statusMessage.isEmpty {
+                Text(vm.statusMessage)
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+            }
+
             Button {
                 vm.wornWithin7DaysIDs = DebugSettings.shared.disableAntiRepeat
                     ? [] : CheckInViewModel.recentlyWornIDs(in: context)
@@ -120,10 +126,17 @@ public struct CopilotView: View {
 
     private var anchorGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(vm.availableItems.isEmpty
-                 ? "No available pieces — add some in Closet"
-                 : "Anchor a few pieces")
-                .font(.subheadline).foregroundStyle(DS.muted)
+            HStack {
+                Text(vm.availableItems.isEmpty
+                     ? "No available pieces — add some in Closet"
+                     : "Anchor a few pieces")
+                    .font(.subheadline).foregroundStyle(DS.muted)
+                Spacer()
+                if !vm.anchorIDs.isEmpty {
+                    Button("Clear") { vm.clearAnchors() }
+                        .font(.caption)
+                }
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                 ForEach(vm.availableItems, id: \.id) { item in
                     Button { vm.toggleAnchor(item) } label: { itemChip(item) }

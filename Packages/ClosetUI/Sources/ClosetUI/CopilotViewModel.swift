@@ -45,6 +45,11 @@ public final class CopilotViewModel {
         AppLog.debug("anchor toggle \(item.name) now=\(anchorIDs.count)", .copilot)
     }
 
+    public func clearAnchors() {
+        anchorIDs = []
+        AppLog.debug("anchors cleared", .copilot)
+    }
+
     public func applyWeather(_ provider: any WeatherProviding) async {
         do {
             daytimeTempF = try await provider.daytimeTemperatureF(

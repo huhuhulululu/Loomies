@@ -299,7 +299,9 @@ public struct ClosetGridView: View {
                 filterChip("all", title: "All")
                 filterChip("available", title: "Available")
                 filterChip("inWash", title: "In wash")
+                filterChip("dryCleaning", title: "Dry clean")
                 filterChip("idle", title: "Idle")
+                filterChip("lent", title: "Lent")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -402,20 +404,58 @@ public struct ClosetGridView: View {
         VStack(spacing: 0) {
             TextField("Search name or brand", text: $searchVM.text)
                 .textFieldStyle(.roundedBorder)
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 12)
                 .onChange(of: searchVM.text) { _, _ in
                     searchVM.wardrobeID = wardrobe.id
                     searchVM.run(in: context)
                 }
+            // 槽位快捷过滤
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    searchSlotChip(nil, title: "All types")
+                    ForEach(["top", "bottom", "dress", "outerwear", "shoes"], id: \.self) { s in
+                        searchSlotChip(s, title: s.capitalized)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
             List(searchVM.results, id: \.id) { item in
-                VStack(alignment: .leading) {
-                    Text(item.name).font(.headline)
-                    Text("\(item.slotRaw) · \(item.statusRaw)")
-                        .font(.caption).foregroundStyle(DS.muted)
+                NavigationLink {
+                    ItemDetailView(item: item, bodyProfile: bodyProfile)
+                } label: {
+                    HStack(spacing: 12) {
+                        ItemThumbnailView(item: item, height: 48)
+                            .frame(width: 48)
+                        VStack(alignment: .leading) {
+                            Text(item.name).font(.headline)
+                            Text("\(item.slotRaw) · \(ItemStatusService.displayName(item.statusRaw))")
+                                .font(.caption).foregroundStyle(DS.muted)
+                        }
+                    }
                 }
             }
             .listStyle(.plain)
         }
+    }
+
+    private func searchSlotChip(_ slot: String?, title: String) -> some View {
+        let on = searchVM.slotRaw == slot
+        return Button {
+            searchVM.slotRaw = slot
+            searchVM.wardrobeID = wardrobe.id
+            searchVM.run(in: context)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(on ? DS.accent : DS.surface)
+                .foregroundStyle(on ? Color.white : DS.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -31,7 +31,8 @@
 | **合身标记网格** | Closet 格徽章 + 状态过滤；详情页 FitMark |
 | **离线城市天气** | CityClimateWeatherProvider → Today 温区 |
 | **纸娃娃叠衣预览** | `OutfitAvatarComposer` + Today 建议卡 / 收藏列表 |
-| TestFlight build 7–11 | 体型/入库/叠衣持续迭代 |
+| **主路径旅程测试** | `FeatureJourneyTests`：种子→推荐→收藏/计划→打卡→检索→体型→导出/删除 |
+| TestFlight build 7–13 | 体型/入库/叠衣/打磨持续迭代 |
 
 ## 真机 / 云端仍缺（不阻塞本地闭环）
 

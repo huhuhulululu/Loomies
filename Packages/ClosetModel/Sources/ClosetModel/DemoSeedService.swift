@@ -19,22 +19,25 @@ public enum DemoSeedService {
         let existing = (wardrobe.items ?? []).count
         let tag = existing == 0 ? "" : " \(existing / 5 + 1)"
 
-        let specs: [(String, String, [String], Double?)] = [
-            ("White tee\(tag)", "top", ["work", "casual"], 0),
-            ("Navy blazer\(tag)", "top", ["work"], 220),
-            ("Black trousers\(tag)", "bottom", ["work", "gala"], nil),
-            ("Blue jeans\(tag)", "bottom", ["casual"], 210),
-            ("White sneakers\(tag)", "shoes", ["work", "casual"], nil),
-            ("Black pumps\(tag)", "shoes", ["work", "date", "gala"], nil),
-            ("Camel coat\(tag)", "outerwear", ["work", "casual"], 30),
+        // name, slot, occasions, hue?, warmth
+        let specs: [(String, String, [String], Double?, Warmth)] = [
+            ("White tee\(tag)", "top", ["work", "casual"], 0, .light),
+            ("Navy blazer\(tag)", "top", ["work"], 220, .medium),
+            ("Black trousers\(tag)", "bottom", ["work", "gala"], nil, .light),
+            ("Blue jeans\(tag)", "bottom", ["casual"], 210, .medium),
+            ("White sneakers\(tag)", "shoes", ["work", "casual"], nil, .light),
+            ("Black pumps\(tag)", "shoes", ["work", "date", "gala"], nil, .light),
+            ("Camel coat\(tag)", "outerwear", ["work", "casual"], 30, .warm),
+            ("Linen shirt\(tag)", "top", ["casual", "date"], 45, .light),
+            ("Midi skirt\(tag)", "bottom", ["work", "date"], 15, .light),
         ]
 
         var count = 0
-        for (name, slot, occasions, hue) in specs {
+        for (name, slot, occasions, hue, warmth) in specs {
             let item = Item(name: name)
             item.slotRaw = slot
             item.occasionsRaw = occasions
-            item.warmthRaw = Warmth.light.rawValue
+            item.warmthRaw = warmth.rawValue
             item.statusRaw = "available"
             item.colorIsNeutral = (hue == nil) || (hue == 0)
             item.colorHue = hue
