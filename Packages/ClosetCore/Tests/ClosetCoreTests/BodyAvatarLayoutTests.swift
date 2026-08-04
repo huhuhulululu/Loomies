@@ -79,4 +79,22 @@ struct BodyAvatarLayoutTests {
     @Test func resolveShapeDefaultsRectangleWhenNil() {
         #expect(BodyAvatarComposer.resolveShape(from: nil) == .rectangle)
     }
+
+    @Test func mapSlotUnderstandsAliases() {
+        #expect(BodyAvatarComposer.mapSlot("outer") == .outerwear)
+        #expect(BodyAvatarComposer.mapSlot("top") == .top)
+        #expect(BodyAvatarComposer.mapSlot("accessory") == nil)
+    }
+
+    @Test func layersPreferLocalRelativePath() {
+        let layers = BodyAvatarComposer.layers(slotImages: [
+            .top: BodyAvatarSlotImage(id: "a", localRelativePath: "ItemImages/a.jpg"),
+            .bottom: BodyAvatarSlotImage(id: "b", bundleName: "bot"),
+            .shoes: BodyAvatarSlotImage(id: "c"),
+        ])
+        #expect(layers.count == 3)
+        #expect(layers.first(where: { $0.slot == .top })?.localRelativePath == "ItemImages/a.jpg")
+        #expect(layers.first(where: { $0.slot == .top })?.hasVisual == true)
+        #expect(layers.first(where: { $0.slot == .shoes })?.hasVisual == false)
+    }
 }

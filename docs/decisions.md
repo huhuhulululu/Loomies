@@ -188,6 +188,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D40 [2026-08-03] 纸娃娃叠衣：入库图叠到体型
+- `BodyAvatarLayer.localRelativePath` + `OutfitAvatarComposer`（dress 压制 top/bottom）
+- Today 建议卡左侧迷你 `BodyAvatarView` 叠层预览（非 VTON）
+- 收藏列表同样展示；无图槽位用色块占位
+
 ## D39 [2026-08-03] 入库真机链路：相机 + Vision + 本地图
 - `Item.localImageRelativePath` + `ItemImageStore`（Application Support）
 - 确认入库写抠图；Closet 网格/详情缩略图

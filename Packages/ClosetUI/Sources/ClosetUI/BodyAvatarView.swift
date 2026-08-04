@@ -247,18 +247,11 @@ public struct BodyAvatarView: View {
             width: f.width * canvas.width * sx,
             height: f.height * canvas.height * morph.height)
         Group {
-            if let name = layer.imageAssetName, let img = Self.bundleImage(named: name) {
-                img.resizable().aspectRatio(contentMode: .fit)
-            } else if let name = layer.imageAssetName {
-                #if canImport(UIKit)
-                if let ui = UIImage(named: name) {
-                    Image(uiImage: ui).resizable().aspectRatio(contentMode: .fit)
-                } else {
-                    slotPlaceholder(layer.slot)
-                }
-                #else
-                slotPlaceholder(layer.slot)
-                #endif
+            if let img = Self.layerImage(layer) {
+                img
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
             } else {
                 slotPlaceholder(layer.slot)
             }
@@ -266,6 +259,28 @@ public struct BodyAvatarView: View {
         .frame(width: rect.width, height: rect.height)
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
+        .opacity(layer.hasVisual ? 0.92 : 0.72)
+    }
+
+    /// 本地入库图优先，其次 bundle / UIImage named。
+    public static func layerImage(_ layer: BodyAvatarLayer) -> Image? {
+        if let rel = layer.localRelativePath,
+           let data = ItemImageStore.loadData(relativePath: rel) {
+            #if canImport(UIKit)
+            if let ui = UIImage(data: data) { return Image(uiImage: ui) }
+            #elseif canImport(AppKit) && !os(iOS)
+            if let ns = NSImage(data: data) { return Image(nsImage: ns) }
+            #endif
+        }
+        if let name = layer.imageAssetName, let img = bundleImage(named: name) {
+            return img
+        }
+        if let name = layer.imageAssetName {
+            #if canImport(UIKit)
+            if let ui = UIImage(named: name) { return Image(uiImage: ui) }
+            #endif
+        }
+        return nil
     }
 
     private func slotPlaceholder(_ slot: BodyAvatarSlot) -> some View {

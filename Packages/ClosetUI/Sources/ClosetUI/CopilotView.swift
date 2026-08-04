@@ -136,10 +136,7 @@ public struct CopilotView: View {
     private func itemChip(_ item: Item) -> some View {
         let anchored = vm.isAnchored(item)
         return VStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: DS.radius)
-                .fill(DS.surface)
-                .frame(height: 72)
-                .overlay(Text(item.slotRaw).font(.caption2).foregroundStyle(DS.muted))
+            ItemThumbnailView(item: item, height: 72)
             Text(item.name).font(.caption).lineLimit(1)
         }
         .padding(6)
@@ -169,17 +166,35 @@ public struct CopilotView: View {
     }
 
     private func suggestionCard(_ scored: ScoredOutfit) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("\(scored.outfit.items.count)-piece look")
-                .font(.headline).foregroundStyle(DS.ink)
-            ForEach(scored.score.reasons, id: \.self) { reason in
-                Label(reason, systemImage: "checkmark.circle")
-                    .font(.caption).foregroundStyle(DS.muted)
-            }
-            let names = itemNames(for: scored)
-            if !names.isEmpty {
-                Text(names.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(DS.ink)
+        let layers = OutfitAvatarComposer.layers(
+            itemIDs: scored.outfit.itemIDs, in: vm.wardrobe)
+        let shape = vm.bodyShape.map { $0.popularCategory } ?? .rectangle
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                // 纸娃娃叠衣预览（正面；表达层，非 VTON）
+                BodyAvatarView(
+                    shape: shape,
+                    morph: bodyMorph,
+                    layers: layers,
+                    showsFitCaption: false,
+                    enablesOrbit: false)
+                .frame(width: 96)
+                .allowsHitTesting(false)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(scored.outfit.items.count)-piece look")
+                        .font(.headline).foregroundStyle(DS.ink)
+                    ForEach(scored.score.reasons.prefix(3), id: \.self) { reason in
+                        Label(reason, systemImage: "checkmark.circle")
+                            .font(.caption).foregroundStyle(DS.muted)
+                    }
+                    let names = itemNames(for: scored)
+                    if !names.isEmpty {
+                        Text(names.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(DS.ink)
+                            .lineLimit(2)
+                    }
+                }
             }
             HStack(spacing: 8) {
                 actionBtn("Save") {
@@ -199,6 +214,21 @@ public struct CopilotView: View {
         .padding(16)
         .background(DS.surface)
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    }
+
+    private var bodyMorph: BodyMorphParams {
+        if let pid = vm.wardrobe.owner?.id {
+            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+            if let p = profiles.first(where: { $0.personID == pid }) {
+                let m = BodyProfileService.measurements(from: p)
+                let shape = BodyProfileService.popularShape(from: p)
+                let fine = BodyMorphParams(
+                    chest: p.fineChest, waist: p.fineWaist,
+                    hip: p.fineHip, shoulder: 1, height: p.fineHeight)
+                return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
+            }
+        }
+        return BodyMorphParams.preset(for: vm.bodyShape?.popularCategory ?? .rectangle)
     }
 
     private func itemNames(for scored: ScoredOutfit) -> [String] {

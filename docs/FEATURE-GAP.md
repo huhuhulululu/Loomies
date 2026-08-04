@@ -29,7 +29,8 @@
 | **Me 补全** | 城市编辑、个人色彩季型、存放位置树 |
 | **合身标记网格** | Closet 格徽章 + 状态过滤；详情页 FitMark |
 | **离线城市天气** | CityClimateWeatherProvider → Today 温区 |
-| TestFlight build 7+ | 乳贴/丁字裤 morph 修复；功能补全续推 |
+| **纸娃娃叠衣预览** | `OutfitAvatarComposer` + Today 建议卡 / 收藏列表 |
+| TestFlight build 7–11 | 体型/入库/叠衣持续迭代 |
 
 ## 真机 / 云端仍缺（不阻塞本地闭环）
 
@@ -42,7 +43,7 @@
 | CloudKit 私有库 | D5 双域已模板，Capability 待开 |
 | AI 打标 Worker + App Attest | 独立服务 |
 | 通知 / Widget | 权限与真机 |
-| 叠衣槽位真图 | 纸娃娃锚点已有；衣物 PNG 叠层待入库抠图 |
+| 叠衣槽位真图 | **Today/收藏已叠入库图**（表达层）；肩线精修仍后置 |
 
 ## v1.x（明确后置）
 

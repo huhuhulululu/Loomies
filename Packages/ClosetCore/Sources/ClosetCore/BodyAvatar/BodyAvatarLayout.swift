@@ -174,34 +174,80 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
     public var slot: BodyAvatarSlot
     public var frame: NormalizedRect
     public var zIndex: Int
-    /// 可选：本地图片路径 / asset 名；nil 则 UI 画占位色块
+    /// Bundle asset 名（可选）
     public var imageAssetName: String?
+    /// Application Support 相对路径（入库抠图，可选）
+    public var localRelativePath: String?
 
-    public init(id: String, slot: BodyAvatarSlot, frame: NormalizedRect, zIndex: Int,
-                imageAssetName: String? = nil) {
-        self.id = id; self.slot = slot; self.frame = frame; self.zIndex = zIndex
+    public init(
+        id: String,
+        slot: BodyAvatarSlot,
+        frame: NormalizedRect,
+        zIndex: Int,
+        imageAssetName: String? = nil,
+        localRelativePath: String? = nil
+    ) {
+        self.id = id
+        self.slot = slot
+        self.frame = frame
+        self.zIndex = zIndex
         self.imageAssetName = imageAssetName
+        self.localRelativePath = localRelativePath
+    }
+
+    public var hasVisual: Bool {
+        (imageAssetName?.isEmpty == false) || (localRelativePath?.isEmpty == false)
+    }
+}
+
+/// 槽位图引用：bundle 名或本地相对路径。
+public struct BodyAvatarSlotImage: Equatable, Sendable {
+    public var id: String
+    public var bundleName: String?
+    public var localRelativePath: String?
+    public init(id: String, bundleName: String? = nil, localRelativePath: String? = nil) {
+        self.id = id
+        self.bundleName = bundleName
+        self.localRelativePath = localRelativePath
     }
 }
 
 public enum BodyAvatarComposer {
     /// 从候选单品槽位生成叠层（同槽取一件；dress 与 top/bottom 互斥时 dress 优先）。
     public static func layers(slots: [BodyAvatarSlot: String]) -> [BodyAvatarLayer] {
-        var active = slots
+        let mapped = slots.mapValues { BodyAvatarSlotImage(id: $0, bundleName: $0) }
+        return layers(slotImages: mapped)
+    }
+
+    /// 本地图 / bundle 统一入口。
+    public static func layers(slotImages: [BodyAvatarSlot: BodyAvatarSlotImage]) -> [BodyAvatarLayer] {
+        var active = slotImages
         if active[.dress] != nil {
             active[.top] = nil
             active[.bottom] = nil
         }
-        return active.compactMap { slot, asset -> BodyAvatarLayer? in
-            guard let asset = Optional(asset) else { return nil }
-            return BodyAvatarLayer(
-                id: "\(slot.rawValue)-\(asset)",
+        return active.compactMap { slot, ref -> BodyAvatarLayer? in
+            BodyAvatarLayer(
+                id: "\(slot.rawValue)-\(ref.id)",
                 slot: slot,
                 frame: BodyAvatarAnchors.frame(for: slot),
                 zIndex: BodyAvatarAnchors.zIndex(for: slot),
-                imageAssetName: asset)
+                imageAssetName: ref.bundleName,
+                localRelativePath: ref.localRelativePath)
         }
         .sorted { $0.zIndex < $1.zIndex }
+    }
+
+    /// `GarmentSlot` / item.slotRaw → 叠衣槽（accessory 不叠）。
+    public static func mapSlot(_ raw: String) -> BodyAvatarSlot? {
+        switch raw.lowercased() {
+        case "outerwear", "outer": return .outerwear
+        case "top": return .top
+        case "dress": return .dress
+        case "bottom": return .bottom
+        case "shoes", "shoe": return .shoes
+        default: return nil
+        }
     }
 
     public static func resolveShape(from measurements: BodyMeasurements?) -> PopularShape {

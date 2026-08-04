@@ -396,12 +396,21 @@ public struct FavoritesView: View {
                     description: Text("Save a look from Today."))
             } else {
                 List(outfits, id: \.id) { o in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(o.name).font(.headline)
-                        Text("\((o.items ?? []).count) pieces · \(o.occasionRaw ?? "—")")
-                            .font(.caption).foregroundStyle(DS.muted)
-                        if o.missing {
-                            Text("Missing pieces").font(.caption2).foregroundStyle(.orange)
+                    HStack(spacing: 12) {
+                        BodyAvatarView(
+                            shape: .rectangle,
+                            layers: OutfitAvatarComposer.layers(from: o.items ?? []),
+                            showsFitCaption: false,
+                            enablesOrbit: false)
+                        .frame(width: 72, height: 108)
+                        .allowsHitTesting(false)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(o.name.isEmpty ? "Favorite look" : o.name).font(.headline)
+                            Text("\((o.items ?? []).count) pieces · \(o.occasionRaw ?? "—")")
+                                .font(.caption).foregroundStyle(DS.muted)
+                            if o.missing {
+                                Text("Missing pieces").font(.caption2).foregroundStyle(.orange)
+                            }
                         }
                     }
                 }
