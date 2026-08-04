@@ -152,7 +152,7 @@ public struct BodyAvatarView: View {
                 let fogOff = DepthParallaxLayout.foregroundOffset(sample, intensity: resolvedDepth)
 
                 ZStack {
-                    // Far：场合底 + 景深虚化 + 体积光（位移最大）
+                    // Far：位图场合 + 景深虚化 + 体积光（位移最大）
                     AvatarBackdropView(
                         backdrop: backdrop,
                         depthBlur: resolvedDepth.backgroundBlur,
@@ -161,43 +161,47 @@ public struct BodyAvatarView: View {
                     .frame(width: size.width, height: size.height)
                     .offset(bgOff)
 
-                    // Mid：脚底接触影 + 人体 + 叠衣（位移中等）
+                    // Mid：接触影 + 地面弱反射 + 人体 + 轮廓光 + 叠衣
                     ZStack {
                         AvatarContactShadow()
                             .offset(y: size.height * 0.42)
-                            .opacity(resolvedDepth == .off ? 0.35 : 0.55)
+                            .opacity(resolvedDepth == .off ? 0.40 : 0.62)
 
-                        if let name = croquisAssetName(for: yaw) {
-                            BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
-                        } else {
-                            PlaceholderCroquis(shape: shape)
-                                .scaleEffect(
-                                    x: morph.legacyScale.widthScale,
-                                    y: morph.height,
-                                    anchor: .center)
-                        }
-
-                        if yaw == .deg0 {
-                            ForEach(layers) { layer in
-                                garmentLayer(layer, canvas: size)
+                        // 地面镜像（仅 cinematic/subtle，强化「站在场景」）
+                        if resolvedDepth != .off {
+                            AvatarFloorReflection {
+                                figureStack(canvas: size)
+                                    .frame(width: size.width, height: size.height)
                             }
+                            .frame(width: size.width, height: size.height * 0.16)
+                            .offset(y: size.height * 0.38)
+                            .opacity(resolvedDepth == .cinematic ? 0.55 : 0.30)
                         }
+
+                        figureStack(canvas: size)
+                            .overlay {
+                                AvatarRimLight(backdrop: backdrop, intensity: resolvedDepth)
+                            }
+                            // 边缘微光，从复杂背景分离
+                            .shadow(
+                                color: rimShadowColor.opacity(resolvedDepth == .cinematic ? 0.45 : 0.2),
+                                radius: resolvedDepth == .cinematic ? 16 : 8,
+                                y: 0)
                     }
                     .offset(figOff)
-                    // 极轻透视感（效果优先，幅度克制）
-                    .scaleEffect(1 + 0.018 * sample.y * (resolvedDepth == .cinematic ? 1 : 0.5))
+                    .scaleEffect(1 + 0.022 * sample.y * (resolvedDepth == .cinematic ? 1 : 0.5))
                     .rotation3DEffect(
-                        .degrees(Double(sample.x) * (resolvedDepth == .cinematic ? 4.5 : 2.0)),
+                        .degrees(Double(sample.x) * (resolvedDepth == .cinematic ? 5.5 : 2.2)),
                         axis: (x: 0, y: 1, z: 0),
                         anchor: .center,
-                        perspective: 0.65)
+                        perspective: 0.55)
                     .rotation3DEffect(
-                        .degrees(Double(sample.y) * (resolvedDepth == .cinematic ? -2.2 : -1.0)),
+                        .degrees(Double(sample.y) * (resolvedDepth == .cinematic ? -2.8 : -1.2)),
                         axis: (x: 1, y: 0, z: 0),
                         anchor: .center,
-                        perspective: 0.65)
+                        perspective: 0.55)
 
-                    // Near：前景雾（位移最大，压脚底）
+                    // Near：前景雾
                     AvatarDepthFog(intensity: resolvedDepth)
                         .frame(width: size.width, height: size.height)
                         .offset(fogOff)
@@ -223,10 +227,9 @@ public struct BodyAvatarView: View {
         let ambient = DepthParallaxSample.ambient(
             time: date.timeIntervalSinceReferenceDate,
             amplitude: intensity.ambientAmplitude)
-        // 姿态为主，拖拽叠加，环境呼吸在静置时托底
         let motionWeight: CGFloat = 1
-        let dragWeight: CGFloat = 0.85
-        let ambientWeight: CGFloat = 0.55
+        let dragWeight: CGFloat = 0.9
+        let ambientWeight: CGFloat = intensity == .cinematic ? 0.65 : 0.5
         return DepthParallaxSample(
             x: depthMotion.attitude.x * motionWeight
                 + dragParallax.x * dragWeight
@@ -234,6 +237,36 @@ public struct BodyAvatarView: View {
             y: depthMotion.attitude.y * motionWeight
                 + dragParallax.y * dragWeight
                 + ambient.y * ambientWeight)
+    }
+
+    @ViewBuilder
+    private func figureStack(canvas size: CGSize) -> some View {
+        ZStack {
+            if let name = croquisAssetName(for: yaw) {
+                BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
+            } else {
+                PlaceholderCroquis(shape: shape)
+                    .scaleEffect(
+                        x: morph.legacyScale.widthScale,
+                        y: morph.height,
+                        anchor: .center)
+            }
+            if yaw == .deg0 {
+                ForEach(layers) { layer in
+                    garmentLayer(layer, canvas: size)
+                }
+            }
+        }
+    }
+
+    private var rimShadowColor: Color {
+        switch backdrop {
+        case .date: return Color(red: 1, green: 0.4, blue: 0.35)
+        case .gala: return Color(red: 0.65, green: 0.45, blue: 1)
+        case .work: return Color(red: 0.5, green: 0.7, blue: 1)
+        case .casual: return Color(red: 0.6, green: 0.85, blue: 0.7)
+        case .studio: return Color.white
+        }
     }
 
     private var orbitChrome: some View {

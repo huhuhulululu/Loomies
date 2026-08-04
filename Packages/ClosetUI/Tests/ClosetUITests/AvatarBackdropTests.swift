@@ -34,4 +34,14 @@ struct AvatarBackdropTests {
         #expect(names.contains("casual"))
         #expect(Set(names).count == names.count)
     }
+
+    @Test func imageResourceNamesMatchAssets() {
+        for b in AvatarBackdrop.allCases {
+            #expect(b.imageResourceName == "backdrop_\(b.rawValue)")
+            // 经 ClosetUI bundle 加载（非 test bundle）
+            #expect(
+                AvatarBackdropView.bundleImage(named: b.imageResourceName) != nil,
+                "missing backdrop asset for \(b.rawValue)")
+        }
+    }
 }

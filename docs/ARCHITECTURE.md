@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — 景深视差 DepthParallax（效果优先）+ 透明 croquis + AvatarBackdrop + 纸娃娃 + BodyMorph + TF。
+> 最近同步：2026-08-03 — 场合位图 Backdrops + 景深视差 + 透明 croquis + 纸娃娃 + BodyMorph + TF。
 
 ## 项目定位
 

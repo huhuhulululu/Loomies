@@ -1,6 +1,12 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit) && !os(iOS)
+import AppKit
+#endif
 
-/// 体型画布底层场景。Croquis 为透明 PNG；场合底在 UI 层叠，不烤进资源。
+/// 体型画布底层场景。Croquis 为透明 PNG；场合底在 UI 层叠，不烤进 croquis。
 public enum AvatarBackdrop: String, CaseIterable, Sendable, Equatable {
     case studio
     case work
@@ -36,16 +42,16 @@ public enum AvatarBackdrop: String, CaseIterable, Sendable, Equatable {
         case .casual: return "Casual backdrop"
         }
     }
+
+    /// Resources/Backdrops/backdrop_{raw}.png
+    public var imageResourceName: String { "backdrop_\(rawValue)" }
 }
 
-/// 程序化场合背景（效果优先：体积光 + 地坪 + 可随视差放大裁切）。
+/// 电影感场合背景：优先位图场景 + 程序化光雾托底；支持景深视差放大/虚化。
 struct AvatarBackdropView: View {
     var backdrop: AvatarBackdrop
-    /// 景深虚化（背景层）；0 = 实
     var depthBlur: CGFloat = 0
-    /// 视差时放大，避免露边
     var parallaxScale: CGFloat = 1.12
-    /// 归一化光心偏移（随视差，强化立体）
     var lightShift: CGSize = .zero
 
     var body: some View {
@@ -53,20 +59,55 @@ struct AvatarBackdropView: View {
             let w = geo.size.width
             let h = geo.size.height
             ZStack {
-                baseFill
+                proceduralBase
+                if let photo = Self.bundleImage(named: backdrop.imageResourceName) {
+                    photo
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: w, height: h)
+                        .clipped()
+                        .overlay {
+                            // 上半提亮、下半压脚区，给人体站位
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(topWash),
+                                    .clear,
+                                    Color.black.opacity(floorVeil)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom)
+                        }
+                }
                 atmosphericLight(width: w, height: h)
-                floorPlate(width: w, height: h)
+                floatingBokeh(width: w, height: h)
                 filmGrain
                 vignette
             }
+            .frame(width: w, height: h)
             .scaleEffect(parallaxScale)
             .blur(radius: depthBlur)
         }
         .accessibilityHidden(true)
     }
 
+    // MARK: - Bundle
+
+    static func bundleImage(named name: String) -> Image? {
+        if let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Backdrops")
+            ?? Bundle.module.url(forResource: name, withExtension: "png") {
+            #if canImport(UIKit)
+            if let ui = UIImage(contentsOfFile: url.path) { return Image(uiImage: ui) }
+            #elseif canImport(AppKit) && !os(iOS)
+            if let ns = NSImage(contentsOf: url) { return Image(nsImage: ns) }
+            #endif
+        }
+        return nil
+    }
+
+    // MARK: - Layers
+
     @ViewBuilder
-    private var baseFill: some View {
+    private var proceduralBase: some View {
         switch backdrop {
         case .studio:
             LinearGradient(
@@ -75,8 +116,7 @@ struct AvatarBackdropView: View {
                     Color(red: 0.60, green: 0.60, blue: 0.61),
                     Color(red: 0.48, green: 0.48, blue: 0.50)
                 ],
-                startPoint: .top,
-                endPoint: .bottom)
+                startPoint: .top, endPoint: .bottom)
         case .work:
             LinearGradient(
                 colors: [
@@ -84,8 +124,7 @@ struct AvatarBackdropView: View {
                     Color(red: 0.58, green: 0.64, blue: 0.72),
                     Color(red: 0.40, green: 0.46, blue: 0.54)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
+                startPoint: .topLeading, endPoint: .bottomTrailing)
         case .date:
             LinearGradient(
                 colors: [
@@ -93,8 +132,7 @@ struct AvatarBackdropView: View {
                     Color(red: 0.48, green: 0.20, blue: 0.30),
                     Color(red: 0.12, green: 0.08, blue: 0.14)
                 ],
-                startPoint: .top,
-                endPoint: .bottom)
+                startPoint: .top, endPoint: .bottom)
         case .gala:
             LinearGradient(
                 colors: [
@@ -102,8 +140,7 @@ struct AvatarBackdropView: View {
                     Color(red: 0.26, green: 0.16, blue: 0.34),
                     Color(red: 0.04, green: 0.04, blue: 0.08)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
+                startPoint: .topLeading, endPoint: .bottomTrailing)
         case .casual:
             LinearGradient(
                 colors: [
@@ -111,22 +148,19 @@ struct AvatarBackdropView: View {
                     Color(red: 0.74, green: 0.84, blue: 0.80),
                     Color(red: 0.58, green: 0.72, blue: 0.70)
                 ],
-                startPoint: .top,
-                endPoint: .bottom)
+                startPoint: .top, endPoint: .bottom)
         }
     }
 
-    /// 体积光 / 窗光 / 聚光（随 lightShift 微移）
     private func atmosphericLight(width: CGFloat, height: CGFloat) -> some View {
-        let cx = width * 0.5 + lightShift.width * 36
-        let cy = height * lightY + lightShift.height * 28
+        let cx = 0.5 + lightShift.width * 0.12
+        let cy = lightY + lightShift.height * 0.08
         return ZStack {
             RadialGradient(
                 colors: [keyLightColor.opacity(keyLightOpacity), .clear],
-                center: UnitPoint(x: cx / max(width, 1), y: cy / max(height, 1)),
-                startRadius: 8,
-                endRadius: max(width, height) * 0.72)
-            // 顶部天光
+                center: UnitPoint(x: cx, y: cy),
+                startRadius: 6,
+                endRadius: max(width, height) * 0.75)
             LinearGradient(
                 colors: [rimColor.opacity(rimOpacity), .clear],
                 startPoint: .top,
@@ -136,33 +170,42 @@ struct AvatarBackdropView: View {
         .allowsHitTesting(false)
     }
 
-    private func floorPlate(width: CGFloat, height: CGFloat) -> some View {
-        // 下 38% 地坪透视感，托住脚底
-        VStack {
-            Spacer()
-            LinearGradient(
-                colors: [
-                    .clear,
-                    floorColor.opacity(0.15),
-                    floorColor.opacity(0.42)
-                ],
-                startPoint: .top,
-                endPoint: .bottom)
-            .frame(height: height * 0.38)
-            .blur(radius: 0.5)
+    /// 额外浮动光斑（date/gala 加强电影感）
+    private func floatingBokeh(width: CGFloat, height: CGFloat) -> some View {
+        Group {
+            if backdrop == .date || backdrop == .gala {
+                ZStack {
+                    Circle().fill(keyLightColor.opacity(0.22))
+                        .frame(width: 36, height: 36)
+                        .blur(radius: 8)
+                        .offset(
+                            x: width * 0.28 + lightShift.width * 20,
+                            y: -height * 0.18 + lightShift.height * 12)
+                    Circle().fill(rimColor.opacity(0.18))
+                        .frame(width: 22, height: 22)
+                        .blur(radius: 6)
+                        .offset(
+                            x: -width * 0.22 + lightShift.width * 14,
+                            y: -height * 0.08 + lightShift.height * 10)
+                    Circle().fill(Color.white.opacity(0.12))
+                        .frame(width: 14, height: 14)
+                        .blur(radius: 4)
+                        .offset(x: width * 0.12, y: height * 0.05)
+                }
+                .blendMode(.screen)
+            }
         }
         .allowsHitTesting(false)
     }
 
     private var filmGrain: some View {
-        // 极轻噪点感：用半透明网格近似，避免真图资源
         Rectangle()
             .fill(
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.02),
-                        Color.black.opacity(0.03),
-                        Color.white.opacity(0.015)
+                        Color.white.opacity(0.025),
+                        Color.black.opacity(0.04),
+                        Color.white.opacity(0.02)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing)
@@ -175,16 +218,36 @@ struct AvatarBackdropView: View {
         RadialGradient(
             colors: [.clear, Color.black.opacity(vignetteOpacity)],
             center: .center,
-            startRadius: 30,
-            endRadius: 240)
+            startRadius: 28,
+            endRadius: 250)
         .blendMode(.multiply)
         .allowsHitTesting(false)
     }
 
+    private var topWash: Double {
+        switch backdrop {
+        case .studio: return 0.06
+        case .work: return 0.08
+        case .date: return 0.04
+        case .gala: return 0.03
+        case .casual: return 0.07
+        }
+    }
+
+    private var floorVeil: Double {
+        switch backdrop {
+        case .studio: return 0.10
+        case .work: return 0.12
+        case .date: return 0.28  // 压蜡烛前景
+        case .gala: return 0.22
+        case .casual: return 0.10
+        }
+    }
+
     private var lightY: CGFloat {
         switch backdrop {
-        case .studio, .work, .casual: return 0.22
-        case .date, .gala: return 0.18
+        case .studio, .work, .casual: return 0.20
+        case .date, .gala: return 0.16
         }
     }
 
@@ -193,82 +256,136 @@ struct AvatarBackdropView: View {
         case .studio: return Color(red: 1, green: 0.98, blue: 0.96)
         case .work: return Color(red: 0.85, green: 0.92, blue: 1.0)
         case .date: return Color(red: 1.0, green: 0.55, blue: 0.45)
-        case .gala: return Color(red: 0.75, green: 0.65, blue: 1.0)
+        case .gala: return Color(red: 0.85, green: 0.72, blue: 1.0)
         case .casual: return Color(red: 0.95, green: 1.0, blue: 0.9)
         }
     }
 
     private var keyLightOpacity: Double {
         switch backdrop {
-        case .studio: return 0.35
-        case .work: return 0.40
-        case .date: return 0.45
-        case .gala: return 0.50
-        case .casual: return 0.32
+        case .studio: return 0.22
+        case .work: return 0.28
+        case .date: return 0.32
+        case .gala: return 0.36
+        case .casual: return 0.24
         }
     }
 
     private var rimColor: Color {
         switch backdrop {
-        case .date: return Color(red: 1, green: 0.4, blue: 0.35)
-        case .gala: return Color(red: 0.6, green: 0.5, blue: 1)
+        case .date: return Color(red: 1, green: 0.45, blue: 0.38)
+        case .gala: return Color(red: 0.7, green: 0.55, blue: 1)
+        case .work: return Color(red: 0.7, green: 0.85, blue: 1)
         default: return .white
         }
     }
 
     private var rimOpacity: Double {
         switch backdrop {
-        case .studio: return 0.12
-        case .work: return 0.18
-        case .date: return 0.28
-        case .gala: return 0.32
-        case .casual: return 0.14
-        }
-    }
-
-    private var floorColor: Color {
-        switch backdrop {
-        case .studio: return Color(red: 0.25, green: 0.25, blue: 0.26)
-        case .work: return Color(red: 0.2, green: 0.22, blue: 0.26)
-        case .date: return Color(red: 0.08, green: 0.04, blue: 0.08)
-        case .gala: return Color.black
-        case .casual: return Color(red: 0.25, green: 0.35, blue: 0.32)
+        case .studio: return 0.10
+        case .work: return 0.16
+        case .date: return 0.24
+        case .gala: return 0.28
+        case .casual: return 0.12
         }
     }
 
     private var vignetteOpacity: Double {
         switch backdrop {
-        case .studio: return 0.18
-        case .work: return 0.16
-        case .date: return 0.32
-        case .gala: return 0.38
-        case .casual: return 0.12
+        case .studio: return 0.16
+        case .work: return 0.18
+        case .date: return 0.30
+        case .gala: return 0.36
+        case .casual: return 0.14
         }
     }
 }
 
-/// 脚底接触阴影（随人体层位移，增强「站在场景里」）。
+/// 脚底接触阴影。
 struct AvatarContactShadow: View {
     var body: some View {
         Ellipse()
             .fill(
                 RadialGradient(
                     colors: [
-                        Color.black.opacity(0.38),
-                        Color.black.opacity(0.12),
+                        Color.black.opacity(0.42),
+                        Color.black.opacity(0.14),
                         .clear
                     ],
                     center: .center,
                     startRadius: 2,
-                    endRadius: 48)
+                    endRadius: 52)
             )
-            .frame(width: 120, height: 28)
-            .blur(radius: 3)
+            .frame(width: 128, height: 30)
+            .blur(radius: 3.5)
             .accessibilityHidden(true)
     }
 }
 
-/// 前景景深雾（最前层，视差最大）——电影感压暗边角。
+/// 地面镜像反射（人体层下方，弱透明度）。
+struct AvatarFloorReflection<Content: View>: View {
+    var heightFraction: CGFloat = 0.14
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .scaleEffect(x: 1, y: -1, anchor: .bottom)
+            .mask(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.28),
+                        Color.black.opacity(0.08),
+                        .clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom)
+            )
+            .opacity(0.35)
+            .blur(radius: 1.2)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// 轮廓分离光（让透明 croquis 从复杂背景中弹出）。
+struct AvatarRimLight: View {
+    var backdrop: AvatarBackdrop
+    var intensity: DepthParallaxIntensity
+
+    var body: some View {
+        if intensity != .off {
+            LinearGradient(
+                colors: rimColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing)
+            .blendMode(.screen)
+            .opacity(intensity == .cinematic ? 0.22 : 0.12)
+            .mask(
+                LinearGradient(
+                    colors: [.clear, .white.opacity(0.9), .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing)
+            )
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var rimColors: [Color] {
+        switch backdrop {
+        case .date:
+            return [Color(red: 1, green: 0.5, blue: 0.4), .clear, Color(red: 1, green: 0.7, blue: 0.5)]
+        case .gala:
+            return [Color(red: 0.7, green: 0.5, blue: 1), .clear, Color(red: 1, green: 0.85, blue: 0.6)]
+        case .work:
+            return [Color(red: 0.6, green: 0.8, blue: 1), .clear, Color.white]
+        default:
+            return [Color.white, .clear, Color.white.opacity(0.6)]
+        }
+    }
+}
+
+/// 前景景深雾。
 struct AvatarDepthFog: View {
     var intensity: DepthParallaxIntensity
 
@@ -278,7 +395,7 @@ struct AvatarDepthFog: View {
                 colors: [
                     .clear,
                     .clear,
-                    Color.black.opacity(intensity == .cinematic ? 0.14 : 0.07)
+                    Color.black.opacity(intensity == .cinematic ? 0.16 : 0.08)
                 ],
                 startPoint: .top,
                 endPoint: .bottom)

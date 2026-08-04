@@ -58,7 +58,8 @@ public struct CopilotView: View {
     // MARK: - Hero card
 
     private var heroCard: some View {
-        VStack(spacing: 0) {
+        let heroBackdrop = AvatarBackdrop.resolved(from: vm.occasion)
+        return VStack(spacing: 0) {
             ZStack(alignment: .topTrailing) {
                 BodyAvatarView(
                     shape: heroShape,
@@ -68,20 +69,27 @@ public struct CopilotView: View {
                     showsFitCaption: false,
                     enablesOrbit: true,
                     compactChrome: true,
-                    backdrop: .resolved(from: vm.occasion))
-                .padding(.top, 8)
-                .padding(.horizontal, 8)
+                    backdrop: heroBackdrop,
+                    depthIntensity: .cinematic)
+                .padding(.top, 6)
+                .padding(.horizontal, 6)
+                .frame(minHeight: DS.heroMinHeight)
+
+                // 场合色微边光（效果优先）
+                RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
+                    .strokeBorder(heroEdgeGlow(heroBackdrop), lineWidth: 1.2)
+                    .padding(4)
+                    .allowsHitTesting(false)
 
                 if vm.isRefreshing {
                     ProgressView()
                         .padding(12)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
-                        .padding(12)
+                        .padding(14)
                 }
             }
 
-            // 叠衣提示 / look 文案
             VStack(spacing: 6) {
                 Text(heroTitle)
                     .font(.headline)
@@ -96,9 +104,8 @@ public struct CopilotView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)
+            .padding(.top, 6)
 
-            // look 切换 + 元信息
             HStack(spacing: 12) {
                 metaPill(
                     icon: "cloud.sun",
@@ -139,9 +146,40 @@ public struct CopilotView: View {
                 Color.clear.frame(height: 12)
             }
         }
-        .background(DS.surface)
+        .background(
+            ZStack {
+                DS.surface
+                // 卡片底随场合极淡染色
+                heroCardWash(heroBackdrop)
+                    .opacity(0.14)
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
-        .shadow(color: DS.ink.opacity(0.06), radius: 16, y: 6)
+        .shadow(color: DS.ink.opacity(0.08), radius: 20, y: 8)
+        .animation(.easeInOut(duration: 0.35), value: vm.occasion)
+    }
+
+    private func heroEdgeGlow(_ b: AvatarBackdrop) -> LinearGradient {
+        let c: Color = {
+            switch b {
+            case .studio: return Color.white.opacity(0.35)
+            case .work: return Color(red: 0.55, green: 0.72, blue: 0.95).opacity(0.55)
+            case .date: return Color(red: 0.95, green: 0.45, blue: 0.5).opacity(0.55)
+            case .gala: return Color(red: 0.7, green: 0.55, blue: 1).opacity(0.6)
+            case .casual: return Color(red: 0.55, green: 0.8, blue: 0.65).opacity(0.5)
+            }
+        }()
+        return LinearGradient(colors: [c, c.opacity(0.15), c], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    private func heroCardWash(_ b: AvatarBackdrop) -> Color {
+        switch b {
+        case .studio: return Color(white: 0.7)
+        case .work: return Color(red: 0.55, green: 0.7, blue: 0.9)
+        case .date: return Color(red: 0.7, green: 0.3, blue: 0.4)
+        case .gala: return Color(red: 0.45, green: 0.3, blue: 0.7)
+        case .casual: return Color(red: 0.5, green: 0.75, blue: 0.6)
+        }
     }
 
     private var lookPager: some View {

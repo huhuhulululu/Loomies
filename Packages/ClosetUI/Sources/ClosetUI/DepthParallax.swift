@@ -14,40 +14,41 @@ public enum DepthParallaxIntensity: String, Sendable, Equatable {
     public var backgroundTravel: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 14
-        case .cinematic: return 28
+        case .subtle: return 16
+        case .cinematic: return 36
         }
     }
 
     public var figureTravel: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 6
-        case .cinematic: return 12
+        case .subtle: return 7
+        case .cinematic: return 14
         }
     }
 
     public var foregroundTravel: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 10
-        case .cinematic: return 20
+        case .subtle: return 12
+        case .cinematic: return 26
         }
     }
 
     public var backdropScale: CGFloat {
         switch self {
         case .off: return 1
-        case .subtle: return 1.08
-        case .cinematic: return 1.16
+        case .subtle: return 1.10
+        case .cinematic: return 1.20
         }
     }
 
     public var backgroundBlur: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 1.2
-        case .cinematic: return 2.8
+        case .subtle: return 1.6
+        // 位图背景略虚，突出真人层
+        case .cinematic: return 3.6
         }
     }
 
@@ -55,8 +56,8 @@ public enum DepthParallaxIntensity: String, Sendable, Equatable {
     public var ambientAmplitude: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 0.12
-        case .cinematic: return 0.28
+        case .subtle: return 0.14
+        case .cinematic: return 0.34
         }
     }
 }
