@@ -188,6 +188,13 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D42 [2026-08-03] 体型 croquis 透明底 + 场合背景层
+- 问题：各 croquis 烤进的棚灰/底色不一致，换场景会露脏边
+- **资源**：`croquis_*.png` → RGBA 透明（flood + largest-component + edge decontam）；脚本 `app-shell/scripts/croquis-to-alpha.py`
+- **Morph**：`BodyMorphRaster` OOB / 源透明填 **alpha0**（不再填棚灰）；`format.opaque=false`
+- **UI**：`AvatarBackdrop`（studio/work/date/gala/casual）叠在人体下；`BodyAvatarView.backdrop`；Today 跟 `vm.occasion`，Favorites 跟 `occasionRaw`
+- 以后换真实场景图只换 Backdrop 层，不重烤 croquis
+
 ## D41 [2026-08-03] 数据生命周期：全量导出 + 删除全部（CCPA）
 - `DataLifecycleService`：JSON 全实体导出（schemaVersion=1）；身体围度默认不含、显式勾选才含
 - 删除全部：清 Person/Wardrobe/Item/Outfit/Wear/Plan/Location/BodyProfile + ItemImages；回执 summary

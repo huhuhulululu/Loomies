@@ -132,6 +132,7 @@ Same exact photoreal woman (same face, freckles, hair, skin texture) wearing onl
 3. 再 fan-out：体型（§3）→ 角度（§4）→ 组合补缺（§5）→ 各帧 realism pass（§7）  
 4. 入库名：`croquis_{hourglass|pear|apple|rectangle|invertedTriangle}_yaw{000…315}.png`（1024×1536）  
 5. legacy 正面：`croquis_{shape}.png` = 对应 `yaw000` 拷贝  
+6. **出图可带棚灰**；入库 App 前跑 `python3 app-shell/scripts/croquis-to-alpha.py` → **RGBA 透明底**（UI 用 `AvatarBackdrop` 叠场合，不烤进 PNG） 
 
 ---
 

@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — DataLifecycle 导出/删除全部 + 纸娃娃叠衣 + 入库图/相机/Vision + BodyMorph + TF。
+> 最近同步：2026-08-03 — croquis 透明底 + AvatarBackdrop 场合层 + DataLifecycle + 纸娃娃叠衣 + BodyMorph + TF。
 
 ## 项目定位
 
@@ -14,7 +14,7 @@
 |------|------|------|------|
 | ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar 布局/槽位 + BodyMorphParams 连续塑形** | `swift test` |
 | ClosetModel | `Packages/ClosetModel/` | SwiftData + BodyProfile 双轨（快选/实测）+ ItemStatus/… | `swift test` |
-| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360° + BodyMorphStripView 分条变形 + Me 精调滑杆** | `swift test` + build |
+| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView 360°（透明 croquis + AvatarBackdrop 场合底）+ BodyMorph 扫描线变形 + Me 精调** | `swift test` + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
@@ -75,7 +75,7 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
 | ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn/**DataLifecycle** | 持久化 + 语义服务 + 导出/删除全部 |
-| ClosetUI | BodyAvatarView/BodyMorphRaster, CalendarView, MeView（Data 区）, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 体型 + 日历/Me 闭环 |
+| ClosetUI | BodyAvatarView/AvatarBackdrop/BodyMorphRaster, CalendarView, MeView（Data 区）, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 透明 croquis 叠场合底 + 日历/Me 闭环 |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 

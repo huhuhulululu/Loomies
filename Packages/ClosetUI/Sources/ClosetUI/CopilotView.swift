@@ -67,7 +67,8 @@ public struct CopilotView: View {
                     fitCaption: nil,
                     showsFitCaption: false,
                     enablesOrbit: true,
-                    compactChrome: true)
+                    compactChrome: true,
+                    backdrop: .resolved(from: vm.occasion))
                 .padding(.top, 8)
                 .padding(.horizontal, 8)
 

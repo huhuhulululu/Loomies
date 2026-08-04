@@ -9,6 +9,7 @@ import AppKit
 #endif
 
 /// 真人站姿 + **360° 切帧** + **连续 BodyMorph 分条变形**（类游戏滑杆塑形，非 SMPL / 非 VTON）。
+/// Croquis 为透明 PNG；`backdrop` 在底层叠场合场景，不烤进资源。
 public struct BodyAvatarView: View {
     public var shape: PopularShape
     public var morph: BodyMorphParams
@@ -20,6 +21,8 @@ public struct BodyAvatarView: View {
     public var compactChrome: Bool
     /// 保留参数以兼容调用方；实际走 `BodyMorphRaster` 像素行变形（非多层 mask）。
     public var morphStripCount: Int
+    /// 场合/棚灰背景（UI 层，可换）
+    public var backdrop: AvatarBackdrop
 
     @State private var yaw: BodyAvatarYaw = .deg0
     @State private var dragOriginYaw: BodyAvatarYaw?
@@ -33,7 +36,8 @@ public struct BodyAvatarView: View {
         enablesOrbit: Bool = true,
         compactChrome: Bool = false,
         initialYaw: BodyAvatarYaw = .deg0,
-        morphStripCount: Int = 96
+        morphStripCount: Int = 96,
+        backdrop: AvatarBackdrop = .studio
     ) {
         self.shape = shape
         self.morph = morph
@@ -43,6 +47,7 @@ public struct BodyAvatarView: View {
         self.enablesOrbit = enablesOrbit
         self.compactChrome = compactChrome
         self.morphStripCount = max(32, morphStripCount)
+        self.backdrop = backdrop
         _yaw = State(initialValue: initialYaw)
     }
 
@@ -54,7 +59,8 @@ public struct BodyAvatarView: View {
         fitCaption: String? = nil,
         showsFitCaption: Bool = true,
         enablesOrbit: Bool = true,
-        initialYaw: BodyAvatarYaw = .deg0
+        initialYaw: BodyAvatarYaw = .deg0,
+        backdrop: AvatarBackdrop = .studio
     ) {
         self.init(
             shape: shape,
@@ -63,7 +69,8 @@ public struct BodyAvatarView: View {
             fitCaption: fitCaption,
             showsFitCaption: showsFitCaption,
             enablesOrbit: enablesOrbit,
-            initialYaw: initialYaw)
+            initialYaw: initialYaw,
+            backdrop: backdrop)
     }
 
     public static func from(
@@ -72,7 +79,8 @@ public struct BodyAvatarView: View {
         fineTune: BodyMorphParams = .neutral,
         slotAssets: [BodyAvatarSlot: String] = [:],
         fitCaption: String? = nil,
-        enablesOrbit: Bool = true
+        enablesOrbit: Bool = true,
+        backdrop: AvatarBackdrop = .studio
     ) -> BodyAvatarView {
         let resolvedShape = shape
             ?? BodyAvatarComposer.resolveShape(from: measurements)
@@ -85,7 +93,8 @@ public struct BodyAvatarView: View {
             morph: morph,
             layers: BodyAvatarComposer.layers(slots: slotAssets),
             fitCaption: fitCaption,
-            enablesOrbit: enablesOrbit)
+            enablesOrbit: enablesOrbit,
+            backdrop: backdrop)
     }
 
     public var body: some View {
@@ -119,6 +128,10 @@ public struct BodyAvatarView: View {
         GeometryReader { geo in
             let size = geo.size
             ZStack {
+                // 底层：场合/棚灰（可换）；人体透明 croquis 叠在其上
+                AvatarBackdropView(backdrop: backdrop)
+                    .frame(width: size.width, height: size.height)
+
                 if let name = croquisAssetName(for: yaw) {
                     // 单次 CG 栅格变形；中性 morph 直出原图，避免 48 层 mask 碎裂
                     BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
@@ -139,8 +152,8 @@ public struct BodyAvatarView: View {
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
-        .background(DS.studioGray)
         .clipShape(RoundedRectangle(cornerRadius: compactChrome ? DS.radiusLg : DS.radius, style: .continuous))
+        .accessibilityValue(backdrop.accessibilityLabel)
     }
 
     private var orbitChrome: some View {

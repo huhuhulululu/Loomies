@@ -21,7 +21,7 @@ enum BodyMorphRaster {
         morph: BodyMorphParams,
         outputWidth: CGFloat
     ) -> UIImage? {
-        // 统一栅格到 RGBA8（资源是 RGB PNG，避免 bpp/对齐坑）
+        // 统一栅格到 RGBA8（资源为透明 croquis，保留 alpha）
         guard let rgba = Self.makeRGBABuffer(from: source) else {
             guard let cg = source.cgImage else { return nil }
             let outW0 = max(64, min(1536, Int(outputWidth.rounded(.toNearestOrAwayFromZero))))
@@ -46,10 +46,8 @@ enum BodyMorphRaster {
         }
         let hasAlpha = true
 
-        // 棚灰底 RGB
-        // 与 BodyAvatar 统一棚灰 TARGET≈158 对齐
-        let bgR: UInt8 = 158, bgG: UInt8 = 158, bgB: UInt8 = 158
-        var out = [UInt8](repeating: 255, count: outW * outH * 4)
+        // 透明底：OOB / 源透明 → alpha 0；场合背景在 UI 层叠（AvatarBackdrop）
+        var out = [UInt8](repeating: 0, count: outW * outH * 4)
         let outCx = Double(outW - 1) / 2
         let srcCx = Double(srcW - 1) / 2
         let hScale = heightS
@@ -61,11 +59,7 @@ enum BodyMorphRaster {
             let yFromCenter = yN - 0.5
             let srcYN = 0.5 + yFromCenter * invH
             if srcYN < -0.02 || srcYN > 1.02 {
-                // 填背景
-                for x in 0..<outW {
-                    let o = (y * outW + x) * 4
-                    out[o] = bgR; out[o + 1] = bgG; out[o + 2] = bgB; out[o + 3] = 255
-                }
+                // 透明（已是 0）
                 continue
             }
             let srcY = min(Double(srcH - 1), max(0, srcYN * Double(srcH - 1)))
@@ -77,15 +71,14 @@ enum BodyMorphRaster {
                 let srcX = srcCx + xFromCenter * invSx * (Double(srcW) / Double(outW))
                 let o = (y * outW + x) * 4
                 if srcX < 0 || srcX > Double(srcW - 1) {
-                    out[o] = bgR; out[o + 1] = bgG; out[o + 2] = bgB; out[o + 3] = 255
+                    // 透明
                     continue
                 }
                 sampleBilinear(
                     src: srcRGBA, stride: srcStride, w: srcW, h: srcH,
                     x: srcX, y: srcY,
                     hasAlpha: hasAlpha,
-                    into: &out, at: o,
-                    bgR: bgR, bgG: bgG, bgB: bgB)
+                    into: &out, at: o)
             }
         }
 
@@ -126,17 +119,17 @@ enum BodyMorphRaster {
         src: [UInt8], stride: Int, w: Int, h: Int,
         x: Double, y: Double,
         hasAlpha: Bool,
-        into out: inout [UInt8], at o: Int,
-        bgR: UInt8, bgG: UInt8, bgB: UInt8
+        into out: inout [UInt8], at o: Int
     ) {
         let x0 = Int(floor(x)), y0 = Int(floor(y))
         let x1 = min(w - 1, x0 + 1), y1 = min(h - 1, y0 + 1)
         let fx = x - Double(x0), fy = y - Double(y0)
         let x0c = max(0, min(w - 1, x0)), y0c = max(0, min(h - 1, y0))
 
+        // OOB / 越界缓冲 → 透明，不填棚灰
         func px(_ xi: Int, _ yi: Int) -> (Double, Double, Double, Double) {
             let i = yi * stride + xi * 4
-            if i + 3 >= src.count { return (Double(bgR), Double(bgG), Double(bgB), 255) }
+            if i + 3 >= src.count { return (0, 0, 0, 0) }
             return (Double(src[i]), Double(src[i + 1]), Double(src[i + 2]), Double(src[i + 3]))
         }
         let p00 = px(x0c, y0c)
@@ -148,6 +141,11 @@ enum BodyMorphRaster {
         let g = lerp(lerp(p00.1, p10.1, fx), lerp(p01.1, p11.1, fx), fy)
         let b = lerp(lerp(p00.2, p10.2, fx), lerp(p01.2, p11.2, fx), fy)
         let a = hasAlpha ? lerp(lerp(p00.3, p10.3, fx), lerp(p01.3, p11.3, fx), fy) : 255
+        // 完全透明时清 RGB，避免 fringe 在非棚灰背景上露灰边
+        if a < 0.5 {
+            out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0
+            return
+        }
         out[o] = UInt8(min(255, max(0, r.rounded())))
         out[o + 1] = UInt8(min(255, max(0, g.rounded())))
         out[o + 2] = UInt8(min(255, max(0, b.rounded())))
@@ -163,12 +161,11 @@ enum BodyMorphRaster {
         let n = min(128, outH)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
-        format.opaque = true
+        format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: outW, height: outH), format: format)
         return renderer.image { ctx in
             let c = ctx.cgContext
-            c.setFillColor(red: 0.72, green: 0.72, blue: 0.73, alpha: 1)
-            c.fill(CGRect(x: 0, y: 0, width: outW, height: outH))
+            c.clear(CGRect(x: 0, y: 0, width: outW, height: outH))
             c.interpolationQuality = .high
             let drawnH = CGFloat(outH) * heightS
             let drawnY = (CGFloat(outH) - drawnH) / 2
@@ -207,12 +204,15 @@ enum BodyMorphRaster {
         let size = NSSize(width: max(64, outputWidth), height: max(96, outputWidth * 1.5))
         let out = NSImage(size: size)
         out.lockFocus()
-        NSColor(white: 0.72, alpha: 1).setFill()
+        NSColor.clear.setFill()
         NSRect(origin: .zero, size: size).fill()
         let dw = size.width * sx
         let dh = size.height * CGFloat(m.height)
         NSImage(cgImage: cg, size: .zero).draw(
-            in: NSRect(x: (size.width - dw) / 2, y: (size.height - dh) / 2, width: dw, height: dh))
+            in: NSRect(x: (size.width - dw) / 2, y: (size.height - dh) / 2, width: dw, height: dh),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1)
         out.unlockFocus()
         return out
     }
