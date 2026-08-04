@@ -82,24 +82,30 @@ public struct CalendarView: View {
     }
 
     private func planRow(_ plan: CalendarPlan) -> some View {
-        HStack {
+        let items = plan.outfit?.items ?? []
+        let occasion = plan.outfit?.occasionRaw
+        return HStack(spacing: 12) {
+            // Same look preview path as Favorites / Today (owner morph + paper-doll layers).
+            lookThumb(items: items, occasion: occasion, width: 56, height: 84)
             VStack(alignment: .leading, spacing: 4) {
                 Text(plan.date, style: .date).font(.headline)
-                Text(plan.outfit?.name.isEmpty == false
-                     ? (plan.outfit?.name ?? "Outfit") : "Outfit")
+                Text(lookTitle(plan.outfit))
                     .font(.caption).foregroundStyle(DS.muted)
-                if let items = plan.outfit?.items, !items.isEmpty {
+                if !items.isEmpty {
                     Text(items.prefix(4).map(\.name).joined(separator: " · "))
                         .font(.caption2).foregroundStyle(DS.muted)
                         .lineLimit(1)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if plan.needsAttention {
                 Label("Attention", systemImage: "exclamationmark.triangle.fill")
                     .font(.caption2).foregroundStyle(.orange)
+                    .labelStyle(.iconOnly)
+                    .accessibilityLabel("Needs attention")
             }
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var planSheet: some View {
@@ -113,18 +119,24 @@ public struct CalendarView: View {
                     ForEach(favorites, id: \.id) { outfit in
                         Button {
                             _ = CalendarPlanService.plan(outfit: outfit, on: planDate, in: context)
-                            message = "Planned \(outfit.name.isEmpty ? "look" : outfit.name)"
+                            message = "Planned \(lookTitle(outfit))"
                             showPlanPicker = false
                             reload()
                         } label: {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(outfit.name.isEmpty ? "Favorite look" : outfit.name)
-                                    Text("\((outfit.items ?? []).count) pieces")
+                            HStack(spacing: 12) {
+                                lookThumb(
+                                    items: outfit.items ?? [],
+                                    occasion: outfit.occasionRaw,
+                                    width: 40, height: 60)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(lookTitle(outfit))
+                                        .foregroundStyle(DS.ink)
+                                    Text("\((outfit.items ?? []).count) pieces · \(outfit.occasionRaw?.capitalized ?? "Any")")
                                         .font(.caption).foregroundStyle(DS.muted)
                                 }
                                 Spacer()
                                 Image(systemName: "calendar.badge.plus")
+                                    .foregroundStyle(DS.accent)
                             }
                         }
                     }
@@ -137,6 +149,56 @@ public struct CalendarView: View {
                 }
             }
         }
+    }
+
+    private func lookTitle(_ outfit: ClosetModel.Outfit?) -> String {
+        guard let outfit else { return "Look" }
+        if outfit.name.isEmpty { return "Favorite look" }
+        return outfit.name
+    }
+
+    @ViewBuilder
+    private func lookThumb(
+        items: [Item], occasion: String?, width: CGFloat, height: CGFloat
+    ) -> some View {
+        BodyAvatarView(
+            shape: ownerShape,
+            morph: ownerMorph,
+            layers: OutfitAvatarComposer.layers(from: items),
+            showsFitCaption: false,
+            enablesOrbit: false,
+            backdrop: .resolved(from: occasion),
+            depthIntensity: .off)
+        .frame(width: width, height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var ownerProfile: PersonBodyProfile? {
+        guard let pid = wardrobe.owner?.id else { return nil }
+        let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+        return profiles.first(where: { $0.personID == pid })
+    }
+
+    private var ownerShape: PopularShape {
+        if let p = ownerProfile,
+           let s = BodyProfileService.displayPopularShape(from: p) {
+            return s
+        }
+        return .rectangle
+    }
+
+    private var ownerMorph: BodyMorphParams {
+        guard let p = ownerProfile else {
+            return BodyMorphParams.preset(for: ownerShape)
+        }
+        let m = BodyProfileService.measurements(from: p)
+        let shape = BodyProfileService.popularShape(from: p)
+        let fine = BodyMorphParams(
+            chest: p.fineChest, waist: p.fineWaist,
+            hip: p.fineHip, shoulder: 1, height: p.fineHeight)
+        return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
     }
 
     private func reload() {
