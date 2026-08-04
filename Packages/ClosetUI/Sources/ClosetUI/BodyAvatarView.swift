@@ -139,6 +139,8 @@ public struct BodyAvatarView: View {
             yaw = .deg0
         }
         .onAppear {
+            // 资源抛光后清 morph 缓存，避免旧白边帧
+            BodyMorphImageCache.shared.clear()
             if resolvedDepth != .off, !reduceMotion { depthMotion.start() }
         }
         .onDisappear { depthMotion.stop() }
@@ -171,27 +173,17 @@ public struct BodyAvatarView: View {
                     .frame(width: size.width, height: size.height)
                     .offset(bgOff)
 
-                    // Mid：脚底影 + 弱反射 + 人体 + 叠衣
+                    // Mid：脚底影贴地 + 人体 + 叠衣（反射极弱，避免脚底假影）
                     ZStack {
                         AvatarContactShadow()
-                            .frame(width: size.width * 0.42, height: size.height * 0.035)
-                            .offset(y: size.height * 0.40)
-                            .opacity(resolvedDepth == .off ? 0.38 : 0.55)
-
-                        if resolvedDepth == .cinematic && !reduceMotion {
-                            AvatarFloorReflection {
-                                figureStack(canvas: size)
-                                    .frame(width: size.width, height: size.height)
-                            }
-                            .frame(width: size.width, height: size.height * 0.10)
-                            .offset(y: size.height * 0.41)
-                            .opacity(0.22)
-                        }
+                            .frame(width: size.width * 0.36, height: size.height * 0.028)
+                            .offset(y: size.height * 0.43)
+                            .opacity(resolvedDepth == .off ? 0.32 : 0.48)
 
                         figureStack(canvas: size)
                             .shadow(
-                                color: Color.black.opacity(resolvedDepth == .cinematic ? 0.18 : 0.10),
-                                radius: resolvedDepth == .cinematic ? 8 : 4,
+                                color: Color.black.opacity(resolvedDepth == .cinematic ? 0.14 : 0.08),
+                                radius: resolvedDepth == .cinematic ? 6 : 3,
                                 y: 2)
                     }
                     .offset(figOff)

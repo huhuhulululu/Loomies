@@ -7,6 +7,7 @@ import ClosetCore
 /// 视觉：大人体 + 叠衣；机制：锚定 → 补全（D19），非 VTON。
 public struct CopilotView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: CopilotViewModel
     @State private var checkInNote: String?
     @State private var actions = OutfitActionsViewModel()
@@ -74,14 +75,15 @@ public struct CopilotView: View {
                     compactChrome: true,
                     backdrop: heroBackdrop,
                     depthIntensity: .cinematic)
-                .padding(.top, 6)
-                .padding(.horizontal, 6)
+                .padding(.top, 4)
+                .padding(.horizontal, 4)
                 .frame(minHeight: DS.heroMinHeight)
+                .id(heroBackdrop) // 换场合强制重建合成，避免旧帧残留
 
-                // 场合色微边光（效果优先）
+                // 场合色微边光（细、不抢切边）
                 RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
-                    .strokeBorder(heroEdgeGlow(heroBackdrop), lineWidth: 1.2)
-                    .padding(4)
+                    .strokeBorder(heroEdgeGlow(heroBackdrop), lineWidth: 0.8)
+                    .padding(3)
                     .allowsHitTesting(false)
 
                 HStack {
@@ -189,7 +191,7 @@ public struct CopilotView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         .shadow(color: DS.ink.opacity(0.08), radius: 20, y: 8)
-        .animation(.easeInOut(duration: 0.35), value: vm.occasion)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: vm.occasion)
     }
 
     private func heroEdgeGlow(_ b: AvatarBackdrop) -> LinearGradient {

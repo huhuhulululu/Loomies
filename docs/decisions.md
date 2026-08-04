@@ -188,6 +188,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D48 [2026-08-03] loop 打磨：脚底灰影 + morph 预乘采样
+- 实测 pear 侧视脚底灰 blob：低饱和 flood 清理全部 yaw090/270
+- BodyMorphRaster 预乘双线性采样，边缘更干净
+- 去掉假地面反射；Reduce Motion；hero 换场合 `.id` 重建
+
 ## D47 [2026-08-03] 全面打磨 workflow（资产+合成+无障碍）
 - 资产：全 croquis 微抛光（fringe kill + 护发丝）；contact sheet QA（work/date×5 体型 + 洋红）
 - 合成：视差幅度回落防飘；接触影随画布；弱反射；`Reduce Motion` 关 ambient/陀螺 3D

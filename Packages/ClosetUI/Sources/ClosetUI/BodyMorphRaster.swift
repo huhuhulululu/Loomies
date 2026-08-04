@@ -137,19 +137,27 @@ enum BodyMorphRaster {
         let p01 = px(x0c, y1)
         let p11 = px(x1, y1)
         func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
-        let r = lerp(lerp(p00.0, p10.0, fx), lerp(p01.0, p11.0, fx), fy)
-        let g = lerp(lerp(p00.1, p10.1, fx), lerp(p01.1, p11.1, fx), fy)
-        let b = lerp(lerp(p00.2, p10.2, fx), lerp(p01.2, p11.2, fx), fy)
-        let a = hasAlpha ? lerp(lerp(p00.3, p10.3, fx), lerp(p01.3, p11.3, fx), fy) : 255
-        // 完全透明时清 RGB，避免 fringe 在非棚灰背景上露灰边
-        if a < 0.5 {
+        // 预乘空间双线性，再解预乘 → 半透明边缘不发灰/发白
+        func premul(_ p: (Double, Double, Double, Double)) -> (Double, Double, Double, Double) {
+            let aa = p.3 / 255.0
+            return (p.0 * aa, p.1 * aa, p.2 * aa, p.3)
+        }
+        let q00 = premul(p00), q10 = premul(p10), q01 = premul(p01), q11 = premul(p11)
+        let pr = lerp(lerp(q00.0, q10.0, fx), lerp(q01.0, q11.0, fx), fy)
+        let pg = lerp(lerp(q00.1, q10.1, fx), lerp(q01.1, q11.1, fx), fy)
+        let pb = lerp(lerp(q00.2, q10.2, fx), lerp(q01.2, q11.2, fx), fy)
+        let pa = hasAlpha
+            ? lerp(lerp(q00.3, q10.3, fx), lerp(q01.3, q11.3, fx), fy)
+            : 255.0
+        if pa < 0.5 {
             out[o] = 0; out[o + 1] = 0; out[o + 2] = 0; out[o + 3] = 0
             return
         }
-        out[o] = UInt8(min(255, max(0, r.rounded())))
-        out[o + 1] = UInt8(min(255, max(0, g.rounded())))
-        out[o + 2] = UInt8(min(255, max(0, b.rounded())))
-        out[o + 3] = UInt8(min(255, max(0, a.rounded())))
+        let inv = 255.0 / pa
+        out[o] = UInt8(min(255, max(0, (pr * inv).rounded())))
+        out[o + 1] = UInt8(min(255, max(0, (pg * inv).rounded())))
+        out[o + 2] = UInt8(min(255, max(0, (pb * inv).rounded())))
+        out[o + 3] = UInt8(min(255, max(0, pa.rounded())))
     }
 
     /// 回退：旧裁条路径（仅 dataProvider 失败时）。
