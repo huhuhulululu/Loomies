@@ -60,6 +60,13 @@ struct FeatureGapServicesTests {
         #expect(o.occasionRaw == "work")
         #expect(OutfitFavoriteService.favorites(in: w).count == 1)
 
+        OutfitFavoriteService.setFavorite(o, false, in: ctx)
+        #expect(o.isFavorite == false)
+        #expect(OutfitFavoriteService.favorites(in: w).isEmpty)
+
+        OutfitFavoriteService.setFavorite(o, true, in: ctx)
+        #expect(OutfitFavoriteService.favorites(in: w).count == 1)
+
         let plan = CalendarPlanService.plan(outfit: o, on: Date(), in: ctx)
         #expect(plan.outfit?.id == o.id)
         #expect(plan.needsAttention == false)

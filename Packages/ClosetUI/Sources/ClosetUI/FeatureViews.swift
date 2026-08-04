@@ -408,42 +408,64 @@ public struct AboutView: View {
 public struct FavoritesView: View {
     @Environment(\.modelContext) private var context
     let wardrobe: Wardrobe
-    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
+    @State private var outfits: [ClosetModel.Outfit] = []
 
-    private var outfits: [ClosetModel.Outfit] { OutfitFavoriteService.favorites(in: wardrobe) }
+    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
         Group {
             if outfits.isEmpty {
                 ContentUnavailableView("No favorites", systemImage: "heart",
-                    description: Text("Save a look from Today."))
+                    description: Text("Save a look from Today. Swipe a saved look to remove it."))
             } else {
-                List(outfits, id: \.id) { o in
-                    HStack(spacing: 12) {
-                        // 与 Today 同源体型/morph，避免收藏列表永远 rectangle
-                        BodyAvatarView(
-                            shape: ownerShape,
-                            morph: ownerMorph,
-                            layers: OutfitAvatarComposer.layers(from: o.items ?? []),
-                            showsFitCaption: false,
-                            enablesOrbit: false,
-                            backdrop: .resolved(from: o.occasionRaw),
-                            depthIntensity: .off)
-                        .frame(width: 72, height: 108)
-                        .allowsHitTesting(false)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(o.name.isEmpty ? "Favorite look" : o.name).font(.headline)
-                            Text("\((o.items ?? []).count) pieces · \(o.occasionRaw ?? "—")")
-                                .font(.caption).foregroundStyle(DS.muted)
-                            if o.missing {
-                                Text("Missing pieces").font(.caption2).foregroundStyle(.orange)
-                            }
-                        }
+                List {
+                    ForEach(outfits, id: \.id) { o in
+                        favoriteRow(o)
                     }
+                    .onDelete(perform: unfavorite)
                 }
+                .listStyle(.plain)
             }
         }
         .navigationTitle("Favorites")
+        .onAppear { reload() }
+    }
+
+    private func favoriteRow(_ o: ClosetModel.Outfit) -> some View {
+        HStack(spacing: 12) {
+            // 与 Today 同源体型/morph，避免收藏列表永远 rectangle
+            BodyAvatarView(
+                shape: ownerShape,
+                morph: ownerMorph,
+                layers: OutfitAvatarComposer.layers(from: o.items ?? []),
+                showsFitCaption: false,
+                enablesOrbit: false,
+                backdrop: .resolved(from: o.occasionRaw),
+                depthIntensity: .off)
+            .frame(width: 72, height: 108)
+            .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(o.name.isEmpty ? "Favorite look" : o.name).font(.headline)
+                Text("\((o.items ?? []).count) pieces · \(o.occasionRaw ?? "—")")
+                    .font(.caption).foregroundStyle(DS.muted)
+                if o.missing || o.permanentlyMissing {
+                    Text("Missing pieces").font(.caption2).foregroundStyle(.orange)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Swipe to remove from favorites")
+    }
+
+    private func reload() {
+        outfits = OutfitFavoriteService.favorites(in: wardrobe)
+    }
+
+    private func unfavorite(at offsets: IndexSet) {
+        for i in offsets {
+            OutfitFavoriteService.setFavorite(outfits[i], false, in: context)
+        }
+        reload()
     }
 
     private var ownerProfile: PersonBodyProfile? {
