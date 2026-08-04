@@ -187,17 +187,18 @@ public struct BodyAvatarView: View {
                                 y: 2)
                     }
                     .offset(figOff)
-                    .scaleEffect(1 + 0.014 * sample.y * tiltScale)
+                    // 景深仅平移/微倾；过大 3D 会让乳贴看起来「脱离」躯干
+                    .scaleEffect(1 + 0.008 * sample.y * tiltScale)
                     .rotation3DEffect(
-                        .degrees(Double(sample.x) * 3.2 * Double(tiltScale)),
+                        .degrees(Double(sample.x) * 1.6 * Double(tiltScale)),
                         axis: (x: 0, y: 1, z: 0),
                         anchor: .center,
-                        perspective: 0.6)
+                        perspective: 0.75)
                     .rotation3DEffect(
-                        .degrees(Double(sample.y) * -1.6 * Double(tiltScale)),
+                        .degrees(Double(sample.y) * -0.8 * Double(tiltScale)),
                         axis: (x: 1, y: 0, z: 0),
                         anchor: .center,
-                        perspective: 0.6)
+                        perspective: 0.75)
 
                     AvatarDepthFog(intensity: resolvedDepth)
                         .frame(width: size.width, height: size.height)

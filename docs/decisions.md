@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D50 [2026-08-04] 乳贴乱飘 / 人物变形修复
+根因：①乳贴实测 y≈0.22–0.45，平坦带只盖 0.29–0.41 → 贴片上半被行梯度剪切；②warp 用**输出行 y**取剖面 + 纵向 height 非均匀采样 → 贴片纵移「飘」；③3D 倾角过大。
+- PastieBand **0.22–0.46** / ThongBand **0.46–0.62**；剖面更阻尼
+- Raster：**源图 y** 取 scale；height 改整体 `scaleEffect`，不做行级纵移
+- 景深 3D 倾角减半；scale 夹紧 0.92…1.08；缓存 key v3
+
 ## D49 [2026-08-04] 叠衣肩线贴合
 - `BodyAvatarAnchors` 槽位框收紧；`BodyAvatarLayer.fitScale/fitOffsetY` 默认上装上移放大贴肩
 - `GarmentLayerNormalizer.contentRect` 与锚点同构；UI 叠衣顶对齐 + clipped

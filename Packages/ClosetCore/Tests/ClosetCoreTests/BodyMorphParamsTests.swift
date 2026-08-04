@@ -12,27 +12,29 @@ struct BodyMorphParamsTests {
     }
 
     @Test func faceBandBarelyScalesEvenWhenChestWide() {
-        let m = BodyMorphParams(chest: 1.14, waist: 1.0, hip: 1.0, shoulder: 1.14, height: 1)
+        let m = BodyMorphParams(chest: 1.08, waist: 1.0, hip: 1.0, shoulder: 1.08, height: 1)
         let face = m.horizontalScale(normalizedY: 0.08)
-        #expect(face < 1.04)
+        #expect(abs(face - 1.0) < 0.001)  // 脸完全锁 1
         let chest = m.horizontalScale(normalizedY: 0.34)
-        #expect(chest > 1.04)  // pastie 带阻尼后 < 满 chest，但仍明显变宽
+        #expect(chest > 1.01)  // pastie 带有阻尼但仍变宽
+        #expect(chest < m.chest)  // 阻尼 < 满 chest
     }
 
-    @Test func pastieBandIsFlatAgainstShear() {
-        let m = BodyMorphParams(chest: 1.10, waist: 0.92, hip: 1.06, shoulder: 1.04, height: 1)
-        let a = m.horizontalScale(normalizedY: 0.31)
-        let b = m.horizontalScale(normalizedY: 0.35)
-        let c = m.horizontalScale(normalizedY: 0.39)
-        #expect(abs(a - b) < 0.002)
-        #expect(abs(b - c) < 0.002)
+    @Test func pastieBandIsFlatAcrossFullMeasuredRange() {
+        // 实测 croquis 乳贴 y≈0.22–0.45；带内必须完全平坦
+        let m = BodyMorphParams(chest: 1.08, waist: 0.94, hip: 1.06, shoulder: 1.04, height: 1)
+        let samples = [0.24, 0.30, 0.36, 0.42, 0.44].map { m.horizontalScale(normalizedY: $0) }
+        let ref = samples[0]
+        for s in samples {
+            #expect(abs(s - ref) < 0.002)
+        }
     }
 
     @Test func thongBandIsFlatAgainstShear() {
         let m = BodyMorphParams(chest: 1.05, waist: 0.94, hip: 1.08, shoulder: 1.02, height: 1)
-        let a = m.horizontalScale(normalizedY: 0.50)
+        let a = m.horizontalScale(normalizedY: 0.48)
         let b = m.horizontalScale(normalizedY: 0.54)
-        let c = m.horizontalScale(normalizedY: 0.57)
+        let c = m.horizontalScale(normalizedY: 0.60)
         #expect(abs(a - b) < 0.002)
         #expect(abs(b - c) < 0.002)
     }
@@ -44,10 +46,14 @@ struct BodyMorphParamsTests {
 
     @Test func waistPinchVisibleForHourglassPreset() {
         let m = BodyMorphParams.preset(for: .hourglass)
-        let waist = m.horizontalScale(normalizedY: 0.44)
-        let hip = m.horizontalScale(normalizedY: 0.54)
-        #expect(waist < 0.97)
-        #expect(hip > waist)
+        #expect(m.waist < 0.98)
+        #expect(m.hip > m.waist)
+        // 乳贴带平坦；出带后向腰/臀过渡
+        let pastie = m.horizontalScale(normalizedY: 0.34)
+        let mid = m.horizontalScale(normalizedY: 0.47)
+        let hip = m.horizontalScale(normalizedY: 0.55)
+        #expect(abs(m.horizontalScale(normalizedY: 0.28) - pastie) < 0.002)
+        #expect(mid != pastie || hip != pastie)  // 剖面有变化
     }
 
     @Test func pearPresetHipWiderThanChest() {

@@ -30,11 +30,11 @@ public struct BodyMorphParams: Equatable, Sendable {
 
     public static let neutral = BodyMorphParams()
 
-    /// 比旧 0.86…1.16 更紧：过大胸/腰差会撕乳贴与条带。
-    public static let scaleLo: Double = 0.90
-    public static let scaleHi: Double = 1.10
-    public static let heightLo: Double = 0.96
-    public static let heightHi: Double = 1.04
+    /// 再收紧：过大剖面差会撕乳贴 / 让人物「融化」。
+    public static let scaleLo: Double = 0.92
+    public static let scaleHi: Double = 1.08
+    public static let heightLo: Double = 0.98
+    public static let heightHi: Double = 1.02
 
     public func clamped() -> BodyMorphParams {
         BodyMorphParams(
@@ -69,71 +69,66 @@ public struct BodyMorphParams: Equatable, Sendable {
 
     // MARK: - 纵向剖面：归一化 y∈[0,1]（顶→底）→ 水平 scale
 
-    /// 锚点（画布百分比，与 croquis 站姿大致对齐）。
+    /// 锚点（画布百分比，与 croquis 站姿对齐；2026-08 实测乳贴 y≈0.22–0.45）。
     public enum Band {
-        public static let headEnd: Double = 0.16
-        public static let shoulder: Double = 0.22
+        public static let headEnd: Double = 0.14
+        public static let shoulder: Double = 0.20
         public static let chest: Double = 0.34
-        public static let waist: Double = 0.44
-        public static let hip: Double = 0.54
-        public static let thigh: Double = 0.68
+        public static let waist: Double = 0.46
+        public static let hip: Double = 0.55
+        public static let thigh: Double = 0.70
         public static let ankle: Double = 0.95
     }
 
-    /// 乳贴锚点带：平坦尺度，贴片不随行梯度剪切。
+    /// 乳贴锚点带：盖住实测 y≈0.22–0.45；平坦尺度，禁止行梯度剪切。
     public enum PastieBand {
-        public static let start: Double = 0.29
-        public static let end: Double = 0.41
+        public static let start: Double = 0.22
+        public static let end: Double = 0.45
     }
 
-    /// 丁字裤/髋锚点带：平坦尺度，裤线不碎。
+    /// 丁字裤/髋锚点带：平坦尺度。
     public enum ThongBand {
         public static let start: Double = 0.48
-        public static let end: Double = 0.58
+        public static let end: Double = 0.62
     }
 
-    /// 在归一化高度 y 处的水平缩放。
-    /// 脸≈1；**乳贴带 / 丁字裤带平坦**；过渡区 smoothstep，防剪切与碎裂。
+    /// 在归一化高度 y 处的水平缩放（**必须用源图 y**，非输出行）。
+    /// 脸≈1；**乳贴带 / 丁字裤带平坦**；过渡区 smoothstep。
     public func horizontalScale(normalizedY y: Double) -> Double {
         let y = min(1, max(0, y))
         let m = clamped()
-        // 阻尼：胸/臀不完全拉满，保护贴身小件形态
-        let chestSoft = Self.lerp(m.shoulder, m.chest, t: 0.50)
-        let hipSoft = Self.lerp(m.waist, m.hip, t: 0.65)
+        // 更强阻尼：胸/臀不全拉满，贴片与体型一起「整块」动
+        let chestSoft = Self.lerp(1.0, Self.lerp(m.shoulder, m.chest, t: 0.55), t: 0.72)
+        let hipSoft = Self.lerp(1.0, Self.lerp(m.waist, m.hip, t: 0.60), t: 0.72)
+        let waistSoft = Self.lerp(1.0, m.waist, t: 0.78)
 
         if y < Band.headEnd {
-            return Self.lerp(1.0, m.shoulder, t: Self.smoothstep(y / Band.headEnd) * 0.15)
-        }
-        if y < Band.shoulder {
-            let t = Self.smoothstep((y - Band.headEnd) / (Band.shoulder - Band.headEnd))
-            return Self.lerp(1.0, m.shoulder, t: t)
+            return 1.0
         }
         if y < PastieBand.start {
-            let t = Self.smoothstep((y - Band.shoulder) / (PastieBand.start - Band.shoulder))
-            return Self.lerp(m.shoulder, chestSoft, t: t)
+            let t = Self.smoothstep((y - Band.headEnd) / max(1e-4, PastieBand.start - Band.headEnd))
+            return Self.lerp(1.0, chestSoft, t: t * 0.85)
         }
         // 乳贴带：完全平坦
         if y <= PastieBand.end {
             return chestSoft
         }
-        if y < Band.waist {
-            let t = Self.smoothstep((y - PastieBand.end) / (Band.waist - PastieBand.end))
-            return Self.lerp(chestSoft, m.waist, t: t)
-        }
+        // 乳贴下 → 丁字裤上：经腰收到 hipSoft
         if y < ThongBand.start {
-            let t = Self.smoothstep((y - Band.waist) / (ThongBand.start - Band.waist))
-            return Self.lerp(m.waist, hipSoft, t: t)
+            let t = Self.smoothstep((y - PastieBand.end) / max(1e-4, ThongBand.start - PastieBand.end))
+            let viaWaist = Self.lerp(chestSoft, waistSoft, t: t)
+            return Self.lerp(viaWaist, hipSoft, t: t)
         }
-        // 丁字裤带：完全平坦
+        // 丁字裤带：平坦
         if y <= ThongBand.end {
             return hipSoft
         }
         if y < Band.thigh {
-            let t = Self.smoothstep((y - ThongBand.end) / (Band.thigh - ThongBand.end))
-            return Self.lerp(hipSoft, Self.lerp(hipSoft, 1.0, t: 0.40), t: t)
+            let t = Self.smoothstep((y - ThongBand.end) / max(1e-4, Band.thigh - ThongBand.end))
+            return Self.lerp(hipSoft, Self.lerp(hipSoft, 1.0, t: 0.35), t: t)
         }
-        let t = Self.smoothstep((y - Band.thigh) / (Band.ankle - Band.thigh))
-        return Self.lerp(Self.lerp(hipSoft, 1.0, t: 0.40), 1.0, t: min(1, t))
+        let t = Self.smoothstep((y - Band.thigh) / max(1e-4, Band.ankle - Band.thigh))
+        return Self.lerp(Self.lerp(hipSoft, 1.0, t: 0.35), 1.0, t: min(1, t))
     }
 
     // MARK: - 从测量 / 预设
@@ -153,19 +148,19 @@ public struct BodyMorphParams: Equatable, Sendable {
             .clamped()
     }
 
-    /// 仅大众体型预设（快选无四围时）。幅度收紧，保护乳贴/丁字裤可读性。
+    /// 仅大众体型预设（快选无四围时）。幅度再收，优先不撕贴/不融化。
     public static func preset(for shape: PopularShape) -> BodyMorphParams {
         switch shape {
         case .hourglass:
-            return BodyMorphParams(chest: 1.02, waist: 0.95, hip: 1.03, shoulder: 1.0, height: 1)
+            return BodyMorphParams(chest: 1.015, waist: 0.96, hip: 1.02, shoulder: 1.0, height: 1)
         case .pear:
-            return BodyMorphParams(chest: 0.97, waist: 0.99, hip: 1.06, shoulder: 0.98, height: 1)
+            return BodyMorphParams(chest: 0.98, waist: 0.995, hip: 1.04, shoulder: 0.99, height: 1)
         case .apple:
-            return BodyMorphParams(chest: 1.03, waist: 1.05, hip: 1.01, shoulder: 1.01, height: 1)
+            return BodyMorphParams(chest: 1.02, waist: 1.03, hip: 1.005, shoulder: 1.01, height: 1)
         case .rectangle:
-            return BodyMorphParams(chest: 1.0, waist: 1.01, hip: 1.0, shoulder: 1.0, height: 1)
+            return BodyMorphParams(chest: 1.0, waist: 1.005, hip: 1.0, shoulder: 1.0, height: 1)
         case .invertedTriangle:
-            return BodyMorphParams(chest: 1.05, waist: 1.0, hip: 0.96, shoulder: 1.06, height: 1)
+            return BodyMorphParams(chest: 1.03, waist: 1.0, hip: 0.975, shoulder: 1.04, height: 1)
         }
     }
 

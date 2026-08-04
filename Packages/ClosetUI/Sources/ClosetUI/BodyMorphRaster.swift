@@ -37,33 +37,21 @@ enum BodyMorphRaster {
         let outW = max(64, min(1536, Int(outputWidth.rounded(.toNearestOrAwayFromZero))))
         let outH = max(96, Int((CGFloat(outW) * CGFloat(srcH) / CGFloat(srcW)).rounded(.toNearestOrAwayFromZero)))
         let m = morph.clamped()
-        let heightS = m.height
-
-        var rowScale = [CGFloat](repeating: 1, count: outH)
-        for y in 0..<outH {
-            let mid = (Double(y) + 0.5) / Double(outH)
-            rowScale[y] = CGFloat(m.horizontalScale(normalizedY: mid))
-        }
+        // 高度不在像素行里做非均匀 warp（会整段纵移乳贴 →「乱飘」）；
+        // height 由 BodyMorphImageView 整体 scaleEffect 处理。
         let hasAlpha = true
 
-        // 透明底：OOB / 源透明 → alpha 0；场合背景在 UI 层叠（AvatarBackdrop）
+        // 透明底：OOB / 源透明 → alpha 0
         var out = [UInt8](repeating: 0, count: outW * outH * 4)
         let outCx = Double(outW - 1) / 2
         let srcCx = Double(srcW - 1) / 2
-        let hScale = heightS
-        let invH = 1.0 / hScale
 
         for y in 0..<outH {
-            // height：相对画布中心缩放 → 源行
-            let yN = (Double(y) + 0.5) / Double(outH)
-            let yFromCenter = yN - 0.5
-            let srcYN = 0.5 + yFromCenter * invH
-            if srcYN < -0.02 || srcYN > 1.02 {
-                // 透明（已是 0）
-                continue
-            }
+            // 输出行 y ↔ 源图同一归一化 y（1:1 纵向）
+            let srcYN = (Double(y) + 0.5) / Double(outH)
             let srcY = min(Double(srcH - 1), max(0, srcYN * Double(srcH - 1)))
-            let sx = Double(rowScale[y])
+            // **必须用源图 y** 取剖面尺度，乳贴带才对得上贴片
+            let sx = m.horizontalScale(normalizedY: srcYN)
             let invSx = 1.0 / max(sx, 0.001)
 
             for x in 0..<outW {
@@ -71,7 +59,6 @@ enum BodyMorphRaster {
                 let srcX = srcCx + xFromCenter * invSx * (Double(srcW) / Double(outW))
                 let o = (y * outW + x) * 4
                 if srcX < 0 || srcX > Double(srcW - 1) {
-                    // 透明
                     continue
                 }
                 sampleBilinear(
@@ -239,13 +226,19 @@ struct BodyMorphImageView: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
+            let m = morph.clamped()
+            // 栅格只做水平剖面；height 整体 scale，避免乳贴纵移
+            let horizontalOnly = BodyMorphParams(
+                chest: m.chest, waist: m.waist, hip: m.hip,
+                shoulder: m.shoulder, height: 1)
             if let rendered = BodyMorphImageCache.shared.image(
-                named: assetName, morph: morph, width: w)
+                named: assetName, morph: horizontalOnly, width: w)
             {
                 rendered
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
+                    .scaleEffect(x: 1, y: CGFloat(m.height), anchor: .center)
                     .frame(width: w, height: h)
             } else {
                 Color.clear
@@ -264,8 +257,8 @@ final class BodyMorphImageCache {
     func image(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
         let m = morph.clamped()
         let wKey = Int(width.rounded())
-        // v2：资源抛光后缓存键版本，避免旧白边位图驻留
-        let key = "v2|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
+        // v3：乳贴带扩宽 + 无纵向 height warp
+        let key = "v3|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
         if let hit = map[key] { return hit }
         guard let rendered = render(named: name, morph: m, width: width) else { return nil }
         if map.count >= maxEntries {
