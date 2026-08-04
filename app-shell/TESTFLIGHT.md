@@ -21,6 +21,7 @@
 | Build 10 | ✅ Delivery `393636e5-9b21-428e-a41b-e50eec6c00ce`（相机/Vision/本地缩略图） |
 | Build 11 | ✅ Delivery `a2f3721f-5498-4946-8646-399b805cdb8e`（Today/收藏纸娃娃叠衣预览） |
 | Build 12 | ✅ Delivery `23e83f97-3062-4ca9-aa99-b9b51699c825`（数据导出 + CCPA 删除全部） |
+| Build 13 | ✅ Delivery `6f473b94-cfa0-4467-b43c-7df7f2131298`（旅程测试打磨） |
 
 **坑**：① CLI 全局 `PROVISIONING_PROFILE_SPECIFIER` 会污染 SPM 资源包；② export 时 PATH 勿让 Homebrew rsync 抢先（见 D35）。
 
