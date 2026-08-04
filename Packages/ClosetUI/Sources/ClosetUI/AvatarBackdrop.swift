@@ -301,23 +301,23 @@ struct AvatarBackdropView: View {
     }
 }
 
-/// 脚底接触阴影。
+/// 脚底接触阴影（随画布缩放，避免硬椭圆贴纸感）。
 struct AvatarContactShadow: View {
     var body: some View {
         Ellipse()
             .fill(
                 RadialGradient(
                     colors: [
-                        Color.black.opacity(0.42),
-                        Color.black.opacity(0.14),
+                        Color.black.opacity(0.50),
+                        Color.black.opacity(0.18),
+                        Color.black.opacity(0.04),
                         .clear
                     ],
                     center: .center,
-                    startRadius: 2,
-                    endRadius: 52)
+                    startRadius: 1,
+                    endRadius: 60)
             )
-            .frame(width: 128, height: 30)
-            .blur(radius: 3.5)
+            .blur(radius: 4)
             .accessibilityHidden(true)
     }
 }

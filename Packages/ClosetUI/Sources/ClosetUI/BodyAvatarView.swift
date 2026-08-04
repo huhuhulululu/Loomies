@@ -31,9 +31,13 @@ public struct BodyAvatarView: View {
     @StateObject private var depthMotion = DepthParallaxMotion()
     /// 拖拽附加的视差（与 360 水平切帧并存）
     @State private var dragParallax = DepthParallaxSample()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var resolvedDepth: DepthParallaxIntensity {
-        depthIntensity ?? (compactChrome ? .cinematic : .subtle)
+        let base = depthIntensity ?? (compactChrome ? .cinematic : .subtle)
+        // 减弱动态：仍保留静态分层，关掉 ambient/陀螺驱动感
+        if reduceMotion, base != .off { return .subtle }
+        return base
     }
 
     public init(
@@ -135,24 +139,30 @@ public struct BodyAvatarView: View {
             yaw = .deg0
         }
         .onAppear {
-            if resolvedDepth != .off { depthMotion.start() }
+            if resolvedDepth != .off, !reduceMotion { depthMotion.start() }
         }
         .onDisappear { depthMotion.stop() }
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced { depthMotion.stop() }
+            else if resolvedDepth != .off { depthMotion.start() }
+        }
     }
 
     // MARK: - Canvas
 
     private var modelCanvas: some View {
-        TimelineView(.animation(minimumInterval: resolvedDepth == .off ? 60 : 1.0 / 30.0)) { timeline in
+        let tick: Double = (resolvedDepth == .off || reduceMotion) ? 120 : (1.0 / 30.0)
+        return TimelineView(.animation(minimumInterval: tick)) { timeline in
             let sample = composedParallax(at: timeline.date)
             GeometryReader { geo in
                 let size = geo.size
                 let bgOff = DepthParallaxLayout.backgroundOffset(sample, intensity: resolvedDepth)
                 let figOff = DepthParallaxLayout.figureOffset(sample, intensity: resolvedDepth)
                 let fogOff = DepthParallaxLayout.foregroundOffset(sample, intensity: resolvedDepth)
+                let tiltScale: CGFloat = reduceMotion ? 0 : (resolvedDepth == .cinematic ? 1 : 0.45)
 
                 ZStack {
-                    // Far：位图场合 + 景深虚化 + 体积光（位移最大）
+                    // Far：位图场合
                     AvatarBackdropView(
                         backdrop: backdrop,
                         depthBlur: resolvedDepth.backgroundBlur,
@@ -161,44 +171,42 @@ public struct BodyAvatarView: View {
                     .frame(width: size.width, height: size.height)
                     .offset(bgOff)
 
-                    // Mid：接触影 + 地面弱反射 + 人体 + 轮廓光 + 叠衣
+                    // Mid：脚底影 + 弱反射 + 人体 + 叠衣
                     ZStack {
                         AvatarContactShadow()
-                            .offset(y: size.height * 0.42)
-                            .opacity(resolvedDepth == .off ? 0.40 : 0.62)
+                            .frame(width: size.width * 0.42, height: size.height * 0.035)
+                            .offset(y: size.height * 0.40)
+                            .opacity(resolvedDepth == .off ? 0.38 : 0.55)
 
-                        // 地面镜像（仅 cinematic/subtle，强化「站在场景」）
-                        if resolvedDepth == .cinematic {
+                        if resolvedDepth == .cinematic && !reduceMotion {
                             AvatarFloorReflection {
                                 figureStack(canvas: size)
                                     .frame(width: size.width, height: size.height)
                             }
-                            .frame(width: size.width, height: size.height * 0.12)
-                            .offset(y: size.height * 0.40)
-                            .opacity(0.28)
+                            .frame(width: size.width, height: size.height * 0.10)
+                            .offset(y: size.height * 0.41)
+                            .opacity(0.22)
                         }
 
                         figureStack(canvas: size)
-                            // 轻接触影即可；强 rim/白边会放大 croquis 切边（实测禁用重描边）
                             .shadow(
-                                color: Color.black.opacity(resolvedDepth == .cinematic ? 0.22 : 0.12),
-                                radius: resolvedDepth == .cinematic ? 10 : 5,
-                                y: 3)
+                                color: Color.black.opacity(resolvedDepth == .cinematic ? 0.18 : 0.10),
+                                radius: resolvedDepth == .cinematic ? 8 : 4,
+                                y: 2)
                     }
                     .offset(figOff)
-                    .scaleEffect(1 + 0.022 * sample.y * (resolvedDepth == .cinematic ? 1 : 0.5))
+                    .scaleEffect(1 + 0.014 * sample.y * tiltScale)
                     .rotation3DEffect(
-                        .degrees(Double(sample.x) * (resolvedDepth == .cinematic ? 5.5 : 2.2)),
+                        .degrees(Double(sample.x) * 3.2 * Double(tiltScale)),
                         axis: (x: 0, y: 1, z: 0),
                         anchor: .center,
-                        perspective: 0.55)
+                        perspective: 0.6)
                     .rotation3DEffect(
-                        .degrees(Double(sample.y) * (resolvedDepth == .cinematic ? -2.8 : -1.2)),
+                        .degrees(Double(sample.y) * -1.6 * Double(tiltScale)),
                         axis: (x: 1, y: 0, z: 0),
                         anchor: .center,
-                        perspective: 0.55)
+                        perspective: 0.6)
 
-                    // Near：前景雾
                     AvatarDepthFog(intensity: resolvedDepth)
                         .frame(width: size.width, height: size.height)
                         .offset(fogOff)
@@ -212,21 +220,27 @@ public struct BodyAvatarView: View {
         .aspectRatio(2 / 3, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: compactChrome ? DS.radiusLg : DS.radius, style: .continuous))
         .shadow(
-            color: Color.black.opacity(compactChrome ? 0.14 : 0.08),
-            radius: compactChrome ? 18 : 10,
-            y: compactChrome ? 10 : 6)
+            color: Color.black.opacity(compactChrome ? 0.12 : 0.07),
+            radius: compactChrome ? 16 : 9,
+            y: compactChrome ? 8 : 5)
         .accessibilityValue(backdrop.accessibilityLabel + ", depth " + resolvedDepth.rawValue)
     }
 
     private func composedParallax(at date: Date) -> DepthParallaxSample {
         let intensity = resolvedDepth
         guard intensity != .off else { return DepthParallaxSample() }
+        if reduceMotion {
+            // 仅保留拖拽视差，无 ambient / 姿态
+            return DepthParallaxSample(
+                x: dragParallax.x * 0.5,
+                y: dragParallax.y * 0.5)
+        }
         let ambient = DepthParallaxSample.ambient(
             time: date.timeIntervalSinceReferenceDate,
-            amplitude: intensity.ambientAmplitude)
-        let motionWeight: CGFloat = 1
-        let dragWeight: CGFloat = 0.9
-        let ambientWeight: CGFloat = intensity == .cinematic ? 0.65 : 0.5
+            amplitude: intensity.ambientAmplitude * 0.75)
+        let motionWeight: CGFloat = 0.9
+        let dragWeight: CGFloat = 0.85
+        let ambientWeight: CGFloat = intensity == .cinematic ? 0.5 : 0.35
         return DepthParallaxSample(
             x: depthMotion.attitude.x * motionWeight
                 + dragParallax.x * dragWeight

@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D47 [2026-08-03] 全面打磨 workflow（资产+合成+无障碍）
+- 资产：全 croquis 微抛光（fringe kill + 护发丝）；contact sheet QA（work/date×5 体型 + 洋红）
+- 合成：视差幅度回落防飘；接触影随画布；弱反射；`Reduce Motion` 关 ambient/陀螺 3D
+- 缓存：`BodyMorphImageCache` key `v2` 避免旧白边驻留
+- 脚本：`croquis-polish-alpha.py` 可复跑
+
 ## D46 [2026-08-03] croquis 切边实测打磨（去白/灰边）
 真机/合成实测主问题：透明 PNG 仍带 **白边贴纸感**（date/gala 深色底最明显）。
 - 从 pre-alpha RGB 重跑 `croquis-polish-alpha.py`：flood + 最大连通 + 1px erode + defringe + 白/灰 fringe 清零

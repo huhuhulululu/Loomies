@@ -251,15 +251,20 @@ struct BodyMorphImageView: View {
 final class BodyMorphImageCache {
     static let shared = BodyMorphImageCache()
     private var map: [String: Image] = [:]
-    private let maxEntries = 24
+    private let maxEntries = 28
 
     func image(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
         let m = morph.clamped()
         let wKey = Int(width.rounded())
-        let key = "\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
+        // v2：资源抛光后缓存键版本，避免旧白边位图驻留
+        let key = "v2|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
         if let hit = map[key] { return hit }
         guard let rendered = render(named: name, morph: m, width: width) else { return nil }
-        if map.count >= maxEntries { map.removeAll(keepingCapacity: true) }
+        if map.count >= maxEntries {
+            // 半清而非全清，保留热点 yaw
+            let drop = map.count / 2
+            for k in map.keys.prefix(drop) { map.removeValue(forKey: k) }
+        }
         map[key] = rendered
         return rendered
     }
