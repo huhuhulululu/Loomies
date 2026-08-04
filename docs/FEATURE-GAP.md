@@ -12,6 +12,7 @@
 | 检索 / 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
 | 入库 seam + mock | ClosetIntake |
 | Onboarding / Today / Closet 网格 / 打卡 | ClosetUI |
+| **Today Avatar 首屏（方案 B）** | 大 BodyAvatar + 今日 look；Other looks 点选；非冷启动自动 full-auto |
 | 调试台 + 诊断导出 | DebugSettings / DiagnosticsExport |
 | **数据导出 + 删除全部** | `DataLifecycleService`（JSON 全实体；身体围度默认不含；CCPA 删除权 + 二次确认 + 清 ItemImages） |
 | **单品状态机** | ItemStatusService + ItemDetailView |

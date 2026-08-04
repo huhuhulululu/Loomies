@@ -17,11 +17,27 @@ public final class CopilotViewModel {
     public var coldStartThreshold: Int = 8
     public private(set) var anchorIDs: Set<UUID> = []
     public private(set) var suggestions: [ScoredOutfit] = []
+    /// 当前展示在首屏大 Avatar 上的建议索引。
+    public private(set) var selectedSuggestionIndex: Int = 0
     /// 最近一次 refresh 的人话状态（空结果原因 / 成功摘要）。
     public private(set) var statusMessage: String = ""
     /// 最近一次 refresh 耗时 ms。
     public private(set) var lastRefreshMS: Double = 0
     public private(set) var lastRefreshAt: Date?
+
+    public var selectedSuggestion: ScoredOutfit? {
+        guard !suggestions.isEmpty else { return nil }
+        let i = min(max(0, selectedSuggestionIndex), suggestions.count - 1)
+        return suggestions[i]
+    }
+
+    public func selectSuggestion(at index: Int) {
+        guard !suggestions.isEmpty else {
+            selectedSuggestionIndex = 0
+            return
+        }
+        selectedSuggestionIndex = min(max(0, index), suggestions.count - 1)
+    }
 
     public init(wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double = 70) {
         self.wardrobe = wardrobe
@@ -93,6 +109,7 @@ public final class CopilotViewModel {
         lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         lastRefreshAt = Date()
 
+        selectedSuggestionIndex = 0
         if suggestions.isEmpty {
             statusMessage = emptyReason(
                 anchors: anchors, wornCount: worn.count, available: availableItems.count)

@@ -129,4 +129,33 @@ struct CopilotViewModelTests {
         vm.refresh()
         #expect(!vm.suggestions.isEmpty)
     }
+
+    @Test func selectSuggestionUpdatesHeroIndex() throws {
+        let (ctx, w, _) = try setup()
+        DebugSettings.shared.forceColdStart = false
+        for i in 0..<12 {
+            let item = Item(name: "x\(i)")
+            item.slotRaw = ["top", "bottom", "shoes"][i % 3]
+            item.wardrobe = w
+            item.occasionsRaw = ["work"]
+            item.warmthRaw = Warmth.light.rawValue
+            item.colorIsNeutral = true
+            item.statusRaw = "available"
+            ctx.insert(item)
+        }
+        try ctx.save()
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        vm.coldStartThreshold = 1
+        vm.fullAuto = true
+        vm.refresh()
+        #expect(!vm.suggestions.isEmpty)
+        #expect(vm.selectedSuggestionIndex == 0)
+        #expect(vm.selectedSuggestion != nil)
+        if vm.suggestions.count > 1 {
+            vm.selectSuggestion(at: 1)
+            #expect(vm.selectedSuggestionIndex == 1)
+        }
+        vm.refresh()
+        #expect(vm.selectedSuggestionIndex == 0)  // refresh 重置到首条
+    }
 }

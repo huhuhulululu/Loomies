@@ -3,7 +3,8 @@ import SwiftData
 import ClosetModel
 import ClosetCore
 
-/// copilot 主屏（DESIGN §F4/§10）：锚定 → 补全；打卡；状态条 / 耗时。
+/// Today 首屏 = **Avatar + 今日 look**（方案 B）+ copilot 交互。
+/// 大人体是表达层；机制仍是锚定 → 补全（D19），非 VTON。
 public struct CopilotView: View {
     @Environment(\.modelContext) private var context
     @State private var vm: CopilotViewModel
@@ -20,11 +21,9 @@ public struct CopilotView: View {
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
+                    heroAvatar
                     if vm.isColdStart { coldStartBanner }
-                    if debug.showEmptyReason && !vm.statusMessage.isEmpty {
-                        statusBanner
-                    }
                     controls
                     if !vm.fullAuto || vm.isColdStart { anchorGrid }
                     suggestionsSection
@@ -37,31 +36,105 @@ public struct CopilotView: View {
             }
             .background(DS.bg.ignoresSafeArea())
             .navigationTitle("Today")
-            .task {
-                vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
-                // 离线城市气候表；日后可换 WeatherKit 实现同一协议
-                await vm.applyWeather(CityClimateWeatherProvider())
-                // 注入体型加权（若有档案）
-                if let pid = vm.wardrobe.owner?.id {
-                    let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-                    if let p = profiles.first(where: { $0.personID == pid }) {
-                        vm.bodyShape = BodyProfileService.bodyShape(from: p)
-                    }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .task { await bootstrap() }
+        }
+    }
+
+    // MARK: - Hero（首屏视觉主角）
+
+    private var heroAvatar: some View {
+        VStack(spacing: 10) {
+            BodyAvatarView(
+                shape: heroShape,
+                morph: bodyMorph,
+                layers: heroLayers,
+                fitCaption: heroCaption,
+                showsFitCaption: true,
+                enablesOrbit: true)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 320)
+            .background(
+                RoundedRectangle(cornerRadius: DS.radius)
+                    .fill(Color(red: 158 / 255, green: 158 / 255, blue: 158 / 255))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+
+            HStack {
+                Label(
+                    String(format: "%.0f°F · %@", vm.daytimeTempF, vm.wardrobe.locationCity ?? "climate"),
+                    systemImage: "cloud.sun")
+                Spacer()
+                Text(vm.occasion.capitalized)
+                if let shape = vm.bodyShape {
+                    Text("· \(shape.popularCategory.rawValue)")
                 }
-                AppLog.debug("Copilot appear items=\(vm.availableItems.count) temp=\(vm.daytimeTempF)", .copilot)
+            }
+            .font(.caption)
+            .foregroundStyle(DS.muted)
+
+            if let scored = vm.selectedSuggestion {
+                HStack(spacing: 8) {
+                    actionBtn("Save") {
+                        actions.saveFavorite(scored: scored, occasion: vm.occasion,
+                                             in: vm.wardrobe, context: context)
+                        checkInNote = actions.message
+                    }
+                    actionBtn("Plan today") {
+                        actions.planToday(scored: scored, occasion: vm.occasion,
+                                          in: vm.wardrobe, context: context)
+                        checkInNote = actions.message
+                    }
+                    actionBtn("I wore this") { checkIn(scored) }
+                }
             }
         }
     }
 
-    private var statusBanner: some View {
-        Text(vm.statusMessage)
-            .font(.caption)
-            .foregroundStyle(DS.muted)
-            .padding(10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DS.surface)
-            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+    private var heroShape: PopularShape {
+        if let pid = vm.wardrobe.owner?.id {
+            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+            if let p = profiles.first(where: { $0.personID == pid }),
+               let s = BodyProfileService.displayPopularShape(from: p) {
+                return s
+            }
+        }
+        return vm.bodyShape?.popularCategory ?? .rectangle
     }
+
+    private var heroLayers: [BodyAvatarLayer] {
+        if let scored = vm.selectedSuggestion {
+            return OutfitAvatarComposer.layers(
+                itemIDs: scored.outfit.itemIDs, in: vm.wardrobe)
+        }
+        // 无建议时：已锚定单品叠上，给「正在搭」的感觉
+        let anchored = (vm.wardrobe.items ?? []).filter { vm.anchorIDs.contains($0.id) }
+        if !anchored.isEmpty {
+            return OutfitAvatarComposer.layers(from: anchored)
+        }
+        return []
+    }
+
+    private var heroCaption: String {
+        if let scored = vm.selectedSuggestion {
+            let names = itemNames(for: scored)
+            if names.isEmpty {
+                return "\(scored.outfit.items.count)-piece look · proportion guide, not photo try-on"
+            }
+            return names.joined(separator: " · ")
+        }
+        if !vm.anchorIDs.isEmpty {
+            return "Anchored pieces — complete a look below"
+        }
+        if vm.isColdStart {
+            return "Load samples or add pieces, then complete a look"
+        }
+        return "Your body · today’s look — pick or complete below"
+    }
+
+    // MARK: - Controls / anchors
 
     private var coldStartBanner: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -82,27 +155,16 @@ public struct CopilotView: View {
                 ForEach(occasions, id: \.self) { Text($0.capitalized).tag($0) }
             }
             .pickerStyle(.segmented)
+            .onChange(of: vm.occasion) { _, _ in
+                // 换场合不自动刷，避免误触；用户点主按钮
+            }
 
             if !vm.isColdStart {
                 Toggle("Just decide for me (full-auto)", isOn: $vm.fullAuto)
                     .tint(DS.accent)
             }
 
-            HStack {
-                Label(
-                    String(format: "%.0f°F · %@", vm.daytimeTempF, vm.wardrobe.locationCity ?? "default climate"),
-                    systemImage: "cloud.sun")
-                    .font(.caption)
-                    .foregroundStyle(DS.muted)
-                Spacer()
-                if let shape = vm.bodyShape {
-                    Text(shape.rawValue)
-                        .font(.caption2)
-                        .foregroundStyle(DS.muted)
-                }
-            }
-
-            if !vm.statusMessage.isEmpty {
+            if debug.showEmptyReason && !vm.statusMessage.isEmpty {
                 Text(vm.statusMessage)
                     .font(.caption2)
                     .foregroundStyle(DS.muted)
@@ -137,7 +199,7 @@ public struct CopilotView: View {
                         .font(.caption)
                 }
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 10)], spacing: 10) {
                 ForEach(vm.availableItems, id: \.id) { item in
                     Button { vm.toggleAnchor(item) } label: { itemChip(item) }
                         .buttonStyle(.plain)
@@ -149,8 +211,8 @@ public struct CopilotView: View {
     private func itemChip(_ item: Item) -> some View {
         let anchored = vm.isAnchored(item)
         return VStack(spacing: 6) {
-            ItemThumbnailView(item: item, height: 72)
-            Text(item.name).font(.caption).lineLimit(1)
+            ItemThumbnailView(item: item, height: 64)
+            Text(item.name).font(.caption2).lineLimit(1)
         }
         .padding(6)
         .background(anchored ? DS.accent.opacity(0.15) : Color.clear)
@@ -161,73 +223,65 @@ public struct CopilotView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 
+    // MARK: - Suggestions list（次要；点选切换英雄区）
+
     private var suggestionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             if vm.suggestions.isEmpty {
-                Text(vm.statusMessage.isEmpty
-                     ? "Tap the button for suggestions from your closet."
-                     : vm.statusMessage)
-                    .font(.subheadline).foregroundStyle(DS.muted)
+                if !vm.statusMessage.isEmpty && !vm.isColdStart {
+                    Text(vm.statusMessage)
+                        .font(.subheadline).foregroundStyle(DS.muted)
+                }
             } else {
-                Text("Suggestions")
+                Text("Other looks")
                     .font(.title3.weight(.semibold))
-                ForEach(Array(vm.suggestions.enumerated()), id: \.offset) { _, scored in
-                    suggestionCard(scored)
+                ForEach(Array(vm.suggestions.enumerated()), id: \.offset) { idx, scored in
+                    suggestionRow(scored, index: idx)
                 }
             }
         }
     }
 
-    private func suggestionCard(_ scored: ScoredOutfit) -> some View {
-        let layers = OutfitAvatarComposer.layers(
-            itemIDs: scored.outfit.itemIDs, in: vm.wardrobe)
-        let shape = vm.bodyShape.map { $0.popularCategory } ?? .rectangle
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                // 纸娃娃叠衣预览（正面；表达层，非 VTON）
-                BodyAvatarView(
-                    shape: shape,
-                    morph: bodyMorph,
-                    layers: layers,
-                    showsFitCaption: false,
-                    enablesOrbit: false)
-                .frame(width: 96)
-                .allowsHitTesting(false)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(scored.outfit.items.count)-piece look")
+    private func suggestionRow(_ scored: ScoredOutfit, index: Int) -> some View {
+        let selected = index == vm.selectedSuggestionIndex
+        return Button {
+            vm.selectSuggestion(at: index)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Look \(index + 1) · \(scored.outfit.items.count) pieces")
                         .font(.headline).foregroundStyle(DS.ink)
-                    ForEach(scored.score.reasons.prefix(3), id: \.self) { reason in
-                        Label(reason, systemImage: "checkmark.circle")
-                            .font(.caption).foregroundStyle(DS.muted)
-                    }
-                    let names = itemNames(for: scored)
-                    if !names.isEmpty {
-                        Text(names.joined(separator: " · "))
-                            .font(.caption).foregroundStyle(DS.ink)
-                            .lineLimit(2)
+                    Spacer()
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(DS.accent)
                     }
                 }
-            }
-            HStack(spacing: 8) {
-                actionBtn("Save") {
-                    actions.saveFavorite(scored: scored, occasion: vm.occasion,
-                                         in: vm.wardrobe, context: context)
-                    checkInNote = actions.message
+                let names = itemNames(for: scored)
+                if !names.isEmpty {
+                    Text(names.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(DS.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
-                actionBtn("Plan today") {
-                    actions.planToday(scored: scored, occasion: vm.occasion,
-                                      in: vm.wardrobe, context: context)
-                    checkInNote = actions.message
+                ForEach(scored.score.reasons.prefix(2), id: \.self) { reason in
+                    Text(reason)
+                        .font(.caption2).foregroundStyle(DS.muted)
                 }
-                actionBtn("I wore this") { checkIn(scored) }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(selected ? DS.accent.opacity(0.08) : DS.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.radius)
+                    .stroke(selected ? DS.accent : Color.clear, lineWidth: 1.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(DS.surface)
-        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+        .buttonStyle(.plain)
     }
+
+    // MARK: - Body / actions
 
     private var bodyMorph: BodyMorphParams {
         if let pid = vm.wardrobe.owner?.id {
@@ -277,5 +331,22 @@ public struct CopilotView: View {
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         checkInNote = "Checked in \(items.count) pieces. They'll be de-prioritized for 7 days."
         AppLog.info("ui checkIn \(items.count)", .copilot)
+    }
+
+    private func bootstrap() async {
+        vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+        await vm.applyWeather(CityClimateWeatherProvider())
+        if let pid = vm.wardrobe.owner?.id {
+            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+            if let p = profiles.first(where: { $0.personID == pid }) {
+                vm.bodyShape = BodyProfileService.bodyShape(from: p)
+            }
+        }
+        // 非冷启动：默认 full-auto 拉一版，首屏立刻有 look
+        if !vm.isColdStart {
+            vm.fullAuto = true
+            vm.refresh()
+        }
+        AppLog.debug("Copilot hero appear items=\(vm.availableItems.count) temp=\(vm.daytimeTempF)", .copilot)
     }
 }

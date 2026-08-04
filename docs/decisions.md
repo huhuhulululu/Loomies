@@ -194,6 +194,11 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - Me → Data：Export my data / Delete all data（confirmationDialog）+「卸载 ≠ 删除」教育文案
 - 原图 ZIP 打包后置（路径已在 JSON）；再导入列 v1.x
 
+## D41 [2026-08-03] Today 首屏 = Avatar + 今日 look（方案 B）
+- 非「纯试衣间」：机制仍 D19 copilot；Avatar 为表达层
+- 大 `BodyAvatarView` 展示 selectedSuggestion（或锚定件）；列表「Other looks」点选切换
+- 非冷启动 bootstrap 默认 full-auto 拉首条 look；Save/Plan/I wore 挂英雄区
+
 ## D40 [2026-08-03] 纸娃娃叠衣：入库图叠到体型
 - `BodyAvatarLayer.localRelativePath` + `OutfitAvatarComposer`（dress 压制 top/bottom）
 - Today 建议卡左侧迷你 `BodyAvatarView` 叠层预览（非 VTON）
