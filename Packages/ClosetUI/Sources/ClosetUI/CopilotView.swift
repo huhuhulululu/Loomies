@@ -78,7 +78,8 @@ public struct CopilotView: View {
                 .padding(.top, 4)
                 .padding(.horizontal, 4)
                 .frame(minHeight: DS.heroMinHeight)
-                .id(heroBackdrop) // 换场合强制重建合成，避免旧帧残留
+                // 场合切换：只重建 backdrop 层（BodyAvatarView 内 .id），勿整卡 remount
+                // （.id 整树会丢 yaw/orbit/@State — WWDC identity）
 
                 // 场合色微边光（细、不抢切边）
                 RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)

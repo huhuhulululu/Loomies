@@ -164,14 +164,16 @@ public struct BodyAvatarView: View {
                 let tiltScale: CGFloat = reduceMotion ? 0 : (resolvedDepth == .cinematic ? 1 : 0.45)
 
                 ZStack {
-                    // Far：位图场合
+                    // Far：位图场合（.id 仅换底，保留 yaw/morph 状态）
                     AvatarBackdropView(
                         backdrop: backdrop,
                         depthBlur: resolvedDepth.backgroundBlur,
                         parallaxScale: resolvedDepth.backdropScale,
                         lightShift: CGSize(width: sample.x, height: sample.y))
+                    .id(backdrop)
                     .frame(width: size.width, height: size.height)
                     .offset(bgOff)
+                    .transition(.opacity)
 
                     // Mid：脚底影贴地（随 morph）+ 人体 + 叠衣
                     ZStack {

@@ -39,36 +39,72 @@ public enum DemoGarmentSilhouette {
             height: nr.height * Double(ch))
 
         let fill = fillColor(name: name, hue: hue, isNeutral: isNeutral)
-        let shade = darker(fill, by: 0.18)
-        let light = lighter(fill, by: 0.12)
+        let shade = darker(fill, by: 0.22)
+        let light = lighter(fill, by: 0.16)
 
-        ctx.setFillColor(fill)
-        ctx.setStrokeColor(shade)
-        ctx.setLineWidth(max(1.5, zone.width * 0.012))
         ctx.setLineJoin(.round)
+        ctx.setLineWidth(max(1.5, zone.width * 0.012))
 
         switch slot {
         case .top:
-            drawTop(ctx, zone: zone, name: name, light: light, shade: shade)
+            drawTop(ctx, zone: zone, name: name, fill: fill, light: light, shade: shade)
         case .outerwear:
-            drawOuterwear(ctx, zone: zone, light: light, shade: shade)
+            drawOuterwear(ctx, zone: zone, fill: fill, light: light, shade: shade)
         case .dress:
-            drawDress(ctx, zone: zone, light: light, shade: shade)
+            drawDress(ctx, zone: zone, fill: fill, light: light, shade: shade)
         case .bottom:
-            drawBottom(ctx, zone: zone, name: name, light: light, shade: shade)
+            drawBottom(ctx, zone: zone, name: name, fill: fill, light: light, shade: shade)
         case .shoes:
-            drawShoes(ctx, zone: zone, name: name, light: light, shade: shade)
+            drawShoes(ctx, zone: zone, name: name, fill: fill, light: light, shade: shade)
         }
 
         guard let image = ctx.makeImage() else { return nil }
         return encodePNG(image)
     }
 
-    // MARK: - Shapes（flat fashion flat / tech pack 简剪影）
+    // MARK: - Shaded fill（tech-pack 剪影 + 纵向上浅下深，减贴纸平面感）
+
+    private static func fillShadedPath(
+        _ ctx: CGContext,
+        path: CGPath,
+        zone: CGRect,
+        fill: CGColor,
+        light: CGColor,
+        shade: CGColor
+    ) {
+        // 轻接触影：贴 croquis 更稳
+        ctx.setShadow(
+            offset: CGSize(width: 0, height: max(1, zone.height * 0.01)),
+            blur: max(2, zone.width * 0.03),
+            color: CGColor(gray: 0, alpha: 0.22))
+        ctx.saveGState()
+        ctx.addPath(path)
+        ctx.clip()
+        let space = CGColorSpaceCreateDeviceRGB()
+        let colors = [light, fill, shade] as CFArray
+        let locs: [CGFloat] = [0, 0.42, 1]
+        if let gradient = CGGradient(colorsSpace: space, colors: colors, locations: locs) {
+            ctx.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: zone.midX, y: zone.minY),
+                end: CGPoint(x: zone.midX, y: zone.maxY),
+                options: [])
+        } else {
+            ctx.setFillColor(fill)
+            ctx.fill(zone)
+        }
+        ctx.restoreGState()
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
+        ctx.addPath(path)
+        ctx.setStrokeColor(shade)
+        ctx.strokePath()
+    }
+
+    // MARK: - Shapes（flat fashion / tech pack 简剪影）
 
     private static func drawTop(
         _ ctx: CGContext, zone: CGRect, name: String,
-        light: CGColor, shade: CGColor
+        fill: CGColor, light: CGColor, shade: CGColor
     ) {
         let blazer = name.localizedCaseInsensitiveContains("blazer")
             || name.localizedCaseInsensitiveContains("jacket")
@@ -99,8 +135,7 @@ public enum DemoGarmentSilhouette {
         path.addLine(to: CGPoint(x: midX + neck, y: zone.minY + h * 0.02))
         path.closeSubpath()
 
-        ctx.addPath(path)
-        ctx.drawPath(using: .fillStroke)
+        fillShadedPath(ctx, path: path, zone: zone, fill: fill, light: light, shade: shade)
 
         // 中线 / 领口 hint
         ctx.setStrokeColor(light)
@@ -112,7 +147,7 @@ public enum DemoGarmentSilhouette {
 
     private static func drawOuterwear(
         _ ctx: CGContext, zone: CGRect,
-        light: CGColor, shade: CGColor
+        fill: CGColor, light: CGColor, shade: CGColor
     ) {
         let w = zone.width, h = zone.height
         let midX = zone.midX
@@ -134,8 +169,7 @@ public enum DemoGarmentSilhouette {
         path.addLine(to: CGPoint(x: midX + w * 0.48, y: zone.minY + h * 0.10))
         path.addLine(to: CGPoint(x: midX + w * 0.12, y: zone.minY + h * 0.02))
         path.closeSubpath()
-        ctx.addPath(path)
-        ctx.drawPath(using: .fillStroke)
+        fillShadedPath(ctx, path: path, zone: zone, fill: fill, light: light, shade: shade)
         ctx.setStrokeColor(light)
         ctx.setLineWidth(max(1, w * 0.01))
         ctx.move(to: CGPoint(x: midX, y: zone.minY + h * 0.16))
@@ -145,7 +179,7 @@ public enum DemoGarmentSilhouette {
 
     private static func drawDress(
         _ ctx: CGContext, zone: CGRect,
-        light: CGColor, shade: CGColor
+        fill: CGColor, light: CGColor, shade: CGColor
     ) {
         let w = zone.width, h = zone.height
         let midX = zone.midX
@@ -159,14 +193,12 @@ public enum DemoGarmentSilhouette {
         path.addLine(to: CGPoint(x: midX + w * 0.40, y: zone.minY + h * 0.10))
         path.addLine(to: CGPoint(x: midX + w * 0.12, y: zone.minY + h * 0.02))
         path.closeSubpath()
-        ctx.addPath(path)
-        ctx.drawPath(using: .fillStroke)
-        _ = light; _ = shade
+        fillShadedPath(ctx, path: path, zone: zone, fill: fill, light: light, shade: shade)
     }
 
     private static func drawBottom(
         _ ctx: CGContext, zone: CGRect, name: String,
-        light: CGColor, shade: CGColor
+        fill: CGColor, light: CGColor, shade: CGColor
     ) {
         let skirt = name.localizedCaseInsensitiveContains("skirt")
         let w = zone.width, h = zone.height
@@ -178,8 +210,6 @@ public enum DemoGarmentSilhouette {
             path.addLine(to: CGPoint(x: midX + w * 0.46, y: zone.minY + h * 0.92))
             path.addLine(to: CGPoint(x: midX - w * 0.46, y: zone.minY + h * 0.92))
             path.closeSubpath()
-            ctx.addPath(path)
-            ctx.drawPath(using: .fillStroke)
         } else {
             // trousers: two legs + waist
             path.move(to: CGPoint(x: midX - w * 0.30, y: zone.minY + h * 0.04))
@@ -193,20 +223,18 @@ public enum DemoGarmentSilhouette {
             path.addLine(to: CGPoint(x: midX - w * 0.22, y: zone.minY + h * 0.96))
             path.addLine(to: CGPoint(x: midX - w * 0.28, y: zone.minY + h * 0.22))
             path.closeSubpath()
-            ctx.addPath(path)
-            ctx.drawPath(using: .fillStroke)
         }
+        fillShadedPath(ctx, path: path, zone: zone, fill: fill, light: light, shade: shade)
         ctx.setStrokeColor(light)
         ctx.setLineWidth(max(1, w * 0.008))
         ctx.move(to: CGPoint(x: midX - w * 0.28, y: zone.minY + h * 0.08))
         ctx.addLine(to: CGPoint(x: midX + w * 0.28, y: zone.minY + h * 0.08))
         ctx.strokePath()
-        _ = shade
     }
 
     private static func drawShoes(
         _ ctx: CGContext, zone: CGRect, name: String,
-        light: CGColor, shade: CGColor
+        fill: CGColor, light: CGColor, shade: CGColor
     ) {
         let pumps = name.localizedCaseInsensitiveContains("pump")
             || name.localizedCaseInsensitiveContains("heel")
@@ -232,10 +260,8 @@ public enum DemoGarmentSilhouette {
                     height: footH * 0.35)
                 path.addRect(heel)
             }
-            ctx.addPath(path)
-            ctx.drawPath(using: .fillStroke)
+            fillShadedPath(ctx, path: path, zone: r, fill: fill, light: light, shade: shade)
         }
-        _ = light; _ = shade
     }
 
     // MARK: - Color
