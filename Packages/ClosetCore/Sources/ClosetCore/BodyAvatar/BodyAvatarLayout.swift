@@ -219,6 +219,29 @@ public struct BodyAvatarLayer: Equatable, Sendable, Identifiable {
     }
 }
 
+/// 叠衣像素框：UI 与分享导出共用，避免 fitScale / 肩线上移只在一侧生效。
+public enum BodyAvatarGarmentLayout {
+    /// 画布像素坐标（原点左上）。含 morph 水平剖面 + fitScale + fitOffsetY。
+    public static func pixelFrame(
+        layer: BodyAvatarLayer,
+        canvasWidth: Double,
+        canvasHeight: Double,
+        morph: BodyMorphParams
+    ) -> NormalizedRect {
+        let f = layer.frame
+        let m = morph.clamped()
+        let midY = f.y + f.height / 2
+        let sx = m.horizontalScale(normalizedY: midY)
+        let fit = max(0.85, min(1.25, layer.fitScale))
+        let w = f.width * canvasWidth * sx * fit
+        let h = f.height * canvasHeight * m.height * fit
+        let cx = 0.5 * canvasWidth + (f.x + f.width / 2 - 0.5) * canvasWidth * sx
+        let cy = (f.y + f.height / 2 + layer.fitOffsetY) * canvasHeight * m.height
+            + (m.height - 1) * canvasHeight * 0.015
+        return NormalizedRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+    }
+}
+
 /// 槽位图引用：bundle 名或本地相对路径。
 public struct BodyAvatarSlotImage: Equatable, Sendable {
     public var id: String

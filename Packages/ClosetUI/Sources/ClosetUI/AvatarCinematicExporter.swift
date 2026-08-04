@@ -213,18 +213,18 @@ public enum AvatarCinematicExporter {
             height: bodyRect.height * mh)
         ctx.draw(body, in: bodyDraw)
 
-        // Garments only front (normalized space ≈ BodyAvatarAnchors)
+        // Garments only front — same fitScale / shoulder math as BodyAvatarView
         for (layer, gimg) in garments {
-            let f = layer.frame
-            let sx = CGFloat(morph.clamped().horizontalScale(normalizedY: f.y + f.height / 2))
-            let gw = CGFloat(f.width) * CGFloat(w) * sx
-            let gh = CGFloat(f.height) * CGFloat(h) * mh
-            let gcx = 0.5 * CGFloat(w) + (CGFloat(f.x) + CGFloat(f.width) / 2 - 0.5) * CGFloat(w) * sx
-            let gcy = (CGFloat(f.y) + CGFloat(f.height) / 2) * CGFloat(h) * mh
+            let nr = BodyAvatarGarmentLayout.pixelFrame(
+                layer: layer,
+                canvasWidth: Double(w),
+                canvasHeight: Double(h),
+                morph: morph)
             let gr = CGRect(
-                x: gcx - gw / 2 + figOff.width,
-                y: gcy - gh / 2 + figOff.height,
-                width: gw, height: gh)
+                x: nr.x + Double(figOff.width),
+                y: nr.y + Double(figOff.height),
+                width: nr.width,
+                height: nr.height)
             ctx.draw(gimg, in: gr)
         }
 

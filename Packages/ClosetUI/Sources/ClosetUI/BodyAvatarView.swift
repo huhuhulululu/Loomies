@@ -381,17 +381,13 @@ public struct BodyAvatarView: View {
 
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
-        let f = layer.frame
-        // 槽位框随 band 水平缩放 + fitScale 贴肩
-        let midY = f.y + f.height / 2
-        let sx = morph.horizontalScale(normalizedY: midY)
-        let fit = CGFloat(max(0.85, min(1.25, layer.fitScale)))
-        let w = f.width * canvas.width * sx * fit
-        let h = f.height * canvas.height * morph.height * fit
-        let cx = 0.5 * canvas.width + (f.x + f.width / 2 - 0.5) * canvas.width * sx
-        let cy = (f.y + f.height / 2 + layer.fitOffsetY) * canvas.height * morph.height
-            + (morph.height - 1) * canvas.height * 0.015
-        let rect = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+        // 与分享导出共用 BodyAvatarGarmentLayout（fitScale / 肩线）
+        let nr = BodyAvatarGarmentLayout.pixelFrame(
+            layer: layer,
+            canvasWidth: Double(canvas.width),
+            canvasHeight: Double(canvas.height),
+            morph: morph)
+        let rect = CGRect(x: nr.x, y: nr.y, width: nr.width, height: nr.height)
         Group {
             if let img = Self.layerImage(layer) {
                 img
@@ -406,6 +402,10 @@ public struct BodyAvatarView: View {
         }
         .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
         .clipped()
+        // 轻接触影：叠衣贴身、减「贴纸浮空」(HIG depth / paper-doll)
+        .shadow(
+            color: Color.black.opacity(layer.hasVisual ? 0.14 : 0),
+            radius: 2.5, y: 1.5)
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
         .opacity(layer.hasVisual ? 0.97 : 0.72)

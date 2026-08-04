@@ -384,6 +384,7 @@ public struct AboutView: View {
 // MARK: - Favorites list
 
 public struct FavoritesView: View {
+    @Environment(\.modelContext) private var context
     let wardrobe: Wardrobe
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
@@ -397,8 +398,10 @@ public struct FavoritesView: View {
             } else {
                 List(outfits, id: \.id) { o in
                     HStack(spacing: 12) {
+                        // 与 Today 同源体型/morph，避免收藏列表永远 rectangle
                         BodyAvatarView(
-                            shape: .rectangle,
+                            shape: ownerShape,
+                            morph: ownerMorph,
                             layers: OutfitAvatarComposer.layers(from: o.items ?? []),
                             showsFitCaption: false,
                             enablesOrbit: false,
@@ -419,5 +422,31 @@ public struct FavoritesView: View {
             }
         }
         .navigationTitle("Favorites")
+    }
+
+    private var ownerProfile: PersonBodyProfile? {
+        guard let pid = wardrobe.owner?.id else { return nil }
+        let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+        return profiles.first(where: { $0.personID == pid })
+    }
+
+    private var ownerShape: PopularShape {
+        if let p = ownerProfile,
+           let s = BodyProfileService.displayPopularShape(from: p) {
+            return s
+        }
+        return .rectangle
+    }
+
+    private var ownerMorph: BodyMorphParams {
+        guard let p = ownerProfile else {
+            return BodyMorphParams.preset(for: ownerShape)
+        }
+        let m = BodyProfileService.measurements(from: p)
+        let shape = BodyProfileService.popularShape(from: p)
+        let fine = BodyMorphParams(
+            chest: p.fineChest, waist: p.fineWaist,
+            hip: p.fineHip, shoulder: 1, height: p.fineHeight)
+        return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
     }
 }

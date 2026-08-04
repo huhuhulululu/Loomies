@@ -34,6 +34,40 @@ struct BodyAvatarLayoutTests {
         #expect(layers[0].fitOffsetY < 0)
     }
 
+    @Test func garmentLayoutAppliesFitScaleAndOffset() {
+        let base = BodyAvatarLayer(
+            id: "t", slot: .top,
+            frame: BodyAvatarAnchors.frame(for: .top),
+            zIndex: 3, fitScale: 1.0, fitOffsetY: 0)
+        let fitted = BodyAvatarLayer(
+            id: "t2", slot: .top,
+            frame: BodyAvatarAnchors.frame(for: .top),
+            zIndex: 3, fitScale: 1.08, fitOffsetY: -0.02)
+        let morph = BodyMorphParams.neutral
+        let a = BodyAvatarGarmentLayout.pixelFrame(
+            layer: base, canvasWidth: 100, canvasHeight: 150, morph: morph)
+        let b = BodyAvatarGarmentLayout.pixelFrame(
+            layer: fitted, canvasWidth: 100, canvasHeight: 150, morph: morph)
+        #expect(b.width > a.width)
+        #expect(b.height > a.height)
+        // 负 offsetY → 框整体上移（midY 更小）
+        #expect((b.y + b.height / 2) < (a.y + a.height / 2))
+    }
+
+    @Test func garmentLayoutRespectsMorphWidth() {
+        let layer = BodyAvatarLayer(
+            id: "t", slot: .top,
+            frame: BodyAvatarAnchors.frame(for: .top),
+            zIndex: 3, fitScale: 1.0, fitOffsetY: 0)
+        let wide = BodyMorphParams(chest: 1.1, waist: 1.0, hip: 1.0, shoulder: 1.05, height: 1)
+        let narrow = BodyMorphParams(chest: 0.92, waist: 1.0, hip: 1.0, shoulder: 0.95, height: 1)
+        let w = BodyAvatarGarmentLayout.pixelFrame(
+            layer: layer, canvasWidth: 200, canvasHeight: 300, morph: wide)
+        let n = BodyAvatarGarmentLayout.pixelFrame(
+            layer: layer, canvasWidth: 200, canvasHeight: 300, morph: narrow)
+        #expect(w.width > n.width)
+    }
+
     @Test func scaleClampsExtremeMeasurements() {
         let tiny = BodyMeasurements(bust: 20, waist: 18, hip: 22, highHip: 20)
         let s = BodyAvatarScaler.scale(from: tiny)
