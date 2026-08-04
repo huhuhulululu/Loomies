@@ -19,6 +19,8 @@ public final class ItemDetailViewModel {
     public var waistFlat: String
     public private(set) var fitLabel: String?
     public private(set) var message: String = ""
+    /// Set after a successful delete so the detail screen can dismiss.
+    public private(set) var didDelete = false
 
     public init(item: Item) {
         self.item = item
@@ -56,5 +58,16 @@ public final class ItemDetailViewModel {
         _ = ItemStatusService.setStatus(item, to: statusRaw, in: context)
         message = "Saved."
         AppLog.info("ItemDetail save \(item.name)", .app)
+    }
+
+    /// Permanently remove the piece (outfits mark permanentlyMissing; wear history kept).
+    public func delete(in context: ModelContext) {
+        let path = item.localImageRelativePath
+        let label = item.name
+        DeleteService.deleteItem(item, in: context)
+        ItemImageStore.delete(relativePath: path)
+        didDelete = true
+        message = "Deleted."
+        AppLog.info("ItemDetail delete \(label)", .app)
     }
 }

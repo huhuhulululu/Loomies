@@ -31,6 +31,23 @@ struct FeatureGapViewModelTests {
         #expect(i.statusRaw == "inWash")
     }
 
+    @Test func itemDetailDeleteRemovesItemAndMarksOutfitMissing() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w)
+        let i = Item(name: "old tee"); i.slotRaw = "top"; i.wardrobe = w; ctx.insert(i)
+        let o = Outfit(name: "look"); o.isFavorite = true; o.wardrobe = w
+        o.items = [i]; ctx.insert(o)
+        try ctx.save()
+        let id = i.id
+        let vm = ItemDetailViewModel(item: i)
+        #expect(!vm.didDelete)
+        vm.delete(in: ctx)
+        #expect(vm.didDelete)
+        let left = try ctx.fetch(FetchDescriptor<Item>()).filter { $0.id == id }
+        #expect(left.isEmpty)
+        #expect(o.permanentlyMissing == true)
+    }
+
     @Test func transferMovesItem() throws {
         let ctx = try makeContext()
         let a = Wardrobe(name: "NYC"); ctx.insert(a)

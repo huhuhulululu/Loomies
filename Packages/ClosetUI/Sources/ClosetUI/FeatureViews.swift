@@ -10,6 +10,7 @@ public struct ItemDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var vm: ItemDetailViewModel
     @State private var transferVM: TransferViewModel?
+    @State private var confirmDelete = false
     var bodyProfile: PersonBodyProfile?
 
     public init(item: Item, bodyProfile: PersonBodyProfile? = nil) {
@@ -51,6 +52,14 @@ public struct ItemDetailView: View {
                         .font(.caption).foregroundStyle(DS.muted)
                 }
             }
+            Section {
+                Button("Delete piece", role: .destructive) {
+                    confirmDelete = true
+                }
+                Text("Looks that used this piece keep wear history but mark missing.")
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+            }
             if let msg = Optional(vm.message), !msg.isEmpty {
                 Section { Text(msg).foregroundStyle(DS.accent) }
             }
@@ -66,6 +75,19 @@ public struct ItemDetailView: View {
                     vm.refreshFit(profile: bodyProfile)
                 }
             }
+        }
+        .confirmationDialog(
+            "Delete this piece?",
+            isPresented: $confirmDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                vm.delete(in: context)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This cannot be undone. Favorite looks keep a missing-piece flag.")
         }
         .onAppear { vm.refreshFit(profile: bodyProfile) }
         .sheet(item: Binding(
