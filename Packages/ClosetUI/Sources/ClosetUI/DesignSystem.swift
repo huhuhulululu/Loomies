@@ -8,5 +8,9 @@ public enum DS {
     public static let ink     = Color(red: 0.169, green: 0.149, blue: 0.133)
     public static let muted   = Color(red: 0.431, green: 0.392, blue: 0.353)
     public static let accent  = Color(red: 0.620, green: 0.333, blue: 0.251) // muted clay
-    public static let radius: CGFloat = 10
+    /// BodyAvatar 统一棚灰（≈ RGB 158），与 croquis 资源一致
+    public static let studioGray = Color(red: 158 / 255, green: 158 / 255, blue: 158 / 255)
+    public static let radius: CGFloat = 12
+    public static let radiusLg: CGFloat = 18
+    public static let heroMinHeight: CGFloat = 360
 }

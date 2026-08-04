@@ -24,6 +24,7 @@ public final class CopilotViewModel {
     /// 最近一次 refresh 耗时 ms。
     public private(set) var lastRefreshMS: Double = 0
     public private(set) var lastRefreshAt: Date?
+    public private(set) var isRefreshing: Bool = false
 
     public var selectedSuggestion: ScoredOutfit? {
         guard !suggestions.isEmpty else { return nil }
@@ -31,12 +32,24 @@ public final class CopilotViewModel {
         return suggestions[i]
     }
 
+    public var lookCount: Int { suggestions.count }
+
     public func selectSuggestion(at index: Int) {
         guard !suggestions.isEmpty else {
             selectedSuggestionIndex = 0
             return
         }
         selectedSuggestionIndex = min(max(0, index), suggestions.count - 1)
+    }
+
+    public func selectNextLook() {
+        guard lookCount > 1 else { return }
+        selectSuggestion(at: (selectedSuggestionIndex + 1) % lookCount)
+    }
+
+    public func selectPreviousLook() {
+        guard lookCount > 1 else { return }
+        selectSuggestion(at: (selectedSuggestionIndex - 1 + lookCount) % lookCount)
     }
 
     public init(wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double = 70) {
@@ -77,6 +90,8 @@ public final class CopilotViewModel {
     }
 
     public func refresh() {
+        isRefreshing = true
+        defer { isRefreshing = false }
         let t0 = CFAbsoluteTimeGetCurrent()
         let dbg = DebugSettings.shared
         let forceAnchor = isColdStart || !fullAuto
@@ -85,6 +100,7 @@ public final class CopilotViewModel {
             anchors = (wardrobe.items ?? []).filter { anchorIDs.contains($0.id) }
             if isColdStart && anchors.isEmpty {
                 suggestions = []
+                selectedSuggestionIndex = 0
                 statusMessage = availableItems.isEmpty
                     ? "Empty closet — load samples in Closet or Me."
                     : "Cold start: anchor at least one piece first."
@@ -114,7 +130,7 @@ public final class CopilotViewModel {
             statusMessage = emptyReason(
                 anchors: anchors, wornCount: worn.count, available: availableItems.count)
         } else {
-            statusMessage = "\(suggestions.count) suggestion(s) · \(String(format: "%.0f", lastRefreshMS))ms"
+            statusMessage = "Look \(selectedSuggestionIndex + 1) of \(suggestions.count)"
         }
         AppLog.info(
             "refresh occasion=\(occasion) temp=\(daytimeTempF) anchors=\(anchors.count) worn=\(worn.count) out=\(suggestions.count) \(String(format: "%.1fms", lastRefreshMS))",

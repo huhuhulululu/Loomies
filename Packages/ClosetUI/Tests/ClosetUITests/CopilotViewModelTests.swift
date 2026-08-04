@@ -158,4 +158,29 @@ struct CopilotViewModelTests {
         vm.refresh()
         #expect(vm.selectedSuggestionIndex == 0)  // refresh 重置到首条
     }
+
+    @Test func nextPreviousLookCycles() throws {
+        let (ctx, w, _) = try setup()
+        for i in 0..<14 {
+            let item = Item(name: "n\(i)")
+            item.slotRaw = ["top", "bottom", "shoes"][i % 3]
+            item.wardrobe = w
+            item.occasionsRaw = ["work"]
+            item.warmthRaw = Warmth.light.rawValue
+            item.colorIsNeutral = true
+            item.statusRaw = "available"
+            ctx.insert(item)
+        }
+        try ctx.save()
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
+        vm.coldStartThreshold = 1
+        vm.fullAuto = true
+        vm.refresh()
+        guard vm.lookCount > 1 else { return }
+        let first = vm.selectedSuggestionIndex
+        vm.selectNextLook()
+        #expect(vm.selectedSuggestionIndex != first || vm.lookCount == 1)
+        vm.selectPreviousLook()
+        #expect(vm.selectedSuggestionIndex == first)
+    }
 }

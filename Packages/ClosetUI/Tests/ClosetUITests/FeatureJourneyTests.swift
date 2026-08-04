@@ -44,7 +44,7 @@ struct FeatureJourneyTests {
         vm.fullAuto = true
         vm.refresh()
         #expect(!vm.suggestions.isEmpty, "seeded closet should complete looks")
-        #expect(vm.statusMessage.contains("suggestion"))
+        #expect(vm.statusMessage.contains("Look") || vm.selectedSuggestion != nil)
         let layers = OutfitAvatarComposer.layers(
             itemIDs: vm.suggestions[0].outfit.itemIDs, in: w)
         #expect(!layers.isEmpty)

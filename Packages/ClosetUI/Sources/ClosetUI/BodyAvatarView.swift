@@ -16,6 +16,8 @@ public struct BodyAvatarView: View {
     public var fitCaption: String?
     public var showsFitCaption: Bool
     public var enablesOrbit: Bool
+    /// Today 英雄区：只保留点阵 + 轻提示，隐藏 morph 调试字
+    public var compactChrome: Bool
     /// 保留参数以兼容调用方；实际走 `BodyMorphRaster` 像素行变形（非多层 mask）。
     public var morphStripCount: Int
 
@@ -29,6 +31,7 @@ public struct BodyAvatarView: View {
         fitCaption: String? = nil,
         showsFitCaption: Bool = true,
         enablesOrbit: Bool = true,
+        compactChrome: Bool = false,
         initialYaw: BodyAvatarYaw = .deg0,
         morphStripCount: Int = 96
     ) {
@@ -38,6 +41,7 @@ public struct BodyAvatarView: View {
         self.fitCaption = fitCaption
         self.showsFitCaption = showsFitCaption
         self.enablesOrbit = enablesOrbit
+        self.compactChrome = compactChrome
         self.morphStripCount = max(32, morphStripCount)
         _yaw = State(initialValue: initialYaw)
     }
@@ -103,6 +107,10 @@ public struct BodyAvatarView: View {
         .onChange(of: shape) { _, _ in
             yaw = .deg0
         }
+        // 换 look 时回正面（叠衣只在 yaw0）
+        .onChange(of: layers.map(\.id).joined(separator: ",")) { _, _ in
+            yaw = .deg0
+        }
     }
 
     // MARK: - Canvas
@@ -131,61 +139,62 @@ public struct BodyAvatarView: View {
             .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
-        // 与 croquis 统一棚灰（≈ RGB 158）对齐，避免画布/图底色差
-        .background(Color(red: 158 / 255, green: 158 / 255, blue: 158 / 255))
-        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+        .background(DS.studioGray)
+        .clipShape(RoundedRectangle(cornerRadius: compactChrome ? DS.radiusLg : DS.radius, style: .continuous))
     }
 
     private var orbitChrome: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: compactChrome ? 6 : 8) {
             HStack(spacing: 6) {
                 ForEach(BodyAvatarYaw.allCases, id: \.rawValue) { a in
                     Circle()
-                        .fill(a == yaw ? DS.accent : DS.muted.opacity(0.35))
-                        .frame(width: a == yaw ? 8 : 6, height: a == yaw ? 8 : 6)
+                        .fill(a == yaw ? DS.accent : DS.muted.opacity(0.28))
+                        .frame(width: a == yaw ? 7 : 5, height: a == yaw ? 7 : 5)
                         .onTapGesture { yaw = a }
                         .accessibilityLabel(a.shortLabel)
                 }
             }
-            HStack {
-                Button { yaw = yaw.stepped(by: -1) } label: {
-                    Image(systemName: "chevron.left.circle.fill")
-                        .font(.title2).foregroundStyle(DS.accent)
-                }
-                .buttonStyle(.plain)
-                Spacer()
-                Text("360° · \(yaw.shortLabel) · \(yaw.rawValue)°")
-                    .font(.caption.monospacedDigit())
+            if compactChrome {
+                Text(yaw == .deg0 ? "Drag to turn · front shows layers" : "\(yaw.shortLabel) · layers on front only")
+                    .font(.caption2)
                     .foregroundStyle(DS.muted)
-                Spacer()
-                Button { yaw = yaw.stepped(by: 1) } label: {
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.title2).foregroundStyle(DS.accent)
+            } else {
+                HStack {
+                    Button { yaw = yaw.stepped(by: -1) } label: {
+                        Image(systemName: "chevron.left.circle.fill")
+                            .font(.title2).foregroundStyle(DS.accent)
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    Text("360° · \(yaw.shortLabel)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(DS.muted)
+                    Spacer()
+                    Button { yaw = yaw.stepped(by: 1) } label: {
+                        Image(systemName: "chevron.right.circle.fill")
+                            .font(.title2).foregroundStyle(DS.accent)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
-            Text("Morph C\(fmt(morph.chest)) W\(fmt(morph.waist)) H\(fmt(morph.hip)) · drag to orbit")
-                .font(.caption2)
-                .foregroundStyle(DS.muted)
         }
-    }
-
-    private func fmt(_ v: Double) -> String {
-        String(format: "%.2f", v)
     }
 
     private var captionBlock: some View {
         VStack(spacing: 4) {
-            Text(displayShapeTitle)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(DS.ink)
+            if !compactChrome {
+                Text(displayShapeTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DS.ink)
+            }
             if let fitCaption, !fitCaption.isEmpty {
                 Text(fitCaption)
-                    .font(.caption)
-                    .foregroundStyle(DS.muted)
+                    .font(compactChrome ? .subheadline.weight(.medium) : .caption)
+                    .foregroundStyle(compactChrome ? DS.ink : DS.muted)
                     .multilineTextAlignment(.center)
-            } else {
+                    .lineLimit(compactChrome ? 2 : 4)
+            } else if !compactChrome {
                 Text("Continuous proportion guide — not a photo try-on.")
                     .font(.caption2)
                     .foregroundStyle(DS.muted)
