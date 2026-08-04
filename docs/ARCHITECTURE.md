@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-03 — croquis 透明底 + AvatarBackdrop 场合层 + DataLifecycle + 纸娃娃叠衣 + BodyMorph + TF。
+> 最近同步：2026-08-03 — 景深视差 DepthParallax（效果优先）+ 透明 croquis + AvatarBackdrop + 纸娃娃 + BodyMorph + TF。
 
 ## 项目定位
 
@@ -75,7 +75,7 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 |------|--------------|------|
 | ClosetCore | OutfitCompleter, FitEngine, FFITClassifier, BodyMorphParams, BodyAvatarLayout, WeatherProviding, FitMarkCopy, TelemetryEvent | 纯逻辑引擎 + 体型塑形 + 遥测 schema |
 | ClosetModel | Transfer/Delete/Search/BodyProfile/FitMark/CalendarPlan/OutfitDraft/DemoSeed/Recommendation/CheckIn/**DataLifecycle** | 持久化 + 语义服务 + 导出/删除全部 |
-| ClosetUI | BodyAvatarView/AvatarBackdrop/BodyMorphRaster, CalendarView, MeView（Data 区）, ClosetGrid fit badges, Copilot/Onboarding VMs | UI 逻辑 + 透明 croquis 叠场合底 + 日历/Me 闭环 |
+| ClosetUI | BodyAvatarView/AvatarBackdrop/DepthParallax/BodyMorphRaster, CalendarView, MeView, Copilot/Onboarding VMs | 透明 croquis + 场合底 + 景深视差 + 日历/Me |
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 

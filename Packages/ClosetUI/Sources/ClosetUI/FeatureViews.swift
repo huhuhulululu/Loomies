@@ -402,7 +402,8 @@ public struct FavoritesView: View {
                             layers: OutfitAvatarComposer.layers(from: o.items ?? []),
                             showsFitCaption: false,
                             enablesOrbit: false,
-                            backdrop: .resolved(from: o.occasionRaw))
+                            backdrop: .resolved(from: o.occasionRaw),
+                            depthIntensity: .off)
                         .frame(width: 72, height: 108)
                         .allowsHitTesting(false)
                         VStack(alignment: .leading, spacing: 4) {

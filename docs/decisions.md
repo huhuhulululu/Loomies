@@ -188,6 +188,13 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D43 [2026-08-03] 景深立体预览（效果优先，非 GIF）
+用户「效果第一」：要景深 3D 照片感，但主路径不用 GIF。
+- **做**：分层视差 `DepthParallax`（背景虚化位移 > 人体 > 前景雾）+ 体积光场合底 + 脚底接触影 + 轻 `rotation3DEffect`
+- **驱动**：CoreMotion 姿态 + 拖拽叠加 + 静置微幅 ambient 呼吸；hero=`cinematic`，Me=`subtle`，列表缩略=`off`
+- **不做**：GIF 主资产、替代 8 帧 360、SMPL、把叠衣烤进动画
+- 360 仍瞬时切帧；立体是「当前帧站在场景里」的增强
+
 ## D42 [2026-08-03] 体型 croquis 透明底 + 场合背景层
 - 问题：各 croquis 烤进的棚灰/底色不一致，换场景会露脏边
 - **资源**：`croquis_*.png` → RGBA 透明（flood + largest-component + edge decontam）；脚本 `app-shell/scripts/croquis-to-alpha.py`

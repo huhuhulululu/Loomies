@@ -9,7 +9,7 @@ import AppKit
 #endif
 
 /// 真人站姿 + **360° 切帧** + **连续 BodyMorph 分条变形**（类游戏滑杆塑形，非 SMPL / 非 VTON）。
-/// Croquis 为透明 PNG；`backdrop` 在底层叠场合场景，不烤进资源。
+/// Croquis 为透明 PNG；`backdrop` 在底层叠场合场景；**景深视差**（效果优先，非 GIF）。
 public struct BodyAvatarView: View {
     public var shape: PopularShape
     public var morph: BodyMorphParams
@@ -23,9 +23,18 @@ public struct BodyAvatarView: View {
     public var morphStripCount: Int
     /// 场合/棚灰背景（UI 层，可换）
     public var backdrop: AvatarBackdrop
+    /// 景深立体强度；`nil` = compactChrome → cinematic，否则 subtle
+    public var depthIntensity: DepthParallaxIntensity?
 
     @State private var yaw: BodyAvatarYaw = .deg0
     @State private var dragOriginYaw: BodyAvatarYaw?
+    @StateObject private var depthMotion = DepthParallaxMotion()
+    /// 拖拽附加的视差（与 360 水平切帧并存）
+    @State private var dragParallax = DepthParallaxSample()
+
+    private var resolvedDepth: DepthParallaxIntensity {
+        depthIntensity ?? (compactChrome ? .cinematic : .subtle)
+    }
 
     public init(
         shape: PopularShape = .rectangle,
@@ -37,7 +46,8 @@ public struct BodyAvatarView: View {
         compactChrome: Bool = false,
         initialYaw: BodyAvatarYaw = .deg0,
         morphStripCount: Int = 96,
-        backdrop: AvatarBackdrop = .studio
+        backdrop: AvatarBackdrop = .studio,
+        depthIntensity: DepthParallaxIntensity? = nil
     ) {
         self.shape = shape
         self.morph = morph
@@ -48,6 +58,7 @@ public struct BodyAvatarView: View {
         self.compactChrome = compactChrome
         self.morphStripCount = max(32, morphStripCount)
         self.backdrop = backdrop
+        self.depthIntensity = depthIntensity
         _yaw = State(initialValue: initialYaw)
     }
 
@@ -100,8 +111,11 @@ public struct BodyAvatarView: View {
     public var body: some View {
         VStack(spacing: 10) {
             modelCanvas
-                .gesture(enablesOrbit ? orbitDrag : nil)
-                .accessibilityHint(enablesOrbit ? "Drag left or right to rotate view" : "")
+                .gesture(canvasDrag)
+                .accessibilityHint(
+                    enablesOrbit
+                        ? "Drag left or right to rotate; tilt device for depth"
+                        : "Tilt device for depth parallax")
 
             if enablesOrbit {
                 orbitChrome
@@ -120,40 +134,106 @@ public struct BodyAvatarView: View {
         .onChange(of: layers.map(\.id).joined(separator: ",")) { _, _ in
             yaw = .deg0
         }
+        .onAppear {
+            if resolvedDepth != .off { depthMotion.start() }
+        }
+        .onDisappear { depthMotion.stop() }
     }
 
     // MARK: - Canvas
 
     private var modelCanvas: some View {
-        GeometryReader { geo in
-            let size = geo.size
-            ZStack {
-                // 底层：场合/棚灰（可换）；人体透明 croquis 叠在其上
-                AvatarBackdropView(backdrop: backdrop)
+        TimelineView(.animation(minimumInterval: resolvedDepth == .off ? 60 : 1.0 / 30.0)) { timeline in
+            let sample = composedParallax(at: timeline.date)
+            GeometryReader { geo in
+                let size = geo.size
+                let bgOff = DepthParallaxLayout.backgroundOffset(sample, intensity: resolvedDepth)
+                let figOff = DepthParallaxLayout.figureOffset(sample, intensity: resolvedDepth)
+                let fogOff = DepthParallaxLayout.foregroundOffset(sample, intensity: resolvedDepth)
+
+                ZStack {
+                    // Far：场合底 + 景深虚化 + 体积光（位移最大）
+                    AvatarBackdropView(
+                        backdrop: backdrop,
+                        depthBlur: resolvedDepth.backgroundBlur,
+                        parallaxScale: resolvedDepth.backdropScale,
+                        lightShift: CGSize(width: sample.x, height: sample.y))
                     .frame(width: size.width, height: size.height)
+                    .offset(bgOff)
 
-                if let name = croquisAssetName(for: yaw) {
-                    // 单次 CG 栅格变形；中性 morph 直出原图，避免 48 层 mask 碎裂
-                    BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
-                } else {
-                    PlaceholderCroquis(shape: shape)
-                        .scaleEffect(x: morph.legacyScale.widthScale, y: morph.height, anchor: .center)
-                }
+                    // Mid：脚底接触影 + 人体 + 叠衣（位移中等）
+                    ZStack {
+                        AvatarContactShadow()
+                            .offset(y: size.height * 0.42)
+                            .opacity(resolvedDepth == .off ? 0.35 : 0.55)
 
-                if yaw == .deg0 {
-                    ForEach(layers) { layer in
-                        garmentLayer(layer, canvas: size)
+                        if let name = croquisAssetName(for: yaw) {
+                            BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
+                        } else {
+                            PlaceholderCroquis(shape: shape)
+                                .scaleEffect(
+                                    x: morph.legacyScale.widthScale,
+                                    y: morph.height,
+                                    anchor: .center)
+                        }
+
+                        if yaw == .deg0 {
+                            ForEach(layers) { layer in
+                                garmentLayer(layer, canvas: size)
+                            }
+                        }
                     }
+                    .offset(figOff)
+                    // 极轻透视感（效果优先，幅度克制）
+                    .scaleEffect(1 + 0.018 * sample.y * (resolvedDepth == .cinematic ? 1 : 0.5))
+                    .rotation3DEffect(
+                        .degrees(Double(sample.x) * (resolvedDepth == .cinematic ? 4.5 : 2.0)),
+                        axis: (x: 0, y: 1, z: 0),
+                        anchor: .center,
+                        perspective: 0.65)
+                    .rotation3DEffect(
+                        .degrees(Double(sample.y) * (resolvedDepth == .cinematic ? -2.2 : -1.0)),
+                        axis: (x: 1, y: 0, z: 0),
+                        anchor: .center,
+                        perspective: 0.65)
+
+                    // Near：前景雾（位移最大，压脚底）
+                    AvatarDepthFog(intensity: resolvedDepth)
+                        .frame(width: size.width, height: size.height)
+                        .offset(fogOff)
+                        .allowsHitTesting(false)
                 }
+                .frame(width: size.width, height: size.height)
+                .clipped()
+                .transaction { $0.animation = nil }
             }
-            .frame(width: size.width, height: size.height)
-            .clipped()
-            // 不用 drawingGroup：会再栅格一次，加重「压缩破碎」感；warp 已是位图
-            .transaction { $0.animation = nil }
         }
         .aspectRatio(2 / 3, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: compactChrome ? DS.radiusLg : DS.radius, style: .continuous))
-        .accessibilityValue(backdrop.accessibilityLabel)
+        .shadow(
+            color: Color.black.opacity(compactChrome ? 0.14 : 0.08),
+            radius: compactChrome ? 18 : 10,
+            y: compactChrome ? 10 : 6)
+        .accessibilityValue(backdrop.accessibilityLabel + ", depth " + resolvedDepth.rawValue)
+    }
+
+    private func composedParallax(at date: Date) -> DepthParallaxSample {
+        let intensity = resolvedDepth
+        guard intensity != .off else { return DepthParallaxSample() }
+        let ambient = DepthParallaxSample.ambient(
+            time: date.timeIntervalSinceReferenceDate,
+            amplitude: intensity.ambientAmplitude)
+        // 姿态为主，拖拽叠加，环境呼吸在静置时托底
+        let motionWeight: CGFloat = 1
+        let dragWeight: CGFloat = 0.85
+        let ambientWeight: CGFloat = 0.55
+        return DepthParallaxSample(
+            x: depthMotion.attitude.x * motionWeight
+                + dragParallax.x * dragWeight
+                + ambient.x * ambientWeight,
+            y: depthMotion.attitude.y * motionWeight
+                + dragParallax.y * dragWeight
+                + ambient.y * ambientWeight)
     }
 
     private var orbitChrome: some View {
@@ -225,16 +305,29 @@ public struct BodyAvatarView: View {
         }
     }
 
-    private var orbitDrag: some Gesture {
-        DragGesture(minimumDistance: 12)
+    private var canvasDrag: some Gesture {
+        DragGesture(minimumDistance: enablesOrbit ? 8 : 4)
             .onChanged { value in
-                if dragOriginYaw == nil { dragOriginYaw = yaw }
-                let origin = dragOriginYaw ?? yaw
-                let steps = Int((value.translation.width / 36).rounded())
-                let next = origin.stepped(by: -steps)
-                if next != yaw { yaw = next }
+                if enablesOrbit {
+                    if dragOriginYaw == nil { dragOriginYaw = yaw }
+                    let origin = dragOriginYaw ?? yaw
+                    let steps = Int((value.translation.width / 36).rounded())
+                    let next = origin.stepped(by: -steps)
+                    if next != yaw { yaw = next }
+                }
+                // 视差：垂直主导深度，水平微调
+                let sx: CGFloat = enablesOrbit ? 120 : 100
+                let sy: CGFloat = enablesOrbit ? 140 : 120
+                dragParallax = DepthParallaxSample(
+                    x: value.translation.width / sx,
+                    y: value.translation.height / sy)
             }
-            .onEnded { _ in dragOriginYaw = nil }
+            .onEnded { _ in
+                dragOriginYaw = nil
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                    dragParallax = DepthParallaxSample()
+                }
+            }
     }
 
     private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
