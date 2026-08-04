@@ -1,4 +1,5 @@
 import SwiftUI
+import ClosetCore
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -298,6 +299,26 @@ struct AvatarBackdropView: View {
         case .gala: return 0.36
         case .casual: return 0.14
         }
+    }
+}
+
+/// 脚底接触影布局：随 morph 高度/宽度走，避免「脚动影不动」。
+enum AvatarContactShadowLayout {
+    /// 中性 croquis 脚底相对画布中心的归一化 y 偏移。
+    static let baseFootOffsetY: CGFloat = 0.43
+    static let baseWidthFraction: CGFloat = 0.36
+    static let baseHeightFraction: CGFloat = 0.028
+
+    static func size(canvas: CGSize, morph: BodyMorphParams) -> CGSize {
+        let wScale = CGFloat(morph.clamped().legacyScale.widthScale)
+        return CGSize(
+            width: canvas.width * baseWidthFraction * wScale,
+            height: canvas.height * baseHeightFraction)
+    }
+
+    /// height 为中心 scaleEffect 时，脚底 y 偏移随 height 线性放大。
+    static func offsetY(canvasHeight: CGFloat, morph: BodyMorphParams) -> CGFloat {
+        canvasHeight * baseFootOffsetY * CGFloat(morph.clamped().height)
     }
 }
 

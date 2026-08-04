@@ -173,11 +173,13 @@ public struct BodyAvatarView: View {
                     .frame(width: size.width, height: size.height)
                     .offset(bgOff)
 
-                    // Mid：脚底影贴地 + 人体 + 叠衣（反射极弱，避免脚底假影）
+                    // Mid：脚底影贴地（随 morph）+ 人体 + 叠衣
                     ZStack {
+                        let shadowSize = AvatarContactShadowLayout.size(canvas: size, morph: morph)
                         AvatarContactShadow()
-                            .frame(width: size.width * 0.36, height: size.height * 0.028)
-                            .offset(y: size.height * 0.43)
+                            .frame(width: shadowSize.width, height: shadowSize.height)
+                            .offset(y: AvatarContactShadowLayout.offsetY(
+                                canvasHeight: size.height, morph: morph))
                             .opacity(resolvedDepth == .off ? 0.32 : 0.48)
 
                         figureStack(canvas: size)

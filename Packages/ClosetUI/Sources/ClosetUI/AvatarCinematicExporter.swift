@@ -10,6 +10,26 @@ import UniformTypeIdentifiers
 import UIKit
 #endif
 
+/// 分享片时间轴（lookbook）：先站正面展 look → 轻转体 → 回正面。
+/// 叠衣仅正面有资产；加长 front hold，避免「衣服只闪一帧」。
+public enum AvatarCinematicLookbook {
+    /// t ∈ [0,1] → (yaw, 是否叠衣)。
+    public static func pose(at t: Double) -> (yaw: BodyAvatarYaw, showGarments: Bool) {
+        let t = min(1, max(0, t))
+        // 前/后各约 24% 时间钉在正面 + 叠衣（产品 look 可读）
+        if t <= 0.24 || t >= 0.76 {
+            return (.deg0, true)
+        }
+        // 中间段：45→90→135→180→135→90→45
+        let u = (t - 0.24) / 0.52
+        let orbit: [BodyAvatarYaw] = [
+            .deg45, .deg90, .deg135, .deg180, .deg135, .deg90, .deg45
+        ]
+        let idx = min(orbit.count - 1, Int(u * Double(orbit.count - 1) + 0.001))
+        return (orbit[idx], false)
+    }
+}
+
 /// 约 2s 电影感预览：yaw 切帧 + 背景视差 → HEVC/H.264 MP4（分享用，非主 UI）。
 @MainActor
 public enum AvatarCinematicExporter {
@@ -55,12 +75,12 @@ public enum AvatarCinematicExporter {
         let frameCount = max(24, Int(request.duration * Double(request.fps)))
         let w = request.width, h = request.height
 
-        // 预载 yaw 序列（往返：0→90→180→90→0，约一圈半节奏）
-        let yawPath: [BodyAvatarYaw] = [
-            .deg0, .deg45, .deg90, .deg135, .deg180, .deg135, .deg90, .deg45, .deg0
+        // 预载 lookbook 用到的 yaw 帧
+        let neededYaw: [BodyAvatarYaw] = [
+            .deg0, .deg45, .deg90, .deg135, .deg180
         ]
         var croquis: [BodyAvatarYaw: CGImage] = [:]
-        for y in Set(yawPath) {
+        for y in neededYaw {
             if let name = croquisName(shape: request.shape, yaw: y),
                let img = loadCGImage(named: name) {
                 croquis[y] = img
@@ -110,13 +130,11 @@ public enum AvatarCinematicExporter {
 
         for i in 0..<frameCount {
             let t = Double(i) / Double(max(frameCount - 1, 1))
-            // 视差：正弦左右
+            // 视差：正弦左右（orbit 段更明显）
             let parallaxX = sin(t * .pi * 2) * 0.85
             let parallaxY = cos(t * .pi * 2 * 0.7) * 0.35
-            // yaw 沿 path 插索引
-            let yawIdx = min(yawPath.count - 1, Int(t * Double(yawPath.count - 1) + 0.001))
-            let yaw = yawPath[yawIdx]
-            let body = croquis[yaw] ?? croquis.values.first!
+            let pose = AvatarCinematicLookbook.pose(at: t)
+            let body = croquis[pose.yaw] ?? croquis.values.first!
 
             while !input.isReadyForMoreMediaData {
                 try await Task.sleep(nanoseconds: 2_000_000)
@@ -125,7 +143,7 @@ public enum AvatarCinematicExporter {
                 width: w, height: h,
                 backdrop: backdropCG,
                 body: body,
-                garments: yaw == .deg0 ? garmentCGs : [],
+                garments: pose.showGarments ? garmentCGs : [],
                 morph: request.morph,
                 parallaxX: parallaxX,
                 parallaxY: parallaxY
