@@ -192,6 +192,10 @@ public struct CopilotView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
         .shadow(color: DS.ink.opacity(0.08), radius: 20, y: 8)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: vm.occasion)
+        // Look 翻页：标题/叠衣/动作条一并缓动（HIG content change）
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.22),
+            value: vm.selectedSuggestionIndex)
     }
 
     private func heroEdgeGlow(_ b: AvatarBackdrop) -> LinearGradient {
@@ -219,7 +223,11 @@ public struct CopilotView: View {
 
     private var lookPager: some View {
         HStack(spacing: 6) {
-            Button { vm.selectPreviousLook() } label: {
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                    vm.selectPreviousLook()
+                }
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DS.accent)
@@ -228,10 +236,16 @@ public struct CopilotView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Previous look")
             Text("\(vm.selectedSuggestionIndex + 1)/\(vm.lookCount)")
                 .font(.caption.monospacedDigit().weight(.medium))
                 .foregroundStyle(DS.ink)
-            Button { vm.selectNextLook() } label: {
+                .accessibilityLabel("Look \(vm.selectedSuggestionIndex + 1) of \(vm.lookCount)")
+            Button {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) {
+                    vm.selectNextLook()
+                }
+            } label: {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DS.accent)
@@ -240,6 +254,7 @@ public struct CopilotView: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Next look")
         }
     }
 

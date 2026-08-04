@@ -255,15 +255,24 @@ public struct BodyAvatarView: View {
                         y: morph.height,
                         anchor: .center)
             }
-            if yaw == .deg0 {
-                ForEach(layers) { layer in
-                    garmentLayer(layer, canvas: size)
-                }
+            // 叠衣仅正面有资产；用 opacity 软退（非硬切）+ look 切换淡入
+            ForEach(layers) { layer in
+                garmentLayer(layer, canvas: size)
+                    .opacity(garmentYawOpacity)
+                    .scaleEffect(garmentYawOpacity > 0.5 ? 1 : 0.985, anchor: .center)
+                    .allowsHitTesting(false)
             }
         }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: yaw)
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.22),
+            value: layers.map(\.id).joined(separator: ","))
     }
 
-
+    /// 正面全显；离开正面软隐（front-only garment assets）。
+    private var garmentYawOpacity: Double {
+        yaw == .deg0 ? 1 : 0
+    }
 
     private var orbitChrome: some View {
         VStack(spacing: compactChrome ? 6 : 8) {
@@ -272,7 +281,11 @@ public struct BodyAvatarView: View {
                     Circle()
                         .fill(a == yaw ? DS.accent : DS.muted.opacity(0.28))
                         .frame(width: a == yaw ? 7 : 5, height: a == yaw ? 7 : 5)
-                        .onTapGesture { yaw = a }
+                        .onTapGesture {
+                            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                                yaw = a
+                            }
+                        }
                         .accessibilityLabel(a.shortLabel)
                 }
             }
@@ -282,7 +295,11 @@ public struct BodyAvatarView: View {
                     .foregroundStyle(DS.muted)
             } else {
                 HStack {
-                    Button { yaw = yaw.stepped(by: -1) } label: {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                            yaw = yaw.stepped(by: -1)
+                        }
+                    } label: {
                         Image(systemName: "chevron.left.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
                     }
@@ -292,7 +309,11 @@ public struct BodyAvatarView: View {
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(DS.muted)
                     Spacer()
-                    Button { yaw = yaw.stepped(by: 1) } label: {
+                    Button {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                            yaw = yaw.stepped(by: 1)
+                        }
+                    } label: {
                         Image(systemName: "chevron.right.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
                     }
@@ -342,7 +363,12 @@ public struct BodyAvatarView: View {
                     let origin = dragOriginYaw ?? yaw
                     let steps = Int((value.translation.width / 36).rounded())
                     let next = origin.stepped(by: -steps)
-                    if next != yaw { yaw = next }
+                    if next != yaw {
+                        // Transaction keeps drag steps snappy but still fades garments
+                        var t = Transaction()
+                        t.animation = reduceMotion ? nil : .easeOut(duration: 0.12)
+                        withTransaction(t) { yaw = next }
+                    }
                 }
                 // 视差：垂直主导深度，水平微调
                 let sx: CGFloat = enablesOrbit ? 120 : 100
@@ -440,14 +466,34 @@ public struct BodyAvatarView: View {
         return nil
     }
 
+    /// 无入库图时：软渐变色块 + SF Symbol（勿暴露 raw slot 字符串）。
     private func slotPlaceholder(_ slot: BodyAvatarSlot) -> some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(slotColor(slot).opacity(0.55))
+        let c = slotColor(slot)
+        return RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [c.opacity(0.72), c.opacity(0.38)],
+                    startPoint: .top, endPoint: .bottom))
+            .overlay {
+                Image(systemName: slotSymbol(slot))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .symbolRenderingMode(.hierarchical)
+            }
             .overlay(
-                Text(slot.rawValue)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.9))
-            )
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
+            .accessibilityLabel(slot.rawValue)
+    }
+
+    private func slotSymbol(_ slot: BodyAvatarSlot) -> String {
+        switch slot {
+        case .outerwear: return "coat.fill"
+        case .top: return "tshirt.fill"
+        case .dress: return "figure.stand.dress"
+        case .bottom: return "rectangle.portrait.fill"
+        case .shoes: return "shoe.fill"
+        }
     }
 
     private func slotColor(_ slot: BodyAvatarSlot) -> Color {
