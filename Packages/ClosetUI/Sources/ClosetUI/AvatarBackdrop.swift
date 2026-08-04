@@ -347,55 +347,17 @@ struct AvatarFloorReflection<Content: View>: View {
     }
 }
 
-/// 轮廓分离光（让透明 croquis 从复杂背景中弹出）。
-struct AvatarRimLight: View {
-    var backdrop: AvatarBackdrop
-    var intensity: DepthParallaxIntensity
-
-    var body: some View {
-        if intensity != .off {
-            LinearGradient(
-                colors: rimColors,
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing)
-            .blendMode(.screen)
-            .opacity(intensity == .cinematic ? 0.22 : 0.12)
-            .mask(
-                LinearGradient(
-                    colors: [.clear, .white.opacity(0.9), .clear],
-                    startPoint: .leading,
-                    endPoint: .trailing)
-            )
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        }
-    }
-
-    private var rimColors: [Color] {
-        switch backdrop {
-        case .date:
-            return [Color(red: 1, green: 0.5, blue: 0.4), .clear, Color(red: 1, green: 0.7, blue: 0.5)]
-        case .gala:
-            return [Color(red: 0.7, green: 0.5, blue: 1), .clear, Color(red: 1, green: 0.85, blue: 0.6)]
-        case .work:
-            return [Color(red: 0.6, green: 0.8, blue: 1), .clear, Color.white]
-        default:
-            return [Color.white, .clear, Color.white.opacity(0.6)]
-        }
-    }
-}
-
-/// 前景景深雾。
+/// 前景景深雾（克制，避免脚边发灰）。
 struct AvatarDepthFog: View {
     var intensity: DepthParallaxIntensity
 
     var body: some View {
-        if intensity != .off {
+        if intensity == .cinematic {
             LinearGradient(
                 colors: [
                     .clear,
                     .clear,
-                    Color.black.opacity(intensity == .cinematic ? 0.16 : 0.08)
+                    Color.black.opacity(0.10)
                 ],
                 startPoint: .top,
                 endPoint: .bottom)

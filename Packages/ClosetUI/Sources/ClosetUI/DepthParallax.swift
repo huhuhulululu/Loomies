@@ -46,9 +46,9 @@ public enum DepthParallaxIntensity: String, Sendable, Equatable {
     public var backgroundBlur: CGFloat {
         switch self {
         case .off: return 0
-        case .subtle: return 1.6
-        // 位图背景略虚，突出真人层
-        case .cinematic: return 3.6
+        case .subtle: return 0.8
+        // 位图已有景深；过虚会糊成「假照片」
+        case .cinematic: return 1.6
         }
     }
 

@@ -168,25 +168,22 @@ public struct BodyAvatarView: View {
                             .opacity(resolvedDepth == .off ? 0.40 : 0.62)
 
                         // 地面镜像（仅 cinematic/subtle，强化「站在场景」）
-                        if resolvedDepth != .off {
+                        if resolvedDepth == .cinematic {
                             AvatarFloorReflection {
                                 figureStack(canvas: size)
                                     .frame(width: size.width, height: size.height)
                             }
-                            .frame(width: size.width, height: size.height * 0.16)
-                            .offset(y: size.height * 0.38)
-                            .opacity(resolvedDepth == .cinematic ? 0.55 : 0.30)
+                            .frame(width: size.width, height: size.height * 0.12)
+                            .offset(y: size.height * 0.40)
+                            .opacity(0.28)
                         }
 
                         figureStack(canvas: size)
-                            .overlay {
-                                AvatarRimLight(backdrop: backdrop, intensity: resolvedDepth)
-                            }
-                            // 边缘微光，从复杂背景分离
+                            // 轻接触影即可；强 rim/白边会放大 croquis 切边（实测禁用重描边）
                             .shadow(
-                                color: rimShadowColor.opacity(resolvedDepth == .cinematic ? 0.45 : 0.2),
-                                radius: resolvedDepth == .cinematic ? 16 : 8,
-                                y: 0)
+                                color: Color.black.opacity(resolvedDepth == .cinematic ? 0.22 : 0.12),
+                                radius: resolvedDepth == .cinematic ? 10 : 5,
+                                y: 3)
                     }
                     .offset(figOff)
                     .scaleEffect(1 + 0.022 * sample.y * (resolvedDepth == .cinematic ? 1 : 0.5))
@@ -259,15 +256,7 @@ public struct BodyAvatarView: View {
         }
     }
 
-    private var rimShadowColor: Color {
-        switch backdrop {
-        case .date: return Color(red: 1, green: 0.4, blue: 0.35)
-        case .gala: return Color(red: 0.65, green: 0.45, blue: 1)
-        case .work: return Color(red: 0.5, green: 0.7, blue: 1)
-        case .casual: return Color(red: 0.6, green: 0.85, blue: 0.7)
-        case .studio: return Color.white
-        }
-    }
+
 
     private var orbitChrome: some View {
         VStack(spacing: compactChrome ? 6 : 8) {
@@ -411,8 +400,8 @@ public struct BodyAvatarView: View {
         .frame(width: rect.width, height: rect.height, alignment: garmentAlignment(layer.slot))
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
-        .opacity(layer.hasVisual ? 0.94 : 0.72)
-        .shadow(color: .black.opacity(0.12), radius: 3, y: 1)
+        .opacity(layer.hasVisual ? 0.96 : 0.72)
+        // 不做白描边阴影，避免叠衣出现纸边
     }
 
     private func garmentAlignment(_ slot: BodyAvatarSlot) -> Alignment {

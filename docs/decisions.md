@@ -188,6 +188,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D46 [2026-08-03] croquis 切边实测打磨（去白/灰边）
+真机/合成实测主问题：透明 PNG 仍带 **白边贴纸感**（date/gala 深色底最明显）。
+- 从 pre-alpha RGB 重跑 `croquis-polish-alpha.py`：flood + 最大连通 + 1px erode + defringe + 白/灰 fringe 清零
+- 指标：正面 white_halo≈0（原千级 soft gray 边）；脚本可复跑
+- UI：去掉强 rim 白描边 / 降低背景 blur 与地面反射，避免二次加边
+
 ## D45 [2026-08-03] 叠衣归一 + date 空中景 + 2s 电影分享
 1. **叠衣服帖**：`GarmentLayerNormalizer` 入库时紧 bbox + 512×768 槽位肩/腰/脚对齐 PNG；UI 槽位顶/底对齐 + 外套略放宽
 2. **date 背景**：去掉近景蜡烛，改为空中景玫瑰金 bokeh + 净地
