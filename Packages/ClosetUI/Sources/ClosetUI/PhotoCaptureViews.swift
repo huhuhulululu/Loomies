@@ -285,7 +285,7 @@ public struct AddPieceSheet: View {
     private var intakeConfirmBody: some View {
         Group {
             if intakeVM.isProcessing {
-                ProgressView("Processing…")
+                ProgressView("Cutting out & pre-filling…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let draft = Binding($intakeVM.draft) {
                 Form {
@@ -307,11 +307,16 @@ public struct AddPieceSheet: View {
                         TextField("Name", text: draft.name)
                         Picker("Type", selection: draft.slot) {
                             ForEach(GarmentSlot.allCases, id: \.self) {
-                                Text($0.rawValue.capitalized).tag($0)
+                                Text($0.displayTitle).tag($0)
                             }
                         }
                         TextField("Brand", text: brandBinding(draft))
                         TextField("Size", text: sizeBinding(draft))
+                    }
+                    if let err = intakeVM.lastError, !err.isEmpty {
+                        Section {
+                            Text(err).font(.caption).foregroundStyle(.orange)
+                        }
                     }
                     Section {
                         Button("Add to closet") {
@@ -320,25 +325,49 @@ public struct AddPieceSheet: View {
                                 dismiss()
                             }
                         }
+                        .disabled(!intakeVM.canConfirm)
+                    } footer: {
+                        if !intakeVM.canConfirm {
+                            Text("Name this piece so it shows up clearly in your closet.")
+                        }
                     }
                 }
             } else {
-                ContentUnavailableView("No draft", systemImage: "exclamationmark.triangle")
+                ContentUnavailableView {
+                    Label(
+                        intakeVM.lastError == nil ? "No photo yet" : "Couldn't use that photo",
+                        systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(intakeVM.lastError
+                         ?? "Pick a photo to cut out and pre-fill, or enter details by hand.")
+                } actions: {
+                    Button("Choose another photo") {
+                        intakeVM.reset()
+                        mode = .choose
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DS.accent)
+                    Button("Enter manually") {
+                        intakeVM.reset()
+                        mode = .manual
+                    }
+                }
             }
         }
     }
 
     private func handleCapture(_ data: Data?) {
         guard let data else {
-            message = "No image."
+            message = "No image selected."
             return
         }
+        message = ""
         mode = .intake
         Task {
             await intakeVM.process(data)
             if intakeVM.draft == nil {
-                message = "Could not process image."
-                mode = .choose
+                // Stay on intake so recovery empty-state is visible.
+                message = intakeVM.lastError ?? "Could not process image."
             }
         }
     }

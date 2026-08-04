@@ -49,7 +49,9 @@ public struct IntakeDraft: Sendable, Equatable {
     public var warmth: Warmth?
     public var brand: String?
     public var size: String?
-    public init(name: String = "New item", slot: GarmentSlot = .top) {
+    /// Default name is empty so confirm UI can require an intentional label
+    /// (process() usually prefills brand + slot display title).
+    public init(name: String = "", slot: GarmentSlot = .top) {
         self.name = name; self.slot = slot; self.occasions = []
     }
 }

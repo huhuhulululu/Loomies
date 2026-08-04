@@ -16,13 +16,28 @@ public final class IntakeViewModel {
     public var draft: IntakeDraft?
     public private(set) var mattedImage: Data?
     public private(set) var isProcessing = false
+    /// User-facing last failure (empty photo, blank name, etc.).
+    public private(set) var lastError: String?
 
     public init(matting: any MattingService, tagging: any TaggingService, ocr: (any OCRService)? = nil) {
         self.matting = matting; self.tagging = tagging; self.ocr = ocr
     }
 
+    /// True when draft has a non-empty trimmed name ready to save.
+    public var canConfirm: Bool {
+        guard let name = draft?.name else { return false }
+        return !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 处理一张原图 → 生成可编辑草稿。
     public func process(_ imageData: Data) async {
+        lastError = nil
+        guard !imageData.isEmpty else {
+            draft = nil
+            mattedImage = nil
+            lastError = "That photo was empty. Try another shot or enter details manually."
+            return
+        }
         isProcessing = true
         defer { isProcessing = false }
         let matted = (try? await matting.removeBackground(imageData)) ?? imageData
@@ -36,14 +51,32 @@ public final class IntakeViewModel {
             d.brand = label.brand
             d.size = label.size
         }
+        d.name = Self.suggestedName(for: d)
         draft = d
+    }
+
+    /// Brand + slot title when known; otherwise human slot label (never "New item").
+    public static func suggestedName(for draft: IntakeDraft) -> String {
+        let brand = draft.brand?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let slot = draft.slot.displayTitle
+        if !brand.isEmpty { return "\(brand) \(slot)" }
+        return slot
     }
 
     /// 用户确认 → 落库为 Item（可用状态）+ 可选本地抠图；清空草稿。
     @discardableResult
     public func confirm(into wardrobe: Wardrobe, context: ModelContext) -> Item? {
-        guard let d = draft else { return nil }
-        let item = Item(name: d.name.isEmpty ? "New item" : d.name)
+        guard let d = draft else {
+            lastError = "Nothing to save yet. Add a photo first."
+            return nil
+        }
+        let name = d.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            lastError = "Give this piece a name before adding it."
+            return nil
+        }
+        lastError = nil
+        let item = Item(name: name)
         item.wardrobe = wardrobe
         item.slotRaw = d.slot.rawValue
         item.occasionsRaw = Array(d.occasions)
@@ -71,5 +104,6 @@ public final class IntakeViewModel {
         draft = nil
         mattedImage = nil
         isProcessing = false
+        lastError = nil
     }
 }

@@ -38,19 +38,32 @@ public struct IntakeView: View {
 
     private var emptyState: some View {
         VStack(spacing: 16) {
-            if vm.isProcessing { ProgressView("Processing…") }
-            Text("Snap a photo of a piece. We'll cut it out and pre-fill the details.")
-                .font(.subheadline).foregroundStyle(DS.muted)
-                .multilineTextAlignment(.center)
-            Button {
-                Task {
-                    if let data = await capture() { await vm.process(data) }
+            if vm.isProcessing {
+                ProgressView("Cutting out & pre-filling…")
+            } else {
+                Text("Snap a photo of a piece. We'll cut it out and pre-fill the details.")
+                    .font(.subheadline).foregroundStyle(DS.muted)
+                    .multilineTextAlignment(.center)
+                if let err = vm.lastError, !err.isEmpty {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
                 }
-            } label: {
-                Text("Add a photo")
-                    .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(DS.accent).foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                Button {
+                    Task {
+                        if let data = await capture() {
+                            await vm.process(data)
+                        } else {
+                            // capture cancelled — keep empty state
+                        }
+                    }
+                } label: {
+                    Text("Add a photo")
+                        .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
+                        .background(DS.accent).foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+                }
             }
         }
     }
@@ -61,7 +74,7 @@ public struct IntakeView: View {
                 LabeledField("Name") { TextField("Name", text: draft.name) }
                 LabeledField("Type") {
                     Picker("Type", selection: draft.slot) {
-                        ForEach(slots, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                        ForEach(slots, id: \.self) { Text($0.displayTitle).tag($0) }
                     }.pickerStyle(.menu)
                 }
                 LabeledField("Brand") {
@@ -70,14 +83,19 @@ public struct IntakeView: View {
                 LabeledField("Size") {
                     TextField("Size", text: Binding(draft.size, replacingNilWith: ""))
                 }
+                if let err = vm.lastError, !err.isEmpty {
+                    Text(err).font(.caption).foregroundStyle(.orange)
+                }
                 Button {
-                    vm.confirm(into: wardrobe, context: context)
+                    _ = vm.confirm(into: wardrobe, context: context)
                 } label: {
                     Text("Add to closet")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(DS.accent).foregroundStyle(.white)
+                        .background(vm.canConfirm ? DS.accent : DS.muted.opacity(0.35))
+                        .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                 }
+                .disabled(!vm.canConfirm)
                 .padding(.top, 8)
             }
         }

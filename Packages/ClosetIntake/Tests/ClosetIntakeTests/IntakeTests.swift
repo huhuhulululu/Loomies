@@ -33,6 +33,9 @@ struct IntakeTests {
         #expect(vm.draft?.occasions == ["work"])
         #expect(vm.draft?.warmth == .medium)
         #expect(vm.mattedImage != nil)
+        #expect(vm.draft?.name == "Dress") // slot display title prefill
+        #expect(vm.canConfirm)
+        #expect(vm.lastError == nil)
     }
 
     @Test func processWithOCRFillsBrandSize() async throws {
@@ -40,6 +43,16 @@ struct IntakeTests {
         await vm.process(Data([0x1]))
         #expect(vm.draft?.brand == "Sézane")
         #expect(vm.draft?.size == "M")
+        #expect(vm.draft?.name == "Sézane Top")
+    }
+
+    @Test func processRejectsEmptyImage() async throws {
+        let vm = makeVM(ItemTags(slot: .top))
+        await vm.process(Data())
+        #expect(vm.draft == nil)
+        #expect(vm.mattedImage == nil)
+        #expect(vm.lastError != nil)
+        #expect(vm.canConfirm == false)
     }
 
     @Test func confirmCreatesAvailableItemInWardrobe() async throws {
@@ -66,5 +79,27 @@ struct IntakeTests {
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .top))
         #expect(vm.confirm(into: w, context: ctx) == nil)   // 无草稿
+        #expect(vm.lastError != nil)
+    }
+
+    @Test func confirmRejectsBlankName() async throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
+        let vm = makeVM(ItemTags(slot: .top))
+        await vm.process(Data([0x1]))
+        vm.draft?.name = "   "
+        #expect(vm.canConfirm == false)
+        #expect(vm.confirm(into: w, context: ctx) == nil)
+        #expect(vm.lastError != nil)
+        #expect(vm.draft != nil) // keep draft so user can fix name
+        #expect(try ctx.fetch(FetchDescriptor<Item>()).isEmpty)
+    }
+
+    @Test func suggestedNameUsesBrandAndSlot() {
+        var d = IntakeDraft(slot: .outerwear)
+        d.brand = "Toteme"
+        #expect(IntakeViewModel.suggestedName(for: d) == "Toteme Outerwear")
+        d.brand = nil
+        #expect(IntakeViewModel.suggestedName(for: d) == "Outerwear")
     }
 }
