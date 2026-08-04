@@ -15,6 +15,8 @@ public struct CopilotView: View {
     @State private var isExportingCinematic = false
     @State private var cinematicShareURL: URL?
     @State private var showCinematicShare = false
+    /// Brief failure pulse on film button (clears with flash toast).
+    @State private var cinematicExportFailed = false
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
@@ -97,18 +99,23 @@ public struct CopilotView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             } else {
-                                Image(systemName: "film")
+                                Image(systemName: cinematicExportFailed
+                                      ? "exclamationmark.triangle.fill" : "film")
                                     .font(.body.weight(.semibold))
                             }
                         }
-                        .foregroundStyle(DS.ink)
+                        .foregroundStyle(cinematicExportFailed ? Color.orange : DS.ink)
                         .frame(width: 36, height: 36)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .disabled(isExportingCinematic)
-                    .accessibilityLabel("Export cinematic preview")
+                    .accessibilityLabel(
+                        cinematicExportFailed
+                        ? "Export failed, double tap to retry"
+                        : "Export cinematic preview")
+                    .accessibilityHint("Creates a short video of this look to share")
                     .padding(14)
                     Spacer()
                     if vm.isRefreshing {
@@ -302,6 +309,16 @@ public struct CopilotView: View {
             }
         }
         return vm.bodyShape?.popularCategory ?? .rectangle
+    }
+
+    private var heroBodySex: AvatarBodySex {
+        if let pid = vm.wardrobe.owner?.id {
+            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+            if let p = profiles.first(where: { $0.personID == pid }) {
+                return BodyProfileService.presentationSex(from: p)
+            }
+        }
+        return .female
     }
 
     private var heroLayers: [BodyAvatarLayer] {
@@ -531,7 +548,9 @@ public struct CopilotView: View {
                     showsFitCaption: false,
                     enablesOrbit: false,
                     backdrop: rowBackdrop,
-                    depthIntensity: .off)
+                    depthIntensity: .off,
+                    bodySex: heroBodySex,
+                    usesMannequin3D: true)
                 .frame(width: 56, height: 84)
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                 .allowsHitTesting(false)
@@ -598,6 +617,7 @@ public struct CopilotView: View {
 
     private func exportCinematicPreview(backdrop: AvatarBackdrop) async {
         isExportingCinematic = true
+        cinematicExportFailed = false
         defer { isExportingCinematic = false }
         do {
             let url = try await AvatarCinematicExporter.exportMP4(
@@ -612,10 +632,27 @@ public struct CopilotView: View {
                     fps: 24))
             cinematicShareURL = url
             showCinematicShare = true
+            cinematicExportFailed = false
             flash("Preview ready to share")
         } catch {
-            flash("Couldn’t export preview")
+            cinematicShareURL = nil
+            showCinematicShare = false
+            cinematicExportFailed = true
+            let toast: String
+            if let typed = error as? AvatarCinematicExporter.ExportError {
+                toast = typed.toastMessage
+            } else if let localized = (error as? LocalizedError)?.errorDescription, !localized.isEmpty {
+                toast = localized
+            } else {
+                toast = "Couldn't export preview — try again"
+            }
+            flash(toast)
             AppLog.error("cinematic export: \(error)", .copilot)
+            // Clear failure glyph after toast window so retry looks clean.
+            Task {
+                try? await Task.sleep(nanoseconds: 3_500_000_000)
+                if cinematicExportFailed { cinematicExportFailed = false }
+            }
         }
     }
 

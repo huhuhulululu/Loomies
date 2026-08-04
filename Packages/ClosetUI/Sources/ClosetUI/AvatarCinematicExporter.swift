@@ -64,10 +64,30 @@ public enum AvatarCinematicExporter {
         }
     }
 
-    public enum ExportError: Error {
+    public enum ExportError: Error, LocalizedError, Equatable, Sendable {
         case noCroquis
         case writerFailed
         case encodeFailed
+
+        public var errorDescription: String? {
+            switch self {
+            case .noCroquis:
+                return "Body preview assets are missing. Reopen the app and try again."
+            case .writerFailed:
+                return "Couldn't start the video writer. Free some storage and try again."
+            case .encodeFailed:
+                return "Couldn't finish encoding the preview. Try again in a moment."
+            }
+        }
+
+        /// Short chip copy for Today toast (HIG: concise, actionable).
+        public var toastMessage: String {
+            switch self {
+            case .noCroquis: return "Preview assets missing — reopen app"
+            case .writerFailed: return "Export failed — free storage & retry"
+            case .encodeFailed: return "Export failed — try again"
+            }
+        }
     }
 
     /// 导出临时 MP4；调用方负责分享 / 清理。

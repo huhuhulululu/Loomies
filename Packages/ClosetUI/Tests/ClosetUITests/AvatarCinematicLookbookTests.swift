@@ -31,6 +31,23 @@ struct AvatarCinematicLookbookTests {
         #expect(yaws.contains(.deg180))
         #expect(yaws.contains(.deg90))
     }
+
+    @Test func exportErrorsHaveActionableCopy() {
+        let cases: [AvatarCinematicExporter.ExportError] = [
+            .noCroquis, .writerFailed, .encodeFailed
+        ]
+        for err in cases {
+            #expect(err.errorDescription?.isEmpty == false)
+            #expect(err.toastMessage.isEmpty == false)
+            #expect(err.toastMessage.count < 80)
+        }
+        #expect(AvatarCinematicExporter.ExportError.noCroquis.toastMessage
+            .localizedCaseInsensitiveContains("missing"))
+        #expect(AvatarCinematicExporter.ExportError.writerFailed.toastMessage
+            .localizedCaseInsensitiveContains("storage")
+            || AvatarCinematicExporter.ExportError.writerFailed.toastMessage
+            .localizedCaseInsensitiveContains("retry"))
+    }
 }
 
 @Suite("AvatarContactShadowLayout")
