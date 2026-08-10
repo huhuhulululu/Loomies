@@ -20,6 +20,12 @@ public enum StorageLocationService {
         name: String, in wardrobe: Wardrobe, parent: StorageLocation? = nil,
         context: ModelContext
     ) -> StorageLocation? {
+        // 空白名守卫下沉服务层（public API 不能只靠 View 层 .disabled gate）：
+        // 空白节点在 Picker 里显示为空行，用户无法辨认单品存放位置。
+        guard let trimmedName = TextNormalize.blankToNil(name) else {
+            AppLog.error("location create blank name blocked", .data)
+            return nil
+        }
         // 父节点必须同柜（与 assign 同守卫）：跨柜父节点破坏同柜不变量，拒绝创建
         if let parent {
             guard parent.wardrobe?.id == wardrobe.id else {
@@ -27,7 +33,7 @@ public enum StorageLocationService {
                 return nil
             }
         }
-        let loc = StorageLocation(name: name)
+        let loc = StorageLocation(name: trimmedName)
         loc.wardrobe = wardrobe
         loc.parent = parent
         context.insert(loc)

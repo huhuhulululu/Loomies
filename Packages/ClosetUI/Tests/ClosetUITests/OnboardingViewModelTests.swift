@@ -63,6 +63,23 @@ struct OnboardingViewModelTests {
         #expect(OnboardingViewModel.saveFailedMessage != OnboardingViewModel.needNameAndCityMessage)
     }
 
+    /// 脏输入即缺失：非正/非有限围度不落库（否则 isComplete 判齐、UI 宣称 Measured，
+    /// FFIT 却静默兜底假体型）；合法值经 clamp 落库。
+    @Test func finishDropsNonPositiveMeasuresAndClampsValid() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "Alex"; vm.city = "NYC"
+        vm.bustInches = 0; vm.waistInches = -5
+        vm.hipInches = .nan; vm.highHipInches = 38
+        #expect(vm.finish(in: ctx))
+        let p = vm.bodyProfile
+        #expect(p?.bustInches == nil)
+        #expect(p?.waistInches == nil)
+        #expect(p?.hipInches == nil)
+        #expect(p?.highHipInches == 38)
+        #expect(!vm.bodyShapeReady)
+    }
+
     @Test func finishWithPartialBodyStillNoFFIT() throws {
         let ctx = try makeContext()
         let vm = OnboardingViewModel()

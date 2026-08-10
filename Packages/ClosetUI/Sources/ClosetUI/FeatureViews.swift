@@ -107,6 +107,8 @@ public struct ItemDetailView: View {
                     vm.save(in: context)
                     vm.refreshFit(profile: bodyProfile)
                 }
+                // 空白名第一道 gate（QuickAdd/Closet name 同规则）；服务层 blank-name 拒绝兜底。
+                .disabled(TextNormalize.isBlank(vm.name))
             }
         }
         .confirmationDialog(

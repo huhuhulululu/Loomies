@@ -276,6 +276,40 @@ struct IntakeTests {
             .localizedCaseInsensitiveContains("try-on"))
     }
 
+    /// Brand/size 里误敲的空格不得阻塞条码补全（判空必须 trim，与 name 同标准）。
+    @Test func enrichFillsBrandAndSizeWhenDraftValuesAreBlank() async throws {
+        struct FakeLookup: ProductLookupProviding {
+            func lookup(barcode: String) async throws -> PublicProductHit? {
+                PublicProductHit(
+                    barcode: barcode, name: "Oxford Shirt",
+                    brand: "PublicBrand", quantity: "M", source: "test")
+            }
+        }
+        let vm = makeVM(ItemTags(slot: .top), productLookup: FakeLookup())
+        await vm.process(Data([0x1]))
+        vm.draft?.name = "My Tee"
+        vm.draft?.brand = " "
+        vm.draft?.size = "  "
+        await vm.enrichFromPublicBarcode("0123456789012")
+        #expect(vm.draft?.brand == "PublicBrand")
+        #expect(vm.draft?.size == "M")
+    }
+
+    /// Confirm 落库时 brand/size 空白转 nil、真值 trim（与 ItemEditorService 同标准）。
+    @Test func confirmNormalizesBlankBrandAndSize() async throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
+        let vm = makeVM(ItemTags(slot: .top))
+        await vm.process(Data([0x1]))
+        vm.draft?.name = "Plain Tee"
+        vm.draft?.brand = " "
+        vm.draft?.size = " M "
+        let item = vm.confirm(into: w, context: ctx)
+        #expect(item?.brand == nil)
+        #expect(item?.sizeLabel == "M")
+        ItemImageStore.delete(relativePath: item?.localImageRelativePath)
+    }
+
     /// Hit but user already filled fields → honest nothing-changed (not silent success).
     @Test func enrichFromPublicBarcodeNothingToFillSurfacesStatus() async throws {
         struct FakeLookup: ProductLookupProviding {

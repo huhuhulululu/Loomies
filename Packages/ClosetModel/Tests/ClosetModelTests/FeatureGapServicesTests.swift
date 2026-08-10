@@ -129,6 +129,42 @@ struct FeatureGapServicesTests {
         #expect(i.chestFlatWidthInches == 19)
     }
 
+    /// brand/size 判空与 name 同标准（trim）：空白串落库为 nil，真值 trim 后存。
+    @Test func itemEditorTrimsBrandAndSizeBlankToNil() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        ctx.insert(i)
+        #expect(ItemEditorService.apply(.init(brand: "  ", sizeLabel: " M "), to: i, in: ctx))
+        #expect(i.brand == nil)
+        #expect(i.sizeLabel == "M")
+        #expect(ItemEditorService.apply(.init(brand: " Acne Studios "), to: i, in: ctx))
+        #expect(i.brand == "Acne Studios")
+    }
+
+    /// 空白名 patch 必须拒绝（return false），不得静默丢弃后仍让 UI 弹 Saved.。
+    @Test func itemEditorRejectsBlankNamePatch() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        ctx.insert(i)
+        #expect(!ItemEditorService.apply(.init(name: "   "), to: i, in: ctx))
+        #expect(i.name == "tee")
+        #expect(!ItemEditorService.apply(.init(name: ""), to: i, in: ctx))
+        #expect(i.name == "tee")
+    }
+
+    /// 空白名存放位置守卫下沉服务层（public API 不能只靠 View 层 gate）。
+    @Test func storageLocationCreateRejectsBlankName() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        try ctx.save()
+        #expect(StorageLocationService.create(name: "   ", in: w, context: ctx) == nil)
+        #expect(StorageLocationService.create(name: "", in: w, context: ctx) == nil)
+        #expect(try ctx.fetch(FetchDescriptor<StorageLocation>()).isEmpty)
+        // trim 后落库
+        let loc = StorageLocationService.create(name: " Rod ", in: w, context: ctx)
+        #expect(loc?.name == "Rod")
+    }
+
     @Test func saveFavoriteFromIDsAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

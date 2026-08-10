@@ -57,8 +57,12 @@ public enum ItemEditorService {
         let oldRevision = item.revision
 
         if let name = patch.name {
-            let t = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !t.isEmpty { item.name = t }
+            guard let t = TextNormalize.blankToNil(name) else {
+                // 空白名拒绝而非静默丢弃：静默丢弃后 UI 仍弹 Saved.，用户无从分辨。
+                AppLog.error("rejected blank name patch for \(item.name)", .data)
+                return false
+            }
+            item.name = t
         }
         // Persist displaySlot truth (same as intake persistSlot): dirty top + blazer name → outerwear.
         let draftSlot = patch.slotRaw ?? item.slotRaw
@@ -66,8 +70,9 @@ public enum ItemEditorService {
             item.slotRaw = GarmentSlot.resolved(draftSlot, name: item.name).rawValue
         }
         if let occ = patch.occasionsRaw { item.occasionsRaw = occ }
-        if let brand = patch.brand { item.brand = brand.isEmpty ? nil : brand }
-        if let size = patch.sizeLabel { item.sizeLabel = size.isEmpty ? nil : size }
+        // brand/size 与 name 同一判空标准（trim）：" " 落库会阻塞条码补全且详情页显示空白非 nil。
+        if let brand = patch.brand { item.brand = TextNormalize.blankToNil(brand) }
+        if let size = patch.sizeLabel { item.sizeLabel = TextNormalize.blankToNil(size) }
         if let w = patch.warmthRaw { item.warmthRaw = w }
         if patch.replaceFlatWidths {
             // Detail form: empty fields must clear FitMark source measures.

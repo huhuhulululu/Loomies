@@ -41,11 +41,11 @@ public enum BodyProfileService {
     // MARK: - R13 四围门
 
     /// 四围数字是否齐（含推断上臀）；齐则可跑 FFIT / 合身。
+    /// 与 recompute 的 >0 判定同标准：0/负/非有限不算齐——否则 UI 宣称 Measured
+    /// 满权重，FFIT 却拒绝脏值静默兜底假体型。
     public static func isComplete(_ profile: PersonBodyProfile) -> Bool {
-        profile.bustInches != nil
-            && profile.waistInches != nil
-            && profile.hipInches != nil
-            && profile.highHipInches != nil
+        [profile.bustInches, profile.waistInches, profile.hipInches, profile.highHipInches]
+            .allSatisfy { ($0 ?? 0) > 0 && ($0 ?? 0).isFinite }
     }
 
     /// 四围均为用户实测（上臀非推断）。

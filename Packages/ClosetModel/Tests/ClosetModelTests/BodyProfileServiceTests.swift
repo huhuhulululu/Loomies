@@ -43,6 +43,16 @@ struct BodyProfileServiceTests {
         #expect(p.shapeSourceRaw == "visualPick")
     }
 
+    /// isComplete 与 recompute 的 >0 判定同标准：0/负/非有限不算「齐」，
+    /// 否则 UI 宣称 Measured 满权重，底层 FFIT 却静默兜底假体型。
+    @Test func incompleteWhenAnyNonPositiveOrNonFinite() {
+        for bad in [0.0, -3, Double.nan, .infinity] {
+            let p = PersonBodyProfile(personID: UUID())
+            p.bustInches = 36; p.waistInches = 28; p.hipInches = 38; p.highHipInches = bad
+            #expect(!BodyProfileService.isComplete(p))
+        }
+    }
+
     @Test func inferHighHipBetweenWaistAndHip() {
         let hh = BodyProfileService.inferHighHip(waist: 28, hip: 40)
         #expect(hh > 28 && hh < 40)

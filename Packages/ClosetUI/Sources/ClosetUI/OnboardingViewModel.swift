@@ -65,10 +65,15 @@ public final class OnboardingViewModel {
         let hasPick = popularShapePick != nil
         if hasMeasures || hasPick {
             let p = PersonBodyProfile(personID: person.id)
-            p.bustInches = bustInches
-            p.waistInches = waistInches
-            p.hipInches = hipInches
-            p.highHipInches = highHipInches
+            // 脏输入即缺失：非正/非有限围度丢弃（isComplete 会误判齐）；合法值 clamp 落库。
+            func sanitized(_ v: Double?) -> Double? {
+                guard let v, v.isFinite, v > 0 else { return nil }
+                return BodyProfileService.clampMeasureInches(v)
+            }
+            p.bustInches = sanitized(bustInches)
+            p.waistInches = sanitized(waistInches)
+            p.hipInches = sanitized(hipInches)
+            p.highHipInches = sanitized(highHipInches)
             if let pick = popularShapePick {
                 p.popularShapeOverrideRaw = pick.rawValue
             }

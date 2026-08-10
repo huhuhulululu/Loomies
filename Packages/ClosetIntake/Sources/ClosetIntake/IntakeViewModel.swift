@@ -197,7 +197,8 @@ public final class IntakeViewModel {
             guard var d = draft else { return }
             d.barcode = code
             var filledAny = false
-            if (d.brand == nil || d.brand?.isEmpty == true), let b = hit.brand, !b.isEmpty {
+            // 判空必须 trim（与 name 同标准）：Brand 里误敲的 " " 不得阻塞补全。
+            if TextNormalize.isBlank(d.brand), let b = TextNormalize.blankToNil(hit.brand) {
                 d.brand = b
                 filledAny = true
             }
@@ -207,7 +208,7 @@ public final class IntakeViewModel {
                 filledAny = true
             }
             // Only map quantity when it looks like apparel size (not "2 pack" / "500g").
-            if (d.size == nil || d.size?.isEmpty == true),
+            if TextNormalize.isBlank(d.size),
                let q = hit.quantity, PublicSizeReference.looksLikeApparelSize(q) {
                 d.size = q
                 filledAny = true
@@ -272,8 +273,9 @@ public final class IntakeViewModel {
         item.occasionsRaw = Self.normalizedOccasions(d.occasions)
         item.warmthRaw = d.warmth?.rawValue
         if let c = d.color { item.colorHue = c.hueDegrees; item.colorIsNeutral = c.isNeutral }
-        item.brand = d.brand
-        item.sizeLabel = d.size
+        // 落库归一（与 ItemEditorService 同标准）：空白转 nil、真值 trim。
+        item.brand = TextNormalize.blankToNil(d.brand)
+        item.sizeLabel = TextNormalize.blankToNil(d.size)
         item.barcode = d.barcode
         item.statusRaw = "available"
         context.insert(item)
