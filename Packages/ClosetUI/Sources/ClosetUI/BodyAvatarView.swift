@@ -144,7 +144,7 @@ public struct BodyAvatarView: View {
                 .gesture(canvasDrag)
                 .accessibilityHint(
                     enablesOrbit
-                        ? "Drag left or right to rotate; tilt device for depth"
+                        ? "Swipe up or down with one finger to rotate; tilt device for depth"
                         : "Tilt device for depth parallax")
 
             if enablesOrbit {
@@ -164,6 +164,23 @@ public struct BodyAvatarView: View {
                     yawLabel: yaw.shortLabel,
                     isSoftHold: isPhotorealSoftHold),
                 fitCaption: showsFitCaption ? fitCaption : nil))
+        // A11Y: .combine swallows orbit chevrons/dots; give VO an executable
+        // rotate path (one-finger swipe up/down) that mirrors the chevrons.
+        .accessibilityValue(
+            enablesOrbit
+                ? Self.orbitAccessibilityLabel(
+                    sexTitle: bodySex.displayTitle,
+                    shapeRaw: shape.rawValue,
+                    yawLabel: yaw.shortLabel,
+                    isSoftHold: isPhotorealSoftHold)
+                : "")
+        .accessibilityAdjustableAction { direction in
+            guard enablesOrbit else { return }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                snapYaw(to: yaw.stepped(
+                    by: Self.orbitAdjustableStep(increment: direction == .increment)))
+            }
+        }
         .onChange(of: shape) { _, _ in
             snapYaw(to: .deg0)
         }
@@ -430,6 +447,10 @@ public struct BodyAvatarView: View {
                     Circle()
                         .fill(a == yaw ? DS.accent : DS.muted.opacity(0.28))
                         .frame(width: a == yaw ? 7 : 5, height: a == yaw ? 7 : 5)
+                        // A11Y: 5–7pt visual, but dots are the only discrete
+                        // steppers in compactChrome — grow the tap target.
+                        .frame(width: Self.orbitDotHitArea, height: Self.orbitDotHitArea)
+                        .contentShape(Rectangle())
                         .onTapGesture {
                             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
                                 snapYaw(to: a)
@@ -661,6 +682,18 @@ public struct BodyAvatarView: View {
         case .next: return "Next angle"
         }
     }
+
+    /// A11Y: VoiceOver adjustable action on the combined hero element —
+    /// increment rotates to the next catalog angle (same as chevron-right),
+    /// decrement to the previous. `nonisolated` so tests can pin the mapping
+    /// without MainActor hops.
+    nonisolated static func orbitAdjustableStep(increment: Bool) -> Int {
+        increment ? 1 : -1
+    }
+
+    /// A11Y: orbit dots stay 5–7pt visually but are the only discrete steppers
+    /// in compactChrome — the tap target must be at least this large (pt).
+    nonisolated static let orbitDotHitArea: CGFloat = 24
 
     private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
         var tried: [BodyAvatarYaw] = [yaw, yaw.stepped(by: 1), yaw.stepped(by: -1)]

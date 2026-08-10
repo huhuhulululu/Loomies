@@ -35,6 +35,11 @@ public enum IntakeEmptyCopy {
         if !message.isEmpty { parts.append(message) }
         return parts.joined(separator: ". ")
     }
+
+    /// Capture CTA VoiceOver label — same wording as the visible button title.
+    /// The button must stay a separate focus target: `.combine` on a container
+    /// would merge it into an inert element and make capture unreachable.
+    public static let captureButtonAccessibilityLabel = title
 }
 
 /// 入库单屏确认（DESIGN §F1 第 5 步）：AI 预填草稿 → 用户改 → 确认落库。
@@ -73,17 +78,30 @@ public struct IntakeView: View {
         VStack(spacing: 16) {
             if vm.isProcessing {
                 ProgressView(IntakeEmptyCopy.processingDescription)
+                    .accessibilityLabel(
+                        IntakeEmptyCopy.accessibilityLabel(
+                            isProcessing: true,
+                            error: vm.lastError))
             } else {
-                // Same honesty as AddPieceSheet: Vision cutout only; tags/OCR starter guesses.
-                Text(IntakeEmptyCopy.description)
-                    .font(.subheadline).foregroundStyle(DS.muted)
-                    .multilineTextAlignment(.center)
-                if let err = vm.lastError, !err.isEmpty {
-                    Text(err)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                // A11Y: .combine only on the text column — the capture Button
+                // stays a separate, activatable VoiceOver target.
+                VStack(spacing: 16) {
+                    // Same honesty as AddPieceSheet: Vision cutout only; tags/OCR starter guesses.
+                    Text(IntakeEmptyCopy.description)
+                        .font(.subheadline).foregroundStyle(DS.muted)
                         .multilineTextAlignment(.center)
+                    if let err = vm.lastError, !err.isEmpty {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .multilineTextAlignment(.center)
+                    }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    IntakeEmptyCopy.accessibilityLabel(
+                        isProcessing: false,
+                        error: vm.lastError))
                 Button {
                     Task {
                         if let data = await capture() {
@@ -98,13 +116,9 @@ public struct IntakeView: View {
                         .background(DS.accent).foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                 }
+                .accessibilityLabel(IntakeEmptyCopy.captureButtonAccessibilityLabel)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            IntakeEmptyCopy.accessibilityLabel(
-                isProcessing: vm.isProcessing,
-                error: vm.lastError))
     }
 
     private func confirmForm(_ draft: Binding<IntakeDraft>) -> some View {

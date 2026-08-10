@@ -605,6 +605,17 @@ struct FeatureGapViewModelTests {
         #expect(!processing.localizedCaseInsensitiveContains("pre-fill"))
     }
 
+    /// A11Y-1: capture Button must stay a separate, activatable VO target —
+    /// `.combine` on the whole empty state would merge it into an inert element.
+    @Test func intakeCaptureButtonKeepsSeparateVoiceOverLabel() {
+        #expect(IntakeEmptyCopy.captureButtonAccessibilityLabel == "Add a photo")
+        // Same wording as the visible CTA title (VO appends the "button" trait).
+        #expect(IntakeEmptyCopy.captureButtonAccessibilityLabel == IntakeEmptyCopy.title)
+        // The combined text-column label must not claim the button is inside it.
+        let combined = IntakeEmptyCopy.accessibilityLabel(isProcessing: false)
+        #expect(combined.hasPrefix("\(IntakeEmptyCopy.captureButtonAccessibilityLabel)."))
+    }
+
     /// AddPieceSheet choose caption VO — sheet title + pipeline; keeps CTAs as separate targets.
     @Test func addPieceChooseCopyIsHonestForVoiceOver() {
         #expect(IntakeEmptyCopy.chooseTitle == "Add piece")

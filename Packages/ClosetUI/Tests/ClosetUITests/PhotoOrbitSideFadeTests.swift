@@ -194,4 +194,45 @@ struct PhotoOrbitSideFadeTests {
         #expect(fadeSettled == 1)
         #expect(fadeResidual < fadeSettled)
     }
+
+    /// A11Y-2: VO adjustable action (one-finger swipe up/down) must step yaw the
+    /// same way the chevrons do, and the re-announced value must match the new angle.
+    @Test func voiceOverAdjustableStepsYawAndReannouncesLabel() {
+        // increment = next angle (chevron-right); decrement = previous (chevron-left).
+        #expect(BodyAvatarView.orbitAdjustableStep(increment: true) == 1)
+        #expect(BodyAvatarView.orbitAdjustableStep(increment: false) == -1)
+
+        var yaw = BodyAvatarYaw.deg0
+        yaw = yaw.stepped(by: BodyAvatarView.orbitAdjustableStep(increment: true))
+        #expect(yaw == .deg45)
+        let steppedLabel = BodyAvatarView.orbitAccessibilityLabel(
+            sexTitle: "Female", shapeRaw: "hourglass",
+            yawLabel: yaw.shortLabel, isSoftHold: false)
+        #expect(steppedLabel == "Female body hourglass, ¾ R view")
+
+        // Decrement returns to Front; decrement wraps around the catalog.
+        yaw = yaw.stepped(by: BodyAvatarView.orbitAdjustableStep(increment: false))
+        #expect(yaw == .deg0)
+        let frontLabel = BodyAvatarView.orbitAccessibilityLabel(
+            sexTitle: "Female", shapeRaw: "hourglass",
+            yawLabel: yaw.shortLabel, isSoftHold: false)
+        #expect(frontLabel == "Female body hourglass, Front view")
+        #expect(BodyAvatarYaw.deg0.stepped(
+            by: BodyAvatarView.orbitAdjustableStep(increment: false)) == .deg315)
+
+        // Soft-hold step must still re-announce honestly (no fake side photo).
+        let holdLabel = BodyAvatarView.orbitAccessibilityLabel(
+            sexTitle: "Female", shapeRaw: "hourglass",
+            yawLabel: BodyAvatarYaw.deg45.shortLabel, isSoftHold: true)
+        #expect(holdLabel.contains("front hold"))
+        #expect(holdLabel.contains("¾ R"))
+    }
+
+    /// A11Y-3: orbit dots are 5–7pt visually but are the only discrete steppers
+    /// in compactChrome — the tap target must clear the 24pt floor.
+    @Test func orbitDotHitAreaClearsMinimumTapTarget() {
+        #expect(BodyAvatarView.orbitDotHitArea >= 24)
+        // Visual dot sizes the hit area wraps (regression guard vs. shrink).
+        #expect(BodyAvatarView.orbitDotHitArea > 7)
+    }
 }

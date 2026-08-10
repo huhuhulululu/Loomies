@@ -69,6 +69,11 @@ public struct CopilotView: View {
     /// Today → Favorites entry (toolbar heart). Kept public for journey tests.
     public static let favoritesToolbarAccessibilityLabel = "Favorites"
 
+    /// A11Y: look-pager chevrons — visual stays small, hit target meets the
+    /// 44pt HIG minimum. `nonisolated` so tests can pin without MainActor hops.
+    nonisolated static let lookPagerChevronVisualSize: CGFloat = 28
+    nonisolated static let lookPagerChevronHitArea: CGFloat = 44
+
     private var todayScrollContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -345,9 +350,14 @@ public struct CopilotView: View {
                 Image(systemName: "chevron.left")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DS.accent)
-                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: Self.lookPagerChevronVisualSize,
+                        height: Self.lookPagerChevronVisualSize)
                     .background(DS.bg)
                     .clipShape(Circle())
+                    // A11Y: grow tap target to 44pt without changing the 28pt visual.
+                    .padding((Self.lookPagerChevronHitArea - Self.lookPagerChevronVisualSize) / 2)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Previous look")
@@ -363,9 +373,14 @@ public struct CopilotView: View {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(DS.accent)
-                    .frame(width: 28, height: 28)
+                    .frame(
+                        width: Self.lookPagerChevronVisualSize,
+                        height: Self.lookPagerChevronVisualSize)
                     .background(DS.bg)
                     .clipShape(Circle())
+                    // A11Y: grow tap target to 44pt without changing the 28pt visual.
+                    .padding((Self.lookPagerChevronHitArea - Self.lookPagerChevronVisualSize) / 2)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Next look")

@@ -452,4 +452,15 @@ struct CopilotViewModelTests {
             isColdStart: true)
         #expect(cold.contains("load samples") || cold.contains("Add pieces"))
     }
+
+    /// A11Y-4: look-pager chevrons keep a small visual but must meet the
+    /// 44pt HIG minimum hit target.
+    @Test func lookPagerChevronHitAreaMeetsHIGMinimum() {
+        #expect(CopilotView.lookPagerChevronHitArea >= 44)
+        #expect(CopilotView.lookPagerChevronVisualSize == 28)
+        // Hit area grows symmetric padding around the visual (regression guard).
+        #expect(CopilotView.lookPagerChevronHitArea > CopilotView.lookPagerChevronVisualSize)
+        #expect((CopilotView.lookPagerChevronHitArea - CopilotView.lookPagerChevronVisualSize)
+            .truncatingRemainder(dividingBy: 2) == 0)
+    }
 }
