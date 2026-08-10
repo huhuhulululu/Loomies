@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **628 tests**（Core 214 / Model 166 / UI 206 / Intake 42）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **632 tests**（Core 214 / Model 168 / UI 208 / Intake 42）。
 
 ## 项目定位
 
@@ -99,7 +99,7 @@ Item[] / ScoredOutfit.itemIDs
 - 入库：`GarmentLayerNormalizer` 同画布（尊重 source-alpha：抠图半成品按 alpha 边界归一，不整画布铺满）；禁止槽位框再套一层（防胸前小贴纸）  
 - 空层：Today 英雄区胶囊提示，非静默裸体
 
-### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），628 tests）
+### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），632 tests）
 
 - **保存失败原子性**：全部写路径走 `ModelSave`（snapshot → 操作 → 失败 `rollback` + 内存态恢复）；删除-only 失败留 dirty marker、不假装成功；测试中点保存禁止（no mid-operation saves）；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`（图文件删除同样原子 + orphan 清理）。create 失败一律「断关系 + rollback」而非 `context.delete`（delete 只删行，关系幻影与脏标记滞留污染后续 save）——衣柜/Onboarding/QuickAdd/Intake confirm 全对齐 OutfitDraftService 模式。
 - **Toast 代际**：自动消失计时器一律持单调 token 判「自己那条还在」，不按消息值判等（同文案连发会被旧计时器提前清）。
@@ -111,7 +111,8 @@ Item[] / ScoredOutfit.itemIDs
 - **文本判空统一**：可选文本字段（brand/size/位置名/名称）「空白即缺失」一律走 `ClosetCore.TextNormalize`（trim 后判空/转 nil）；实时 TextField 绑定不 trim（输入中），落库口与判定口必 trim；空白名 patch 拒绝（return false）而非静默丢弃。
 - **命名完整性**：衣柜 create/rename 与存放位置同级 create 拒绝重名（大小写/空白不敏感，`WardrobeManageActions.nameConflicts`）；运行时所有 name 排序按 `(name, id.uuidString)` 决胜，与导出快照约定一致——Swift sort 不稳定，同名顺序不得随 fetch 漂移。
 - **叠衣确定性**：`OutfitAvatarComposer` displaySlot hint 排序 + composer 确定性 + zIndex 钉死 + dirty-dress 抑制；`OutfitCompleter.maxOptionsPerSlot` 限每槽候选数。
-- **数据生命周期**：删除级联 person→profiles、wardrobe→plans+图文件、deleteAll 全走 `ModelSave`；导出确定性（id tie-break 排序）；`Item.barcode` 端到端（Intake 条码/OCR → `OpenProductFactsClient` 富化 → 持久化 → 导出）。
+- **数据生命周期**：删除级联 person→profiles、wardrobe→plans+图文件、**deleteItem 随 commit 删本地图**（责任在服务层，调用方重复删幂等）、deleteAll 全走 `ModelSave`；`wipeItemImageDirectory` 全删才算成功，失败经 `DeleteReceipt.imageWipeFailed` 在 summaryLine 诚实提示（CCPA 删除权）；导出确定性（id tie-break 排序）；`Item.barcode` 端到端。
+- **cinematic 临时文件**：MP4 生命周期闭环——分享面板 onDismiss 即删、换新前删旧、导出失败清残片（cancelWriting + removeItem）、Today bootstrap 扫尾 `sweepTemporaryExports`；exporter 内置衣物下限守卫（层声明本地照片但全部读不出 → `garmentsUnavailable`，不得静默产出纯裸体底座视频）。
 - **跨柜不变量**在所有入口点强制（transfer / draft / search / copilot），非仅服务层。
 - **Hero/cinematic**：30fps 解码缓存、yaw 门控、VO 标签、空层门、writer-death 挂起修复、确定性帧 fallback；`AvatarCinematicExporter` **非 MainActor**（48 帧合成 + 编码在协作池跑，主线程不冻结；bundle 探测走线程安全 `BodyAvatarImageCache`）。
 - **设备传感器单例**：`SharedDeviceMotion` 是全 App 唯一 `CMMotionManager`（Apple 明文单实例），引用计数启停 + 弱引用自愈；`DepthParallaxMotion` 薄壳幂等 start/stop；View 侧 `onChange(reduceMotion)` 带可见性守卫（离屏视图树不得重启传感器）。

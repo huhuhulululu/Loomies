@@ -98,6 +98,27 @@ struct DeleteServiceTests {
     }
 
     /// M2: save 失败必须 rollback——pending delete 不得滞留污染下一次无关 save。
+    /// 删除单品同时删本地图（与 deleteWardrobe 同责任模型）；save 失败保留文件可重试。
+    @Test(.serialized) func deleteItemRemovesLocalImageOnCommitKeepsOnFailure() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let i = Item(name: "tee"); i.slotRaw = "top"; i.wardrobe = w; ctx.insert(i)
+        let rel = ItemImageStore.save(data: Data([0xFF, 0xD8, 0xFF]), for: i.id, ext: "jpg")
+        i.localImageRelativePath = rel
+        try ctx.save()
+        #expect(ItemImageStore.loadData(relativePath: rel) != nil)
+
+        // 失败路径：文件保留（DB 行还在，删图会产生反向孤儿）
+        ModelSave.forceFailure(on: ctx)
+        #expect(!DeleteService.deleteItem(i, in: ctx))
+        #expect(ItemImageStore.loadData(relativePath: rel) != nil)
+        ModelSave.clearForcedFailure(on: ctx)
+
+        // 成功路径：文件一并删除（不留孤儿）
+        #expect(DeleteService.deleteItem(i, in: ctx))
+        #expect(ItemImageStore.loadData(relativePath: rel) == nil)
+    }
+
     @Test(.serialized) func deleteItemSaveFailureRollsBackPendingDelete() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

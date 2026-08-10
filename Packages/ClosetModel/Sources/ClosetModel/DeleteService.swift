@@ -73,9 +73,12 @@ public enum DeleteService {
 
     /// 单品删除：含它的 Outfit 标「永久缺件」（与转移缺件区分）；WearRecord 保留（统计完整性）。
     /// Calendar plans bound to those looks flip needsAttention (Attention filter).
-    /// - Returns: `true` when the save committed (caller may remove image + dismiss).
+    /// 本地图随 commit 一并删除（与 deleteWardrobe 同责任模型——不再外包给调用方；
+    /// 调用方重复删幂等无害）。失败保留文件（DB 行还在，删图会产生反向孤儿）。
+    /// - Returns: `true` when the save committed (caller may dismiss).
     @discardableResult
     public static func deleteItem(_ item: Item, in context: ModelContext) -> Bool {
+        let imagePath = item.localImageRelativePath
         let affected = item.outfits ?? []
         let previousFlags = affected.map(\.permanentlyMissing)
         for outfit in affected {
@@ -97,6 +100,7 @@ public enum DeleteService {
             AppLog.error("deleteItem save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
+        ItemImageStore.delete(relativePath: imagePath)
         return true
     }
 

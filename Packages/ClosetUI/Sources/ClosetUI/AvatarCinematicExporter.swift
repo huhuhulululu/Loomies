@@ -76,6 +76,7 @@ public enum AvatarCinematicExporter {
         case noCroquis
         case writerFailed
         case encodeFailed
+        case garmentsUnavailable
 
         public var errorDescription: String? {
             switch self {
@@ -85,6 +86,8 @@ public enum AvatarCinematicExporter {
                 return "Couldn't start the video writer. Free some storage and try again."
             case .encodeFailed:
                 return "Couldn't finish encoding the preview. Try again in a moment."
+            case .garmentsUnavailable:
+                return "Item photos are missing — can't build the look preview."
             }
         }
 
@@ -94,7 +97,20 @@ public enum AvatarCinematicExporter {
             case .noCroquis: return "Couldn't preview body — try again"
             case .writerFailed: return "Couldn't export — free storage & retry"
             case .encodeFailed: return "Couldn't export preview — try again"
+            case .garmentsUnavailable: return "Item photos missing — can't export look"
             }
+        }
+    }
+
+    /// 历史导出扫尾：分享面板关闭即删当次文件，此处兜底清残留
+    /// （崩溃/低存储回收前的旧文件；启动/进 Today 时调用，正在导出的文件不可能存在）。
+    public static func sweepTemporaryExports() {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory
+        guard let entries = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
+        else { return }
+        for url in entries where url.lastPathComponent.hasPrefix("loomies-cinematic-") {
+            try? fm.removeItem(at: url)
         }
     }
 
@@ -123,6 +139,11 @@ public enum AvatarCinematicExporter {
             guard let data = layer.localRelativePath.flatMap({ ItemImageStore.loadData(relativePath: $0) }),
                   let cg = cgImage(from: data) else { return nil }
             return (layer, cg)
+        }
+        // 衣物下限守卫：层声明了本地照片但一张都读不出（UI 门禁走内存缓存、这里读磁盘，
+        // 两者间有偏移窗口）→ 拒绝导出，不得静默产出纯裸体底座视频。
+        if request.layers.contains(where: { $0.localRelativePath != nil }), garmentCGs.isEmpty {
+            throw ExportError.garmentsUnavailable
         }
 
         let outURL = FileManager.default.temporaryDirectory
@@ -156,6 +177,32 @@ public enum AvatarCinematicExporter {
 
         let frameDuration = CMTime(value: 1, timescale: CMTimeScale(request.fps))
 
+        // startWriting 之后任何失败路径都必须清掉残缺 MP4——失败也留文件会在 tmp
+        // 无界积累（UI 恰恰鼓励失败重试），且内容是身体形态视频。
+        do {
+            try await encodeFrames(
+                request: request, frameCount: frameCount,
+                writer: writer, input: input, adaptor: adaptor,
+                frameDuration: frameDuration,
+                backdropCG: backdropCG, bodyFrames: bodyFrames, garmentCGs: garmentCGs)
+        } catch {
+            if writer.status == .writing { writer.cancelWriting() }
+            try? FileManager.default.removeItem(at: outURL)
+            throw error
+        }
+        return outURL
+    }
+
+    private static func encodeFrames(
+        request: Request, frameCount: Int,
+        writer: AVAssetWriter, input: AVAssetWriterInput,
+        adaptor: AVAssetWriterInputPixelBufferAdaptor,
+        frameDuration: CMTime,
+        backdropCG: CGImage?,
+        bodyFrames: [BodyAvatarYaw: CGImage],
+        garmentCGs: [(BodyAvatarLayer, CGImage)]
+    ) async throws {
+        let w = request.width, h = request.height
         for i in 0..<frameCount {
             let t = Double(i) / Double(max(frameCount - 1, 1))
             // 视差：正弦左右（orbit 段更明显）
@@ -192,7 +239,6 @@ public enum AvatarCinematicExporter {
         if writer.status != .completed {
             throw writer.error ?? ExportError.encodeFailed
         }
-        return outURL
     }
 
     // MARK: - Frame composite

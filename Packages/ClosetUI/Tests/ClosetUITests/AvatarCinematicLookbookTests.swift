@@ -48,6 +48,38 @@ struct AvatarCinematicLookbookTests {
         #expect(url.pathExtension == "mp4")
     }
 
+    /// 衣物下限守卫：层声明了本地照片但全部读不出（缓存/磁盘偏移窗口）时必须抛错，
+    /// 不得静默产出纯裸体底座视频并提示 "ready to share"。
+    @Test func exportThrowsWhenAllGarmentPhotosUnreadable() async {
+        let layer = BodyAvatarLayer(
+            id: "x", slot: .top,
+            frame: NormalizedRect(x: 0.2, y: 0.2, width: 0.6, height: 0.4),
+            zIndex: 3,
+            localRelativePath: "ItemImages/deleted-\(UUID().uuidString).png")
+        let req = AvatarCinematicExporter.Request(
+            shape: .rectangle, layers: [layer], width: 96, height: 144,
+            duration: 0.2, fps: 8)
+        await #expect(throws: AvatarCinematicExporter.ExportError.garmentsUnavailable) {
+            _ = try await AvatarCinematicExporter.exportMP4(req)
+        }
+    }
+
+    /// tmp 扫尾：历史导出的 loomies-cinematic-*.mp4 可清（分享后无人清理会线性积累）。
+    @Test func sweepRemovesStaleCinematicExports() throws {
+        let tmp = FileManager.default.temporaryDirectory
+        let stale1 = tmp.appendingPathComponent("loomies-cinematic-\(UUID().uuidString).mp4")
+        let stale2 = tmp.appendingPathComponent("loomies-cinematic-\(UUID().uuidString).mp4")
+        let unrelated = tmp.appendingPathComponent("keep-\(UUID().uuidString).mp4")
+        try Data([0x1]).write(to: stale1)
+        try Data([0x1]).write(to: stale2)
+        try Data([0x1]).write(to: unrelated)
+        defer { try? FileManager.default.removeItem(at: unrelated) }
+        AvatarCinematicExporter.sweepTemporaryExports()
+        #expect(!FileManager.default.fileExists(atPath: stale1.path))
+        #expect(!FileManager.default.fileExists(atPath: stale2.path))
+        #expect(FileManager.default.fileExists(atPath: unrelated.path))
+    }
+
     @Test func exportErrorsHaveActionableCopy() {
         let cases: [AvatarCinematicExporter.ExportError] = [
             .noCroquis, .writerFailed, .encodeFailed

@@ -294,6 +294,8 @@ public enum DataLifecycleService {
         public var deletedPlans: Int
         public var deletedBodyProfiles: Int
         public var wipedItemImages: Bool
+        /// 请求了删图但未全部删成（区分「未请求」——那不是失败）。
+        public var imageWipeFailed: Bool = false
 
         /// Customer toast after Delete all — must mention body profiles when wiped (matches confirm copy).
         public var summaryLine: String {
@@ -308,7 +310,12 @@ public enum DataLifecycleService {
             if deletedWearRecords > 0 {
                 parts.append("\(deletedWearRecords) wear records")
             }
-            return "Deleted " + parts.joined(separator: ", ") + "."
+            var line = "Deleted " + parts.joined(separator: ", ") + "."
+            // 确认弹窗承诺删除本地照片：wipe 失败必须诚实（CCPA 删除权，不得默报成功）。
+            if imageWipeFailed {
+                line += " Local photos couldn't be removed — try again."
+            }
+            return line
         }
     }
 
@@ -361,7 +368,8 @@ public enum DataLifecycleService {
             deletedWearRecords: deletedWearRecords,
             deletedPlans: deletedPlans,
             deletedBodyProfiles: deletedBodyProfiles,
-            wipedItemImages: wipedImages
+            wipedItemImages: wipedImages,
+            imageWipeFailed: wipeItemImages && !wipedImages
         )
         AppLog.notice("deleteAllUserData \(receipt.summaryLine)", .data)
         return receipt
@@ -375,15 +383,16 @@ public enum DataLifecycleService {
         guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return false
         }
-        var any = false
+        // 全删才算成功：部分失败也报 true 会让「照片已删」的收据撒谎。
+        var failed = 0
         for url in entries {
             do {
                 try fm.removeItem(at: url)
-                any = true
             } catch {
+                failed += 1
                 AppLog.error("wipe item image failed: \(AppLog.errRef(error))", .data)
             }
         }
-        return any || entries.isEmpty
+        return failed == 0
     }
 }

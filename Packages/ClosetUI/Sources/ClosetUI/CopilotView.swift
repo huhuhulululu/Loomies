@@ -229,7 +229,14 @@ public struct CopilotView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showCinematicShare) {
+            .sheet(isPresented: $showCinematicShare, onDismiss: {
+                // 分享面板关闭（取消或完成）即删当次 MP4：活动已在分享时拷贝数据，
+                // 留盘只会在 tmp 无界积累（内容是身体形态视频，敏感度高）。
+                if let url = cinematicShareURL {
+                    try? FileManager.default.removeItem(at: url)
+                    cinematicShareURL = nil
+                }
+            }) {
                 if let url = cinematicShareURL {
                     ShareSheet(items: [url])
                 }
@@ -765,6 +772,10 @@ public struct CopilotView: View {
                     height: 1080,
                     duration: 2.0,
                     fps: 24))
+            // 换新前删旧：覆盖 URL 会让上一个文件失联（连点导出场景）
+            if let old = cinematicShareURL, old != url {
+                try? FileManager.default.removeItem(at: old)
+            }
             cinematicShareURL = url
             showCinematicShare = true
             cinematicExportFailed = false
@@ -852,6 +863,8 @@ public struct CopilotView: View {
     }
 
     private func bootstrap() async {
+        // 历史导出扫尾（崩溃/未清理残留）；此刻不可能有在用的导出文件
+        AvatarCinematicExporter.sweepTemporaryExports()
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         await vm.applyWeather(CompositeWeatherProvider.production)
         // Prefer live @Query profile; fall back to context fetch for first paint.

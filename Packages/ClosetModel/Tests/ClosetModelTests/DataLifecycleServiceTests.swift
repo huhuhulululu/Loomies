@@ -91,6 +91,30 @@ struct DataLifecycleServiceTests {
         #expect(snap2.items[0].barcode == nil)
     }
 
+    /// Delete all 确认文案承诺删除本地照片：wipe 真删文件，失败时 summaryLine 必须诚实
+    /// （不得只报 "Deleted N items" 让用户以为照片也删了——CCPA 删除权）。
+    @Test func deleteAllWipesImagesAndSummaryHonestOnFailure() throws {
+        let ctx = try makeContext()
+        let (_, _, item) = try seedCloset(in: ctx)
+        let rel = ItemImageStore.save(data: Data([0x1, 0x2]), for: item.id, ext: "jpg")
+        #expect(rel != nil)
+
+        let receipt = try DataLifecycleService.deleteAllUserData(in: ctx, wipeItemImages: true)
+        #expect(receipt.wipedItemImages)
+        #expect(ItemImageStore.loadData(relativePath: rel) == nil)
+        #expect(!receipt.summaryLine.localizedCaseInsensitiveContains("photos"))
+
+        // 失败态的收据必须提及照片未删；「未请求 wipe」不是失败、不带后缀
+        var failed = receipt
+        failed.imageWipeFailed = true
+        #expect(failed.summaryLine.localizedCaseInsensitiveContains("photos"))
+        #expect(failed.summaryLine.localizedCaseInsensitiveContains("couldn't"))
+        var notRequested = receipt
+        notRequested.wipedItemImages = false
+        notRequested.imageWipeFailed = false
+        #expect(!notRequested.summaryLine.localizedCaseInsensitiveContains("photos"))
+    }
+
     /// 计划日历日键随导出走（跨时区快照保真；旧数据空键导出为 nil 不炸）。
     @Test func exportCarriesPlanDayKey() throws {
         let ctx = try makeContext()
