@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **616 tests**（Core 211 / Model 160 / UI 203 / Intake 42）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **621 tests**（Core 211 / Model 165 / UI 203 / Intake 42）。
 
 ## 项目定位
 
@@ -99,13 +99,13 @@ Item[] / ScoredOutfit.itemIDs
 - 入库：`GarmentLayerNormalizer` 同画布（尊重 source-alpha：抠图半成品按 alpha 边界归一，不整画布铺满）；禁止槽位框再套一层（防胸前小贴纸）  
 - 空层：Today 英雄区胶囊提示，非静默裸体
 
-### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），616 tests）
+### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），621 tests）
 
 - **保存失败原子性**：全部写路径走 `ModelSave`（snapshot → 操作 → 失败 `rollback` + 内存态恢复）；删除-only 失败留 dirty marker、不假装成功；测试中点保存禁止（no mid-operation saves）；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`（图文件删除同样原子 + orphan 清理）。create 失败一律「断关系 + rollback」而非 `context.delete`（delete 只删行，关系幻影与脏标记滞留污染后续 save）——衣柜/Onboarding/QuickAdd/Intake confirm 全对齐 OutfitDraftService 模式。
 - **Toast 代际**：自动消失计时器一律持单调 token 判「自己那条还在」，不按消息值判等（同文案连发会被旧计时器提前清）。
 - **脏输入即缺失**：NaN / 0 / 负值在 FitEngine / FFITClassifier / ColorHarmony / WeatherFit / BodyMorph / FFIT 一律按 nil / 中性处理，绝不做「自信兜底」；持久化入口同标准——`ItemEditorService` 拒绝非有限/非正平铺宽，导出 encoder `convertToString` 兜底历史脏 Double。
 - **UI 诚实**：`lastError` 与 `statusMessage` 互斥（失败清空 success 文案）；异步竞态用 generation counter last-call-wins（Intake process/enrich、Copilot applyWeather）；Intake 空图早退显式复位 `isProcessing`；Intake 分阶段失败文案 + rollback 清 orphan 文件。
-- **日界口径**：穿着防重复窗口按日历日算（`WearHistory.recentlyWornItemIDs` 注入 `Calendar`，DST 安全），与 UI 承诺「de-prioritized 7 days」一致，不随打卡钟点漂移。天气「今天」按**衣柜城市时区**取日（geocode 的 IANA `timezone` 字段 → dayString 与请求参数同源；无字段退回设备历 + auto）——设备时区 ≠ 城市时区（出差/双城柜）不再取错日。离线气候表月份保持设备历（粗估 ±数°F，不为月界数小时加时区表——已评估不修）。
+- **日界口径**：穿着防重复窗口按日历日算（`WearHistory.recentlyWornItemIDs` 注入 `Calendar`，DST 安全），与 UI 承诺「de-prioritized 7 days」一致，不随打卡钟点漂移。天气「今天」按**衣柜城市时区**取日（geocode 的 IANA `timezone` 字段 → dayString 与请求参数同源；无字段退回设备历 + auto）——设备时区 ≠ 城市时区（出差/双城柜）不再取错日。离线气候表月份保持设备历（粗估 ±数°F，不为月界数小时加时区表——已评估不修）。**CalendarPlan 以 `dayKey`（"yyyy-MM-dd"，加法 schema）为日历日真相**：`date`（本地午夜瞬时值）跨时区会漂到前一天——查询/去重/展示（`displayDate` 本地正午反解）/导出全走 dayKey；空键旧数据退回 date 按设备历解释，覆盖写时顺带固化。
 - **关键词折叠**：名称关键词分类（剪影/displaySlot）与搜索一律走 `TextNormalize.foldedKey`（大小写 locale 无关 + 变音符号折叠）；禁用 `localizedCaseInsensitiveContains` 做关键词匹配（tr locale 下 I≠i）；失败文案样式判定（"couldn't"，无 i 字符）不受限。
 - **文本判空统一**：可选文本字段（brand/size/位置名/名称）「空白即缺失」一律走 `ClosetCore.TextNormalize`（trim 后判空/转 nil）；实时 TextField 绑定不 trim（输入中），落库口与判定口必 trim；空白名 patch 拒绝（return false）而非静默丢弃。
 - **命名完整性**：衣柜 create/rename 与存放位置同级 create 拒绝重名（大小写/空白不敏感，`WardrobeManageActions.nameConflicts`）；运行时所有 name 排序按 `(name, id.uuidString)` 决胜，与导出快照约定一致——Swift sort 不稳定，同名顺序不得随 fetch 漂移。

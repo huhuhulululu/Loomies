@@ -23,27 +23,33 @@ public enum CalendarPlanService {
     /// Returns `nil` when ModelSave fails (new insert discarded by rollback; existing outfit/attention restored).
     @discardableResult
     public static func plan(
-        outfit: Outfit, on date: Date, in context: ModelContext
+        outfit: Outfit, on date: Date, in context: ModelContext,
+        calendar: Calendar = .current
     ) -> CalendarPlan? {
-        let day = calendarDay(date)
-        // 同日已有计划则覆盖 outfit
+        let key = dayKey(for: date, calendar: calendar)
+        // 同日已有计划则覆盖 outfit（按 dayKey 对齐，跨时区稳定）
         let existing = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
         let plan: CalendarPlan
         let isNew: Bool
         let previousOutfit: Outfit?
         let previousAttention: Bool
-        if let found = existing.first(where: { calendarDay($0.date) == day }) {
+        let previousDayKey: String
+        if let found = existing.first(where: { resolvedDayKey($0) == key }) {
             plan = found
             previousOutfit = found.outfit
             previousAttention = found.needsAttention
+            previousDayKey = found.dayKey
             plan.outfit = outfit
+            plan.dayKey = key   // 旧数据（空键）覆盖写时顺带固化
             isNew = false
         } else {
-            plan = CalendarPlan(date: day)
+            plan = CalendarPlan(date: calendar.startOfDay(for: date))
+            plan.dayKey = key
             plan.outfit = outfit
             context.insert(plan)
             previousOutfit = nil
             previousAttention = false
+            previousDayKey = ""
             isNew = true
         }
         plan.needsAttention = shouldNeedAttention(outfit)
@@ -51,6 +57,7 @@ public enum CalendarPlanService {
             if !isNew {
                 plan.outfit = previousOutfit
                 plan.needsAttention = previousAttention
+                plan.dayKey = previousDayKey
             }
             // rollback 一并丢弃新建 pending insert（delete+rollback 会残留脏标记）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
@@ -76,17 +83,21 @@ public enum CalendarPlanService {
         return ModelSave.save(context, label: "calendarRefresh")
     }
 
-    /// 查询某日计划（按日历日对齐）。
-    public static func plan(on date: Date, in context: ModelContext) -> CalendarPlan? {
-        let day = calendarDay(date)
+    /// 查询某日计划（按 dayKey 日历日对齐，跨时区稳定）。
+    public static func plan(
+        on date: Date, in context: ModelContext, calendar: Calendar = .current
+    ) -> CalendarPlan? {
+        let key = dayKey(for: date, calendar: calendar)
         let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        return all.first { calendarDay($0.date) == day }
+        return all.first { resolvedDayKey($0) == key }
     }
 
-    /// 全部计划，新→旧。
+    /// 全部计划，新→旧（dayKey 字典序 = 时序；同日历史重复行按 id 决胜）。
     public static func allPlans(in context: ModelContext) -> [CalendarPlan] {
         let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        return all.sorted { $0.date > $1.date }
+        return all.sorted {
+            (resolvedDayKey($0), $0.id.uuidString) > (resolvedDayKey($1), $1.id.uuidString)
+        }
     }
 
     /// 某柜相关计划（outfit.wardrobe 匹配）。
@@ -113,5 +124,29 @@ public enum CalendarPlanService {
 
     public static func calendarDay(_ date: Date) -> Date {
         Calendar.current.startOfDay(for: date)
+    }
+
+    // MARK: - DayKey（日历日持久化口径）
+
+    /// "yyyy-MM-dd"（按给定 calendar 的日界；固定 gregorian 组件格式，无 locale 依赖）。
+    public static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1)
+    }
+
+    /// 计划的有效日键：旧数据（空键）退回按当前设备历解释 date（与历史行为一致）。
+    public static func resolvedDayKey(_ plan: CalendarPlan) -> String {
+        plan.dayKey.isEmpty ? dayKey(for: plan.date) : plan.dayKey
+    }
+
+    /// 展示用日期：dayKey → 当前时区**正午**瞬时值（避开 DST 无午夜日），
+    /// `Text(_, style: .date)` 渲染不再随时区漂一天。
+    public static func displayDate(_ plan: CalendarPlan) -> Date {
+        let key = resolvedDayKey(plan)
+        let parts = key.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return plan.date }
+        var comps = DateComponents()
+        comps.year = parts[0]; comps.month = parts[1]; comps.day = parts[2]; comps.hour = 12
+        return Calendar.current.date(from: comps) ?? plan.date
     }
 }

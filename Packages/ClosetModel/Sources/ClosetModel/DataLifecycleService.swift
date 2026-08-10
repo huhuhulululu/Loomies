@@ -93,6 +93,8 @@ public enum DataLifecycleService {
         public var date: String
         public var outfitID: String?
         public var needsAttention: Bool
+        /// 日历日键（加法字段；旧数据/旧导出为 nil）。
+        public var dayKey: String?
     }
 
     public struct BodyProfileDTO: Codable, Sendable, Equatable {
@@ -189,7 +191,8 @@ public enum DataLifecycleService {
             .map {
                 PlanDTO(
                     id: $0.id.uuidString, date: iso.string(from: $0.date),
-                    outfitID: $0.outfit?.id.uuidString, needsAttention: $0.needsAttention
+                    outfitID: $0.outfit?.id.uuidString, needsAttention: $0.needsAttention,
+                    dayKey: $0.dayKey.isEmpty ? nil : $0.dayKey
                 )
             }
             .sorted { ($0.date, $0.id) < ($1.date, $1.id) }   // 同刻按 id 决胜——导出快照可复现

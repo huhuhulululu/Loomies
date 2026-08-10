@@ -32,6 +32,83 @@ struct CalendarPlanServiceTests {
         #expect(found?.id == plan!.id)
     }
 
+    func makeOutfit(_ ctx: ModelContext, name: String = "look") throws -> Outfit {
+        let w = Wardrobe(name: "W-\(name)"); ctx.insert(w)
+        let top = Item(name: "t-\(name)"); top.wardrobe = w; ctx.insert(top)
+        let o = Outfit(name: name); o.wardrobe = w; o.items = [top]; ctx.insert(o)
+        try ctx.save()
+        return o
+    }
+
+    func cal(_ tzID: String) -> Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: tzID)!
+        return c
+    }
+
+    /// 跨时区稳定：东京排的 3/20 计划，设备飞到洛杉矶后 3/20 仍能查到——
+    /// 计划日以 dayKey（日历日）持久化，不是写入时区的本地午夜瞬时值。
+    @Test func planSurvivesTimezoneChange() throws {
+        let ctx = try makeContext()
+        let o = try makeOutfit(ctx)
+        let tokyo = cal("Asia/Tokyo")
+        let la = cal("America/Los_Angeles")
+        // 东京 2026-03-20 10:00 排计划
+        let writeAt = tokyo.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 10))!
+        let plan = CalendarPlanService.plan(outfit: o, on: writeAt, in: ctx, calendar: tokyo)
+        #expect(plan?.dayKey == "2026-03-20")
+        // 洛杉矶 2026-03-20 12:00 查询 → 同一条计划（旧实现按 LA startOfDay 匹配不到）
+        let queryAt = la.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 12))!
+        let found = CalendarPlanService.plan(on: queryAt, in: ctx, calendar: la)
+        #expect(found?.id == plan?.id)
+    }
+
+    /// 跨时区去重：换时区后再排同一天必须覆盖同一行，不得出现两条计划。
+    @Test func planDedupeSurvivesTimezoneChange() throws {
+        let ctx = try makeContext()
+        let o1 = try makeOutfit(ctx, name: "one")
+        let o2 = try makeOutfit(ctx, name: "two")
+        let tokyo = cal("Asia/Tokyo")
+        let la = cal("America/Los_Angeles")
+        let writeAt = tokyo.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 10))!
+        _ = CalendarPlanService.plan(outfit: o1, on: writeAt, in: ctx, calendar: tokyo)
+        let queryAt = la.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 12))!
+        let overwritten = CalendarPlanService.plan(outfit: o2, on: queryAt, in: ctx, calendar: la)
+        #expect(overwritten?.outfit?.id == o2.id)
+        #expect((try ctx.fetch(FetchDescriptor<CalendarPlan>())).count == 1)
+    }
+
+    /// 旧数据（dayKey 为空）按写入时区午夜瞬时值退回设备历解释——不丢不炸。
+    @Test func legacyPlanWithoutDayKeyStillResolves() throws {
+        let ctx = try makeContext()
+        let o = try makeOutfit(ctx)
+        let legacyDay = Calendar.current.startOfDay(for: Date())
+        let legacy = CalendarPlan(date: legacyDay)
+        legacy.outfit = o
+        ctx.insert(legacy)
+        try ctx.save()
+        #expect(legacy.dayKey.isEmpty)
+        let found = CalendarPlanService.plan(on: Date(), in: ctx)
+        #expect(found?.id == legacy.id)
+        // 覆盖写会顺带补 dayKey
+        let o2 = try makeOutfit(ctx, name: "two")
+        _ = CalendarPlanService.plan(outfit: o2, on: Date(), in: ctx)
+        #expect(!legacy.dayKey.isEmpty)
+        #expect((try ctx.fetch(FetchDescriptor<CalendarPlan>())).count == 1)
+    }
+
+    /// 展示日期从 dayKey 反解（本地正午，避开 DST 午夜缺失），不随时区漂移一天。
+    @Test func displayDateRendersDayKeyComponents() throws {
+        let ctx = try makeContext()
+        let o = try makeOutfit(ctx)
+        let tokyo = cal("Asia/Tokyo")
+        let writeAt = tokyo.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 10))!
+        let plan = try #require(CalendarPlanService.plan(outfit: o, on: writeAt, in: ctx, calendar: tokyo))
+        let disp = CalendarPlanService.displayDate(plan)
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: disp)
+        #expect(c.year == 2026 && c.month == 3 && c.day == 20)
+    }
+
     /// Save-fail toast must not look like success (no “Added to calendar”).
     @Test func saveFailedMessageIsHonest() {
         #expect(CalendarPlanService.saveFailedMessage.localizedCaseInsensitiveContains("couldn't plan"))

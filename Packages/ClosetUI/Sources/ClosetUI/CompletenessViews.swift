@@ -116,7 +116,8 @@ public struct CalendarView: View {
             // Same look preview path as Favorites / Today (owner morph + paper-doll layers).
             lookThumb(items: items, occasion: occasion, width: 56, height: 84)
             VStack(alignment: .leading, spacing: 4) {
-                Text(plan.date, style: .date).font(.headline)
+                // dayKey 反解（本地正午）：计划日展示不随设备时区漂一天
+                Text(CalendarPlanService.displayDate(plan), style: .date).font(.headline)
                 Text(lookTitle(plan.outfit))
                     .font(.caption).foregroundStyle(DS.muted)
                 if !items.isEmpty {

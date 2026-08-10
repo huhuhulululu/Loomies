@@ -141,6 +141,10 @@ public final class CalendarPlan {
     public var date: Date = Date.distantPast
     public var outfit: Outfit?
     public var needsAttention: Bool = false      // 引用缺件搭配时标记
+    // 加法 schema（§11.1 不破冻）
+    /// 日历日键 "yyyy-MM-dd"（写入时区语义固化）。date 是本地午夜瞬时值，
+    /// 跨时区后会漂到前一天——查询/去重/展示以 dayKey 为准；空串=旧数据，退回 date 解释。
+    public var dayKey: String = ""
     public init(date: Date) { self.date = date }
 }
 

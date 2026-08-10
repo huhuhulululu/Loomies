@@ -91,6 +91,17 @@ struct DataLifecycleServiceTests {
         #expect(snap2.items[0].barcode == nil)
     }
 
+    /// 计划日历日键随导出走（跨时区快照保真；旧数据空键导出为 nil 不炸）。
+    @Test func exportCarriesPlanDayKey() throws {
+        let ctx = try makeContext()
+        _ = try seedCloset(in: ctx)
+        let plans = try ctx.fetch(FetchDescriptor<CalendarPlan>())
+        plans.first?.dayKey = "2026-03-20"
+        try ctx.save()
+        let snap = try DataLifecycleService.exportSnapshot(in: ctx)
+        #expect(snap.plans.first?.dayKey == "2026-03-20")
+    }
+
     /// 历史脏数据兜底：库里已有非有限 Double（旧版本无守卫时落库）不得把导出永久锁死
     /// （JSONEncoder 默认 .throw；CCPA 数据可携带性不能因一件脏单品失效）。
     @Test func exportSurvivesNonFiniteFlatWidthInStore() throws {
