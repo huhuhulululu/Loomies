@@ -686,6 +686,23 @@ struct IntakeTests {
         #expect(vm.draft == nil)
     }
 
+    /// confirm save 失败不得残留幻影 item 与关系脏标记（wardrobe.items 不得含幻影）。
+    @Test func confirmSaveFailureLeavesNoDirtyState() async throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
+        let vm = makeVM(ItemTags(slot: .top))
+        await vm.process(Data([0x1]))
+        vm.draft?.name = "Plain Tee"
+        ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }
+        #expect(vm.confirm(into: w, context: ctx) == nil)
+        #expect(vm.lastError == IntakeViewModel.confirmSaveFailedMessage)
+        #expect(!ctx.hasChanges)
+        #expect((w.items ?? []).isEmpty)
+        // 草稿保留可重试
+        #expect(vm.draft != nil)
+    }
+
     /// process 完成后再 enrich：不受守卫影响，正常填充（守卫无误伤）。
     @Test func enrichAfterProcessCompletesStillFills() async throws {
         struct FakeLookup: ProductLookupProviding {

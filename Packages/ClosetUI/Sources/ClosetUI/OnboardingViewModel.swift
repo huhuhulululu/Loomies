@@ -82,9 +82,10 @@ public final class OnboardingViewModel {
             profile = p
         }
         guard ModelSave.save(context, label: "onboarding") else {
-            if let profile { context.delete(profile) }
-            context.delete(wardrobe)
-            context.delete(person)
+            // 先解开内存关系（rollback 不回写内存幻影），再 rollback 丢弃全部 pending insert
+            //（delete 只删行，脏标记会滞留污染下一次无关 save，OutfitDraftService 同款）。
+            wardrobe.owner = nil
+            context.rollback()
             message = Self.saveFailedMessage
             AppLog.error("onboarding save failed", .app)
             return false

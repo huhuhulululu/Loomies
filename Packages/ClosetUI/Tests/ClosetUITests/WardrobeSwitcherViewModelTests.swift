@@ -2,7 +2,7 @@ import Testing
 import SwiftData
 import Foundation
 @testable import ClosetUI
-import ClosetModel
+@testable import ClosetModel // for ModelSave.forceFailure test hook
 
 @MainActor
 struct WardrobeSwitcherViewModelTests {
@@ -89,6 +89,40 @@ struct WardrobeSwitcherViewModelTests {
         let expected = [a, b].sorted { $0.id.uuidString < $1.id.uuidString }.map(\.id)
         #expect(vm.wardrobes.map(\.id) == expected)
         #expect(vm.active?.id == expected.first)
+    }
+
+    /// Save 失败不得残留幻影衣柜：delete 只删行，关系脏标记滞留 → 必须断关系 + rollback。
+    /// 幻影会出现在 wardrobes 列表里可被选为 active，下一次无关 save 一并提交脏状态。
+    @Test func createWardrobeSaveFailureLeavesNoPhantom() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "Alex"); ctx.insert(person)
+        try ctx.save()
+        let vm = WardrobeSwitcherViewModel(person: person)
+        ModelSave.forceFailure(on: ctx)
+        vm.newName = "Trip"
+        #expect(vm.createWardrobe(in: ctx) == nil)
+        #expect(vm.message == WardrobeManageActions.createFailedMessage)
+        #expect(!ctx.hasChanges)
+        #expect((person.wardrobes ?? []).isEmpty)
+        #expect(vm.wardrobes.isEmpty)
+        // 清除故障后重试成功（失败态没有污染 context）
+        ModelSave.clearForcedFailure(on: ctx)
+        vm.newName = "Trip"
+        #expect(vm.createWardrobe(in: ctx) != nil)
+    }
+
+    /// Manage 入口同守卫（含自动创建的 "Me" person 一并不残留）。
+    @Test func manageCreateSaveFailureLeavesNoPhantom() throws {
+        let ctx = try makeContext()
+        ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }
+        let (msg, w) = WardrobeManageActions.create(
+            name: "Trip", city: "", existingPeople: [], in: ctx)
+        #expect(w == nil)
+        #expect(msg == WardrobeManageActions.createFailedMessage)
+        #expect(!ctx.hasChanges)
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
+        #expect(try ctx.fetch(FetchDescriptor<Wardrobe>()).isEmpty)
     }
 
     @Test func createWardrobeSetsActive() throws {

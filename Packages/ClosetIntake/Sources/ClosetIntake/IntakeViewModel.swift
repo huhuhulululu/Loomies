@@ -300,8 +300,10 @@ public final class IntakeViewModel {
         }
         guard ModelSave.save(context, label: "intakeConfirm") else {
             // Roll back insert + local image; keep draft so user can retry (no silent success).
+            // 断关系 + rollback（delete 只删行，wardrobe.items 幻影与脏标记滞留）。
             let path = item.localImageRelativePath
-            context.delete(item)
+            item.wardrobe = nil
+            context.rollback()
             ItemImageStore.delete(relativePath: path)
             lastError = Self.confirmSaveFailedMessage
             // 层图路径可能已置 statusMessage（"Added, but…"）——但本次落库已回滚，

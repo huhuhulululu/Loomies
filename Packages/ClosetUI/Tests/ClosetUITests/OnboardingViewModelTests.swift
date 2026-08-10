@@ -2,7 +2,7 @@ import Testing
 import SwiftData
 import Foundation
 @testable import ClosetUI
-import ClosetModel
+@testable import ClosetModel // for ModelSave.forceFailure test hook
 import ClosetCore
 
 @MainActor
@@ -78,6 +78,25 @@ struct OnboardingViewModelTests {
         #expect(p?.hipInches == nil)
         #expect(p?.highHipInches == 38)
         #expect(!vm.bodyShapeReady)
+    }
+
+    /// Onboarding save 失败不得残留 person/wardrobe/profile 幻影与脏标记。
+    @Test func finishSaveFailureLeavesNoDirtyState() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "Alex"; vm.city = "NYC"
+        vm.bustInches = 36; vm.waistInches = 28; vm.hipInches = 38; vm.highHipInches = 34
+        ModelSave.forceFailure(on: ctx)
+        #expect(!vm.finish(in: ctx))
+        #expect(!vm.completed)
+        #expect(vm.message == OnboardingViewModel.saveFailedMessage)
+        #expect(!ctx.hasChanges)
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
+        #expect(try ctx.fetch(FetchDescriptor<Wardrobe>()).isEmpty)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+        // 清除故障后重试成功
+        ModelSave.clearForcedFailure(on: ctx)
+        #expect(vm.finish(in: ctx))
     }
 
     @Test func finishWithPartialBodyStillNoFFIT() throws {

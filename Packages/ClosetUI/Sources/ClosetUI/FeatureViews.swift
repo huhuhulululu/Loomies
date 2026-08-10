@@ -595,6 +595,8 @@ public struct FavoritesView: View {
     @State private var outfits: [ClosetModel.Outfit] = []
     @State private var actions = OutfitActionsViewModel()
     @State private var flashMessage: String?
+    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast。
+    @State private var flashToken = 0
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
@@ -701,10 +703,12 @@ public struct FavoritesView: View {
     }
 
     private func flash(_ message: String) {
+        flashToken &+= 1
+        let token = flashToken
         flashMessage = message
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            if flashMessage == message { flashMessage = nil }
+            if flashToken == token { flashMessage = nil }
         }
     }
 

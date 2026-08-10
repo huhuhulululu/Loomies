@@ -10,6 +10,9 @@ public struct CopilotView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var vm: CopilotViewModel
     @State private var checkInNote: String?
+    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast（按值判等无法区分代）。
+    @State private var flashToken = 0
+    @State private var cinematicFailureToken = 0
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
     @State private var isExportingCinematic = false
@@ -781,9 +784,12 @@ public struct CopilotView: View {
             flash(toast)
             AppLog.error("cinematic export: \(error)", .copilot)
             // Clear failure glyph after toast window so retry looks clean.
+            // 代际守卫：连续两次失败时第一个计时器不得提前清掉第二次的失败三角。
+            cinematicFailureToken &+= 1
+            let token = cinematicFailureToken
             Task {
                 try? await Task.sleep(nanoseconds: 3_500_000_000)
-                if cinematicExportFailed { cinematicExportFailed = false }
+                if cinematicFailureToken == token { cinematicExportFailed = false }
             }
         }
     }
@@ -836,10 +842,12 @@ public struct CopilotView: View {
     }
 
     private func flash(_ message: String) {
+        flashToken &+= 1
+        let token = flashToken
         checkInNote = message
         Task {
             try? await Task.sleep(nanoseconds: 3_500_000_000)
-            if checkInNote == message { checkInNote = nil }
+            if flashToken == token { checkInNote = nil }
         }
     }
 

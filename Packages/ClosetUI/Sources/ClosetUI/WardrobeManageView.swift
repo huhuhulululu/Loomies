@@ -49,11 +49,9 @@ public enum WardrobeManageActions {
            nameConflicts(name, among: owner.wardrobes ?? []) {
             return (duplicateNameMessage, nil)
         }
-        var autoCreatedPerson: Person?
         let person = existingPeople.first ?? {
             let p = Person(name: "Me")
             context.insert(p)
-            autoCreatedPerson = p
             return p
         }()
         let city = rawCity.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -61,10 +59,10 @@ public enum WardrobeManageActions {
         w.owner = person
         context.insert(w)
         guard ModelSave.save(context, label: "wardrobeCreate") else {
-            context.delete(w)
-            // Auto-created "Me" was never committed — drop it too, else the next
-            // unrelated save persists an ownerless Person as silent fallback.
-            if let autoCreatedPerson { context.delete(autoCreatedPerson) }
+            // 先解开内存关系（rollback 不回写内存幻影），再 rollback 丢弃全部 pending insert
+            //（含自动创建的 "Me" person）+ 清脏标记——delete 只删行，脏标记会滞留。
+            w.owner = nil
+            context.rollback()   // 一并丢弃自动创建的 "Me" pending insert；失败变更不得滞留
             AppLog.error("wardrobe manage create save failed", .data)
             return (createFailedMessage, nil)
         }

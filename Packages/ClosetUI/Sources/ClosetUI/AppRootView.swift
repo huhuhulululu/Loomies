@@ -294,6 +294,8 @@ public struct ClosetGridView: View {
     @State private var slotFilter: String? = nil
     /// Bottom flash chip: Load samples Outcome + intake post-save honesty (no silent fail).
     @State private var seedFlash: String?
+    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast。
+    @State private var seedFlashToken = 0
     /// Live query so Me → Body edits refresh FitMark badges without tab remount.
     @Query private var bodyProfiles: [PersonBodyProfile]
 
@@ -385,10 +387,12 @@ public struct ClosetGridView: View {
 
     /// Bottom overlay chip with 3s auto-clear (Load samples Outcome / intake post-save honesty).
     private func flashSeedChip(_ message: String?) {
+        seedFlashToken &+= 1
+        let token = seedFlashToken
         seedFlash = message
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 3_000_000_000)
-            if seedFlash == message { seedFlash = nil }
+            if seedFlashToken == token { seedFlash = nil }
         }
     }
 
@@ -801,7 +805,9 @@ struct QuickAddSheet: View {
                         item.wardrobe = wardrobe
                         context.insert(item)
                         guard ModelSave.save(context, label: "quickAdd") else {
-                            context.delete(item)
+                            // 断关系 + rollback（delete 只删行，wardrobe.items 幻影与脏标记滞留）
+                            item.wardrobe = nil
+                            context.rollback()
                             message = Self.saveFailedMessage
                             AppLog.error("quickAdd save failed \(trimmed)", .intake)
                             // Stay on form with toast (no silent dismiss); next Save retries.

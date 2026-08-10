@@ -50,7 +50,10 @@ public final class WardrobeSwitcherViewModel {
         w.owner = person
         context.insert(w)
         guard ModelSave.save(context, label: "wardrobeCreate") else {
-            context.delete(w)
+            // 先解开内存关系（rollback 不回写内存幻影），再 rollback 丢弃 pending insert + 清脏标记
+            //（delete 只删行，脏标记与 person.wardrobes 里的幻影都会滞留，OutfitDraftService 同款）
+            w.owner = nil
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             message = WardrobeManageActions.createFailedMessage
             AppLog.error("wardrobe create save failed", .app)
             return nil
