@@ -16,7 +16,8 @@ SCHEME=ClosetApp
 PROJECT="$ROOT/ClosetApp.xcodeproj"
 
 cd "$ROOT"
-command -v xcodegen >/dev/null && xcodegen generate
+command -v xcodegen >/dev/null || { echo "xcodegen missing — brew install xcodegen" >&2; exit 1; }
+xcodegen generate
 
 mkdir -p "$ROOT/build"
 

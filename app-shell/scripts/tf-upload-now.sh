@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # TestFlight: xcodegen → archive (app-only Manual TF2) → export IPA → altool
 set -euo pipefail
-cd /Users/ping/code/cloth/app-shell
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 
-export ASC_KEY_ID=YFRZC2GC2V
-export ASC_ISSUER_ID=6734863c-c46a-4788-a30e-1594a001bdf4
-export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_YFRZC2GC2V.p8"
+# ASC credentials from env — see ../.env.asc.example (source .env.asc first)
+export ASC_KEY_ID="${ASC_KEY_ID:?set ASC_KEY_ID (source app-shell/.env.asc)}"
+export ASC_ISSUER_ID="${ASC_ISSUER_ID:?set ASC_ISSUER_ID (source app-shell/.env.asc)}"
+export ASC_KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
 
 # Prefer env, else project.yml CURRENT_PROJECT_VERSION, else fail closed (no silent “4”).
 if [[ -z "${CURRENT_PROJECT_VERSION:-}" ]]; then
