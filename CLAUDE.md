@@ -8,7 +8,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 - 核心机制 = **copilot**（用户掌舵、App 跑腿，D19）——推荐永远可被用户覆盖，不做全自动决策
 - ClosetCore 保持纯 Swift（零 iOS SDK 依赖，Foundation only），依赖方向只能 UI → Model → Core
 - SwiftData 双域 ModelConfiguration（D5）；遥测字段走 TelemetryEvents/Payload 白名单
-- 每包独立 `swift test` 必须全绿（Core 206 / Model 149 / UI 191 / Intake 38 = 584）
+- 每包独立 `swift test` 必须全绿（Core 206 / Model 149 / UI 193 / Intake 38 = 586）
 - Debug：`LOOMIES_DEBUG=1` 或 scheme 参数 `-debugVerbose` / `-debugPanel`；Me → 调试台 / Export diagnostics
 
 ## 文档
