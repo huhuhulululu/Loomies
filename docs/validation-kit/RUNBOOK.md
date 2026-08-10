@@ -41,5 +41,5 @@
 
 ## 如果结果是 PIVOT/KILL
 
-- ClosetCore/ClosetModel（109 tests）在 copilot 甚至规划器形态**全复用**，不白费
+- ClosetCore/ClosetModel（355+ tests）在 copilot 甚至规划器形态**全复用**，不白费
 - PIVOT 到「记住我拥有什么」楔子：衣橱编目/防重复购买是现成能力，换 onboarding 叙事即可

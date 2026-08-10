@@ -1,19 +1,19 @@
 # 交接文档（HANDOFF）
 
-> 2026-08-03。CLI **156 tests** 全绿 + **Xcode 模拟器可跑闭环**（种子/入库/打卡）。
+> 2026-08-10。CLI **580 tests** 全绿（D80 打磨波收敛）+ **TestFlight build 28 已上传**（D79）。
 
 ## 一句话状态
 
-方向已定 **copilot**，数据模型冻结；引擎 + 数据服务 + UI 逻辑（含检索/衣柜切换/冷启动/拼贴草稿/遥测 schema）均可命令行验证。剩下是 Xcode 组装 + 真机（渲染/CloudKit/Vision/WeatherKit）。
+方向已定 **copilot**，数据模型冻结；引擎 + 数据服务 + UI 逻辑（含检索/衣柜切换/冷启动/拼贴草稿/遥测 schema）均可命令行验证。本地 v1.0 闭环 + Body Avatar（photoreal catalog 纸娃娃，D63–D75）已交付并上 TestFlight。剩下是真机（渲染/CloudKit/Vision/WeatherKit 真接）。
 
 ## 已建并验证（命令行 swift test/build，无需模拟器）
 
 | 包 | 内容 | 验证 |
 |----|------|------|
-| `Packages/ClosetCore` | FFIT / ease / F4 / copilot 补全 / WeatherProviding / **FitMarkCopy** / **TelemetryEvents** | **92 tests** |
-| `Packages/ClosetModel` | 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan + **OutfitDraft** | **38 tests** |
-| `Packages/ClosetUI` | DesignSystem + Copilot（冷启动门）+ Onboarding/CheckIn/**Search/WardrobeSwitcher** + 4-tab 壳 | **20 tests** + build |
-| `Packages/ClosetIntake` | F1 capability seam + VisionMattingService | **4 tests** + Vision build |
+| `Packages/ClosetCore` | FFIT / ease / F4 / copilot 补全 / WeatherProviding / **FitMarkCopy** / **TelemetryEvents** / BodyAvatarLayout / BodyMorph / OutfitAvatarComposer | **206 tests** |
+| `Packages/ClosetModel` | 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan + **OutfitDraft** + DataLifecycle（导出/删除全部） | **149 tests** |
+| `Packages/ClosetUI` | DesignSystem + Copilot（冷启动门）+ Onboarding/CheckIn/**Search/WardrobeSwitcher** + Calendar/Me 完整 View + Today 纸娃娃英雄区 | **187 tests** + build |
+| `Packages/ClosetIntake` | F1 capability seam + VisionMattingService + **PHPicker/相机入库流水线**（AddPieceSheet，D39） | **38 tests** + Vision build |
 
 一键回归：
 ```bash
@@ -34,9 +34,9 @@ Onboarding → 入库 → 管理（多衣柜/转移/删除/跨柜检索）
               日历计划 ↔ Outfit 缺件 needsAttention
 ```
 
-## Xcode / TestFlight 状态（2026-08-03）
+## Xcode / TestFlight 状态（2026-08-10）
 
-发版预备见 `app-shell/TESTFLIGHT.md`：图标/隐私/脚本已就绪；**须在 Terminal.app 解锁钥匙串后 archive**，并提供 ASC **Issuer ID**（Key `YFRZC2GC2V` 已在 `~/.appstoreconnect/private_keys/`）。
+TestFlight 已上传 **builds 4–28**（最新 **0.1.0 (28)**，D79；ASC App = **Loomies**，id 6797632035，D27）。发版流程见 `app-shell/TESTFLIGHT.md`：archive/export/upload 链路已自动化（`scripts/testflight.sh` + ASC Key `YFRZC2GC2V`，altool 上传验证可用）。
 
 ## Xcode 状态（2026-08-03）
 
@@ -55,10 +55,9 @@ open ClosetApp.xcodeproj   # ⌘R 跑模拟器
 1. **真机**：Signing Team 已填 `28626PSX5Y`；开 iCloud CloudKit 后改 mainConfig 为 `.private("iCloud.com.pinglin.closet")`。
 2. **真机验证**：CloudKit 双机、Vision 抠图/OCR、WeatherKit 实接 `WeatherProviding`、Liquid Glass ≤2。
 3. **未建 / 待补**：
-   - 连拍/PHPicker 全流水线 UI 接线
    - 洗标 OCR 真实现、设置页完整、通知、遥测 SDK 接入
-   - Calendar/Me 从 placeholder → 完整 View
    - DL-6 幂等转移（D15 降 v1.x）、AI Worker + App Attest
+   - ~~连拍/PHPicker 全流水线 UI 接线~~（已交付 D39）、~~Calendar/Me 完整 View~~（已交付 D37）
 
 ## 关键决策速查（详见 `docs/decisions.md`）
 

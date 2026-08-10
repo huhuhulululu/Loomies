@@ -31,6 +31,9 @@
 | **Me 补全** | 城市编辑、个人色彩季型、存放位置树 |
 | **合身标记网格** | Closet 格徽章 + 状态过滤；详情页 FitMark |
 | **离线城市天气** | CityClimateWeatherProvider → Today 温区 |
+| **公开 API 天气（D77）** | Open-Meteo + Composite fallback；来源标签 + 降水外套提示 |
+| **公开条码商品（D77）** | Open Product/Beauty/Food Facts → 入库 enrich |
+| **尺码参考提示（D77）** | PublicSizeReference（not brand-true） |
 | **纸娃娃叠衣预览** | `OutfitAvatarComposer` + Today 建议卡 / 收藏列表 |
 | **主路径旅程测试** | `FeatureJourneyTests`：种子→推荐→收藏/计划→打卡→检索→体型→导出/删除 |
 | TestFlight build 7–13 | 体型/入库/叠衣/打磨持续迭代 |
@@ -42,7 +45,7 @@
 | PHPicker / 相机连拍 | **相册 + 相机** 已接线（`AddPieceSheet`）；真机验相机 |
 | Vision 抠图 / OCR 真推理 | **Vision 真机优先**（`IntakeServiceFactory`）；模拟器 mock |
 | 单品本地图 | `Item.localImageRelativePath` + `ItemImageStore`；网格/详情缩略图 |
-| WeatherKit | 协议已隔离；现用城市气候表，真机可换实现 |
+| WeatherKit | 协议已隔离；现主路径 Open-Meteo，真机可再实现 `WeatherProviding` |
 | CloudKit 私有库 | D5 双域已模板，Capability 待开 |
 | AI 打标 Worker + App Attest | 独立服务 |
 | 通知 / Widget | 权限与真机 |

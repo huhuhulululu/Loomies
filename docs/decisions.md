@@ -188,6 +188,206 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - 兼容旧 `BodyAvatarScale`（`legacyScale` / `from(legacy:)`）
 - fine-tune 落库：`PersonBodyProfile.fineChest/Waist/Hip/Height`；滑杆 onChange 即时 save
 
+## D74 [2026-08-05] 非东亚 7 表型 × 7 角矩阵闭合
+- 非东亚 7×2×7（045…315）**98/98** 齐（末洞 `female_middleEastern_yaw225` 由 yaw180 小转过审）
+- eastAsian 继续走通用 `photoreal_{sex}_yaw###` 轨道（D69）
+- TF25 已发；本轮仅资产补洞，未再传 TF
+
+## D76 [2026-08-05] TestFlight build 26
+用户：**发**。
+- 版本 **0.1.0 (26)**；archive/export OK；altool **UPLOAD SUCCEEDED**
+- Delivery UUID `8cce71fe-be57-4cbc-ae7f-bbd51a7b1d4f`
+- 含：D75 纸娃娃穿衣（displaySlot 叠衣/推荐/列表/FitMark 对齐、侧角淡出与 settle、空层/fitCaption/hasRenderableVisual）
+- 测：Core 163 · Model 75 · UI 101 · Intake 7
+
+## D77 [2026-08-07] 公开 API 接入（天气 / 商品 / 尺码参考）
+用户要求：接好可用的公开 API（天气、衣物信息、尺寸等）。
+- **天气：** `OpenMeteoWeatherProvider`（geocode + daily max °F，免 key）→ `CompositeWeatherProvider` 失败回退 `CityClimateWeatherProvider`；Today/Me 城市变更用 production 栈
+- **商品：** `OpenProductFactsClient`（Open Product/Beauty/Food Facts 链式查询）+ `IntakeViewModel.enrichFromPublicBarcode`
+- **尺码：** `PublicSizeReference` 公开对照表（明确 not brand-true；合身仍靠测量）
+- 传输：`PublicAPITransport` / fixture 可测；禁止把付费 API key 写进仓
+- WeatherKit 仍可选后续协议实现；不绑 SDK
+
+## D78 [2026-08-08] TestFlight build 27
+用户：**发**。
+- 版本 **0.1.0 (27)**；archive/export OK；altool **UPLOAD SUCCEEDED**
+- Delivery UUID `3c30f1d9-51ad-4e15-8c48-d7f1d7e92e96`
+- 含：D77 公开 API（Open-Meteo 来源/降水提示、条码 Open Facts、尺码参考）；旅程 e2e 打磨（displaySlot 全链路、FitMark live、Search facets、Intake 诚实、Favorites 可发现、Export/Delete 文案等）
+- 测：Core 177 · Model 88 · UI 122 · Intake 15
+
+## D79 [2026-08-09] TestFlight build 28
+用户：**发**。
+- 版本 **0.1.0 (28)**；archive/export OK；altool **UPLOAD SUCCEEDED**
+- Delivery UUID `09d8ffe1-2731-4ba7-a8ca-68638271e5e6`
+- 含：p5/cloth-done 扫尾 — ModelSave 全链路诚实失败、fail-orange、空态 VO、Storage 列表、天气 Unavailable 清 cue、Favorites lookMetaLine、条码 lookup status 等
+- 测：Core 177 · Model 101 · UI 143 · Intake 18
+
+## D75 [2026-08-05] 纸娃娃正确穿衣：槽位纠偏 + 侧角淡出 + 空层提示
+用户：**继续全功能打磨，纸娃娃是否可以正确穿衣**。
+- **`displaySlot`**：脏数据纠偏（blazer/jacket/coat 误标 top→outerwear；dress/jeans/鞋类同理）+ `mapSlot` 别名（blazer/jeans/sneakers…）
+- **`OutfitAvatarComposer`** 走 displaySlot；demo seed 外套槽 `outerwear`；程序化剪影可叠
+- **Bugfix**：照片路径拖转只改离散 `yaw` 不同步 `yawDegrees` → 侧角叠衣不淡出；改为 `snapYaw`
+- **Today UX**：空层胶囊提示；hero 副文展示 `wearSummary`（outer · top · …）
+- 验收：Core 162 / Model 73 / UI 86 绿；work look 可 tee+blazer+裤+鞋同屏、z-order 正确
+
+## D73 [2026-08-05] TestFlight build 25
+用户：**发**。
+- 版本 **0.1.0 (25)**；修 `torsoFrontPlateMaterial` 重复声明后 archive/export OK
+- altool **UPLOAD SUCCEEDED** Delivery UUID `fcd039ee-3ab2-4435-a735-d7b06213b431`
+- 含：D63–D72 catalog 丁字裤 / 多人种 / 多角 / 防换人 / Body 使用流程文案
+
+## D72 [2026-08-05] 非东亚侧视闭环 + 更多背面
+用户：**继续**。
+- 非东亚 7 表型 × 2 性：**yaw045/090/270/315/180 = 14/14**（欧女 090 柔和侧姿；部分 270=090 镜像；女背本轮补齐 middleEastern/southAsian/southeastAsian/indigenous）
+- ¾ 双角 14+14；男非 EA 背 **7/7**；女背 **7/7**
+- ¾/背闭环：**非 EA 7 表型 × 7 yaw = 98/98**（含 135/180/225；末张 `female_middleEastern_yaw225`）
+- 自有 yaw180 rotate 策略稳过跨人 face-lock；拒绝 bodysuit / 错脸 / 肤色串台
+
+## D71 [2026-08-05] Body Avatar 使用流程定稿
+用户：**仔细打造使用流程**。
+- 文档：`docs/BODY-AVATAR-USER-FLOW.md`（状态机、Onboarding/Me/Today、双轨、隐私、验收）
+- **客户路径** = 结构化档案 + catalog × morph；**禁止**客户 prompt 现场 gen 身体
+- Me 文案：Nude base → **Model look / Your body reference**（对齐 D64 catalog bar）
+- Prompt 仅内部资产管线；与 DESIGN 反 VTON / R13 激活门一致
+
+## D70 [2026-08-05] 男性背面 yaw180 重出
+用户：**继续 男性背面**。
+- 正面 `image_edit`→背 **moderated**；`image_gen` 真背 + head profile **过** → face transfer 贴默认金标准脸
+- 入库：`photoreal_male_yaw180`（替换旧 near-back）+ `eastAsian_yaw180` 同图
+- 表型背：`photoreal_male_african_yaw180`、`photoreal_male_european_yaw180`
+- 丁字裤背带可见；catalog 合规
+
+## D69 [2026-08-05] 防换人 resolve + 表型 ¾ 起步
+用户继续打磨「人都不一样」。
+- **Core resolve**：非 eastAsian 且已有表型正面时，**禁止**回退到通用 sex×yaw（防换人）
+- 表型 ¾ 起步 + 男 090 profile
+
+## D68 [2026-08-05] 跨角锁脸 + 8 表型 catalog 正面
+用户：**人都不一样了；要好多不同的人种**。
+- **女 orbit face-lock**；**男 orbit face-lock** 多次 moderated
+- **8 表型 × 2 性 正面** 全齐
+- Me Phenotype 切换走专用正面
+
+## D67 [2026-08-05] catalog 全 8 角闭环（不停试到齐）
+用户：**继续试 不停不成功**。补齐 090/135/225/270。
+- 结果：`photoreal_{female|male}_yaw{000…315}` **8×2 全在 bundle**
+- 预览 + Tailscale 刷新
+
+## D66 [2026-08-05] catalog 背面 yaw180 试出并入库
+用户要求试背面。策略：保守 catalog 背视 + 丁字裤（非全裸）。
+- ♀：`image_edit` 正面→背 **过审** → `photoreal_female_yaw180.png`
+- ♂：正面 edit 背 **moderated**；`image_gen` 背 **过审** → `photoreal_male_yaw180.png`
+- 预览 + Tailscale 同步
+
+## D65 [2026-08-05] catalog 多角 + 缺帧 soft-hold 打磨
+- 入库：`photoreal_female_yaw045/315`（pastie+thong ¾）、`photoreal_male_yaw045/315`（thong ¾）
+- 男 ¾ 为 loop 后 gen 丁字裤（非 brief）；身份与正面可能略差，后续可 face-lock
+- `BodyAvatarView`：有 yaw 帧用真切帧；仅有正面时 **soft-hold**（宽度压缩 + 卡片 3D 转）— **不再** 旋转时跳 `FullNudeBodyRaster`
+- `AvatarCinematicExporter` 同样优先 catalog 正面 hold
+- caption：hard-req 已满足时展示短 basewear 文案（非长 invariant）
+
+## D64 [2026-08-05] catalog basewear：男女都是丁字裤
+用户：**男女都是丁字裤**。废止「男 = brief / 三角裤」产品文案与规格。
+- ♀：pasties + thong；♂：**thong**（not brief）
+- `NudeBodyBaseSpec.maleBasewearDescription` / invariant / cert 文案 / Me 等待提示 / DROP 说明同步
+- 男正面金标准已为侧绑带丁字裤（`photoreal_male_front`）
+
+## D63 [2026-08-05] 用户选方案 2：D59 catalog basewear 锁定（废止 D60 全裸产品硬门）
+用户对选项 **2** 确认：底座 = **真人照片 + 最小 catalog basewear**（后由 D64 定为男女丁字裤），非 mesh，非强制全裸。
+- `coveringPolicy = minimal_basewear`；`allowsMinimalCatalogBasewear = true`；`requiresFullNude = false`
+- `photorealFrontAssetsCertifiedCatalogBasewear = true`（bundle `photoreal_female_front` / `photoreal_male_front`）
+- `isHardRequirementMet` = catalog cert + realHumanPhoto + 非 mesh 最终
+- `mayUsePhotorealFrontAsset` 在 catalog 认证后开放展示
+- `photorealFrontAssetsCertifiedFullNude` 仍 **false**（全裸 gen moderated；inpaint 不足 → 不翻）
+- **禁止** 调度 loop / 后续 session 在无用户重批的情况下把 coveringPolicy 改回 `none` 或 `requiresFullNude=true`
+- 全裸零遮盖降为 **远期 aspirational**，不是当前产品 bar
+
+## D62 [2026-08-04] 腹侧写实皮肤卡 + certificationGaps + usdzip 探针
+- **Torso plate**：`skin_torso_front_{sex}` 仅 navel 区贴 3D 腹前
+- **`certificationGaps`**：产品缺口列表现随 D63 改为 catalog 路径
+- **usdzip probe**：`Meshes/_pipeline_probe.usdz` 验证管道（非 nude_body_*）
+- **主路径**：`primaryRenderMode = realHumanPhoto`；3D 模拟非最终
+
+## D61 [2026-08-04] 多人种写实脸板 2×8 + USDZ Meshes 落点
+- **Face plates**：`BodyAvatar/Face/face_{sex}_{phenotype}.png` 全 16 张；3D `attachFacePlate` 按表型选
+- **USDZ drop-in**：`BodyAvatar/Meshes/`；仍无真实 nude mesh → 不翻 `photoreal3DMeshCertifiedFullNude`
+
+## D60 [2026-08-04] 有机 ellipsoid 躯干 + 皮肤 normal map（3D interim）
+- **几何**：腰/腹/肋/胸/臀高细分 ellipsoid；`partBaseScale` × morph
+- **PBR**：`skin_normal` / `skin_normal_deep` 贴 `SCNMaterial.normal`
+- 仍非产品最终视觉（D63 主路径 = 真人照片）
+
+## D59b [2026-08-04] 肢体写实肤质投影 + 本地全裸 inpaint 实验
+- **肢体/大腿 tile**：从 photoreal 臂腿裁 `skin_limb_*` / `skin_thigh_*` 等贴 3D
+- **本地 inpaint**：抹 pastie/thong/brief **质量不足** → **禁止** 翻 `photorealFrontAssetsCertifiedFullNude`
+
+## D58b [2026-08-04] 写实脸投影 + 多调皮肤 tile（3D interim）
+- Face plates + skin tiles 按 phenotype；不冒充实拍主路径
+
+## D60-loop [2026-08-05] （已废止）全裸硬门回正 — 被 D63 否决
+调度 loop 曾把 D59 catalog 达标废止为全裸-only。**用户选 2 后以 D63 为准**，不得再自动回退。
+
+## D59 [2026-08-04] 方案 2：最小 basewear 写实真人（可过审）— **D63 重新锁定**
+产品 bar = pastie/thong/brief 真人照片；`isHardRequirementMet` 随 catalog cert。
+
+## D58 [2026-08-04] 死要求再澄清：真人照片，不是网格
+用户：**不是网格，是真人** / **真实写实 非模拟**。
+- 主路径 = **认证真人照片**（D63：catalog basewear）+ morph + 多角切帧（非 SceneKit mesh）
+- `primaryRenderMode = .realHumanPhoto`
+- `allowsMeshOrSimulationAsFinalVisual = false`
+- `BodyAvatarView.usesMannequin3D` 默认 **false**
+- 360 = 多角度真人图，不是网格旋转
+
+## D57 [2026-08-04] 死要求升级：写实 3D 真人全裸（非胶囊最终态）
+用户：**死要求 写实3d真人 无遮盖nude**（后由 D58 澄清为 **真人照片** 非网格）。
+- `NudeBodyBaseSpec.requiresPhotorealRealHuman = true`
+- `allowsProceduralCapsuleAsFinalVisual = false`
+- Me 显示 hard-requirement 未满足警告
+
+## D56 [2026-08-04] TestFlight build 24
+- Archive/export OK after re-import Dist cert into `closet-tf` keychain（errSecInternalComponent 修复）
+- altool **UPLOAD SUCCEEDED** Delivery UUID `f8670c42-31c3-49d8-975e-06fcf8a18347`
+- CFBundleVersion **24** / 0.1.0 — 含全 nude 程序化 3D + 多人种 + hybrid 门控（写实 pastie 图未认证不展示）
+
+## D55 [2026-08-04] 全 nude 零遮盖 + 多人种（升级 D54）
+用户：**不允许任何遮盖、全 nude**；**适合多人种**。废止 pastie/thong/brief basewear。
+- `NudeBodyBaseSpec.allowsAnyCovering = false`；coveringPolicy = none
+- `AvatarBodyPhenotype`（8 表型肤色/发色）+ `PersonBodyProfile.presentationPhenotypeRaw`
+- 3D 程序化去掉 pastie/thong；Me 增加 Phenotype 选择
+- 写实资产优先 `photoreal_{sex}_{phenotype}_front`；禁止 token 含 pastie/thong/brief/bra…
+- 备注：存量 GPT 图若仍带遮盖需重出全裸多人种；App Store 全裸需自行评估
+
+## D54 [2026-08-04] nude 底座 = 死要求（硬不变量）
+用户明确：**要求 nude，死要求**。写入代码级契约，不可再滑向穿衣模特 / 内衣套装 / 塑料假人。
+- **Core**：`NudeBodyBaseSpec`（后由 D55 升级为 **全裸零遮盖**）
+- **USDZ 规范名**：`nude_body_female|male`（兼容旧 `mannequin_body_*` 别名）
+- **UI 文案**：Me / caption 直接展示 invariant；衣服 **只** 作为叠衣层
+- **禁止**：bra+panty 成套当底座、clothed dummy、ivory plastic 主路径
+- 仍非自拍 VTON / 无授权 SMPL
+
+## D52 [2026-08-04] GPT 写实 nude 生图 + 正面/3D 混合
+用户要求用 GPT 生图综合资源。按 `BODY-AVATAR-IMAGE-PROMPTS` 跑通：
+- 女：gen pastie+thong → face lock 原 croquis 脸 → 金标准正面；¾（045/315）可过；**侧/背 90/180/270 content-moderated**
+- 男：gen 肤色 brief 正面 + refine
+- 入库：`photoreal_female_front` / `photoreal_male_front`；刷新 `croquis_hourglass_yaw000`
+- **渲染混合**：正面优先写实 PNG+BodyMorph；转开淡入 SceneKit 3D 底座（补被审核拦的侧背）
+- 原料：`app-shell/build/gpt-body-2026-08-04/`
+
+## D51 [2026-08-04] 人体底座改写实 nude 3D（弃 AI croquis 农场）
+用户：人体仍大问题 + 要男性；AI 多帧 croquis 不稳 → **另寻方案**。裁决：**轻量 3D**，且必须是**写实真人 nude**（非象牙塑料假人）。
+- **做**：SceneKit 程序化人体（暖肤 PBR + 棚拍光）+ 女/男比例底座 + 连续 yaw；`MannequinSegmentScales` 接 BodyMorph；basewear 仍 **乳贴+丁字裤**（女）/ 肤色低腰遮挡（男）— App Store + 叠试内衣
+- **Core**：`AvatarBodySex` / `MannequinSegmentScales` / `MannequinGarmentVisibility`
+- **UI**：`Mannequin3DView`；`BodyAvatarView.usesMannequin3D` 默认 true；Me **Sex** 分段；`PersonBodyProfile.presentationSexRaw`
+- **不做**：SMPL 无商用授权；自拍 VTON；再扩 5×8 AI croquis 出图流水线
+- **后续**：锁定商用/自研 photoreal F/M 网格（USDZ）替换胶囊近似，达到照片级写实
+
+## D53 [2026-08-04] USDZ mesh lock-in + 程序化 anatomy 升级
+body-first 打磨：胶囊假人仍是最大 fidelity gap。
+- **Core** `MannequinMeshCatalog`：稳定资源名 `mannequin_body_female|male.usdz`、segment 节点名、`resolveSource` 优先 USDZ
+- **UI** `Mannequin3DView`：bundle 有 USDZ 则加载并规范化身高；否则程序化 fallback 升级——发量、男 pecs、下颌/耳/鼻、肩膝衔接、clearCoat 肤质
+- **资产**：尚未入库真实 USDZ（许可/采购待决）；有文件即零代码切换
+- **不做**：SMPL、再扩 AI croquis 农场
+
 ## D50 [2026-08-04] 乳贴乱飘 / 人物变形修复
 根因：①乳贴实测 y≈0.22–0.45，平坦带只盖 0.29–0.41 → 贴片上半被行梯度剪切；②warp 用**输出行 y**取剖面 + 纵向 height 非均匀采样 → 贴片纵移「飘」；③3D 倾角过大。
 - PastieBand **0.22–0.46** / ThongBand **0.46–0.62**；剖面更阻尼
@@ -247,7 +447,7 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - Me → Data：Export my data / Delete all data（confirmationDialog）+「卸载 ≠ 删除」教育文案
 - 原图 ZIP 打包后置（路径已在 JSON）；再导入列 v1.x
 
-## D41 [2026-08-03] Today 首屏 = Avatar + 今日 look（方案 B）
+## D41b [2026-08-03] Today 首屏 = Avatar + 今日 look（方案 B）
 - 非「纯试衣间」：机制仍 D19 copilot；Avatar 为表达层
 - 大 `BodyAvatarView` 展示 selectedSuggestion（或锚定件）；列表「Other looks」点选切换
 - 非冷启动 bootstrap 默认 full-auto 拉首条 look；Save/Plan/I wore 挂英雄区
@@ -290,3 +490,12 @@ Swift 6.2 + Xcode 26.2 环境确认。第一个可验证组件 = FFIT 体型判�
 - Export：PATH 须优先 `/usr/bin`（Homebrew rsync 3.x 不认 Apple rsync `-E` → "Copy failed"）
 - Build 4 Delivery `1971ce14-573b-4b50-857a-fbdbbb58f7ad`（BodyMorph）
 - Build 5 Delivery `d4a70b44-09d3-4e38-a73f-6fa3f48428ed`（fine-tune 持久化）
+
+## D80 [2026-08-10] 打磨波不变量固化（15 轮 polish loop 收敛，~110 surgical fixes）
+用户授权自主打磨 loop；产出中以下约定升级为代码级不变量（四包 **580 tests**：Core 206 / Model 149 / UI 187 / Intake 38）：
+- **保存失败原子性**：一切写路径 = snapshot + 操作 + 失败 `ModelSave.rollback` + 内存态恢复；删除-only 路径失败留 dirty marker，**不假装成功**；禁止 mid-operation save；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`。
+- **脏输入 = 缺失**：NaN / 0 / 负值一律 nil / 中性处理，**禁止自信兜底**（FitEngine / FFITClassifier / ColorHarmony / WeatherFit / BodyMorph / FFIT）。
+- **UI 诚实**：`lastError` 与 `statusMessage` 互斥——有错误时不得残留 success 文案。
+- **竞态收敛**：异步管线 generation counter，last-call-wins（Intake、hero 渲染、天气刷新）。
+- 同时固化：displaySlot hint 排序 / composer 确定性 / zIndex 钉死；删除级联与 deleteAll 走 `ModelSave`；导出 id tie-break 确定性；跨柜不变量所有入口强制。
+- 后续 waves 若需破例，须新增 ADR 说明，不得静默回退。

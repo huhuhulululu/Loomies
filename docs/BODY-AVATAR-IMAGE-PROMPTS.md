@@ -1,25 +1,33 @@
 # Body Avatar 出图 Prompt 手册（精修复用）
 
-> 2026-08-03 实战沉淀。底图路径：`Packages/ClosetUI/Sources/ClosetUI/Resources/BodyAvatar/croquis_{shape}_yaw{000…315}.png`  
-> 产品硬约束：**同一模特脸** + **仅乳贴 + 丁字裤**（可遮私密部位，叠试内衣用）。
+> 2026-08-03 实战沉淀；**D64（2026-08-05）**：catalog basewear = 男女皆丁字裤。  
+> 底图路径：`Packages/ClosetUI/Sources/ClosetUI/Resources/BodyAvatar/`  
+> 产品硬约束：**真人照片** + **最小 catalog basewear**  
+> - ♀：pasties + thong  
+> - ♂：**thin nude thong**（**不是** brief / boxer / 三角裤）
 
 ---
 
 ## 成功路径总览（务必按序）
 
 ```
-① image_gen 先出「乳贴+丁字裤」全身（可过审核）
+① image_gen 先出「catalog basewear」全身（可过审核）
+   ♀ pastie+thong · ♂ thin nude thong
 ② multi-image edit：体态/装来自①，脸来自原 croquis 模特 → 身份锁
 ③ 以②为唯一金标准，只 edit 不 gen 新人
 ④ 改体型 / 改角度 / 精修 全部 identity lock 在②
 ```
 
 **禁止**：身份锁定后对全身再跑裸 `image_gen`（会换脸）。  
-**禁止**：大面积 OpenCV soft_rect 抹内衣（糊斑、毁图）。
+**禁止**：大面积 OpenCV soft_rect 抹内衣（糊斑、毁图）。  
+**禁止**：把男 basewear 写成 brief（D64）。  
+**禁止**：无用户重批把 coveringPolicy 改回 none / requiresFullNude=true。
 
 ---
 
-## 1. 全身 basewear（乳贴 + 丁字裤）— `image_gen` 可过
+## 1. 全身 basewear — `image_gen` 可过
+
+### 1a. 女（pasties + thong）
 
 ```text
 Full-length fashion catalog photo of an East Asian adult woman standing facing camera on soft gray seamless studio background, bare feet, photoreal e-commerce lighting. She wears only matte skin-tone adhesive nipple pasties and a thin nude thong covering private areas. Clean product base for lingerie layering, tasteful non-explicit catalog style.
@@ -27,6 +35,17 @@ Full-length fashion catalog photo of an East Asian adult woman standing facing c
 
 - `aspect_ratio`: `2:3`
 - 用途：第一次拿到合规 pastie+thong 体态（可能是新人脸，下一步锁脸）
+
+### 1b. 男（thin nude thong — D64）
+
+```text
+Full-length fashion catalog photo of an East Asian adult man standing facing camera on soft gray seamless studio background, bare feet, photoreal e-commerce lighting. Athletic lean build, short black hair, neutral expression. He wears only a thin skin-tone nude male thong (minimal front coverage with thin side strings, not briefs, not boxers, not swim trunks). Clean product base for underwear layering demo, tasteful non-explicit catalog style, soft natural skin texture, sharp full-body e-commerce photo.
+```
+
+- `aspect_ratio`: `2:3`
+- 用途：男 catalog 金标准正面；写入 `photoreal_male_front.png`（+ eastAsian / yaw000 镜像）
+- 实测：对存量 brief 图做 `image_edit` 改 thong 常 **content-moderated** → 优先 **重新 image_gen** 再锁脸
+- 多角：identity lock 后 rotate ¾；侧/背可能 moderated，保留 staging
 
 ---
 
