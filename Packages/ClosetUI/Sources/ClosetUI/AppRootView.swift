@@ -254,7 +254,7 @@ public struct MeView: View {
         Section("Recent logs") {
             let lines = AppLog.ring.snapshot().suffix(12).reversed()
             if lines.isEmpty {
-                Text("No log lines yet.").font(.caption).foregroundStyle(DS.muted)
+                Text("No log lines yet").font(.caption).foregroundStyle(DS.muted)
             } else {
                 ForEach(Array(lines.enumerated()), id: \.offset) { _, e in
                     Text(e.lineText)

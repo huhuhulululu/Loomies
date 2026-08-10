@@ -89,9 +89,9 @@ public enum AvatarCinematicExporter {
         /// Short chip copy for Today toast (HIG: concise, actionable).
         public var toastMessage: String {
             switch self {
-            case .noCroquis: return "Preview body failed — try again"
+            case .noCroquis: return "Couldn't preview body — try again"
             case .writerFailed: return "Export failed — free storage & retry"
-            case .encodeFailed: return "Export failed — try again"
+            case .encodeFailed: return "Couldn't export preview — try again"
             }
         }
     }

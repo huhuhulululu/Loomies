@@ -81,7 +81,7 @@ public final class ItemDetailViewModel {
     /// Customer toast when DeleteService fails (no silent dismiss; keeps image).
     /// Same string as `DeleteError.saveFailed` so Me/detail share one voice.
     public static let deleteFailedMessage =
-        DeleteError.saveFailed.errorDescription ?? "Couldn't delete — try again."
+        DeleteError.saveFailed.errorDescription ?? "Couldn't delete — try again"
 
     public func save(in context: ModelContext) {
         let occ = occasionsText.split(separator: ",")
