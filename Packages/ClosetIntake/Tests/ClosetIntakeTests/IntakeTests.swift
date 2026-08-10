@@ -628,6 +628,30 @@ struct IntakeTests {
         #expect(vm.isProcessing == false)
     }
 
+    /// 空图打断在途处理：代际推进作废旧调用后，空图路径必须自己清 isProcessing——
+    /// 旧调用的 defer 因代际不匹配不会清，否则 UI 永久卡在「Processing…」。
+    @Test func emptyImageDuringInFlightProcessClearsProcessing() async throws {
+        let gate = GatedTaggingService()
+        let vm = IntakeViewModel(
+            matting: MockMattingService(),
+            tagging: gate,
+            productLookup: nil)
+        let inFlight = Task { await vm.process(Data([0x2])) }
+        for _ in 0..<10_000 where !gate.hasEntered {
+            await Task.yield()
+        }
+        #expect(gate.hasEntered)
+        #expect(vm.isProcessing)
+        await vm.process(Data())
+        #expect(vm.isProcessing == false)
+        #expect(vm.lastError != nil)
+        gate.resume()
+        await inFlight.value
+        // 旧调用收尾因代际作废：不落草稿、不复活 processing 标志
+        #expect(vm.isProcessing == false)
+        #expect(vm.draft == nil)
+    }
+
     /// process 完成后再 enrich：不受守卫影响，正常填充（守卫无误伤）。
     @Test func enrichAfterProcessCompletesStillFills() async throws {
         struct FakeLookup: ProductLookupProviding {

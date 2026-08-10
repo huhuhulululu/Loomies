@@ -91,6 +91,18 @@ struct DataLifecycleServiceTests {
         #expect(snap2.items[0].barcode == nil)
     }
 
+    /// 历史脏数据兜底：库里已有非有限 Double（旧版本无守卫时落库）不得把导出永久锁死
+    /// （JSONEncoder 默认 .throw；CCPA 数据可携带性不能因一件脏单品失效）。
+    @Test func exportSurvivesNonFiniteFlatWidthInStore() throws {
+        let ctx = try makeContext()
+        let (_, _, item) = try seedCloset(in: ctx)
+        item.chestFlatWidthInches = .infinity
+        item.waistFlatWidthInches = .nan
+        try ctx.save()
+        let data = try DataLifecycleService.exportJSONData(in: ctx)
+        #expect(!data.isEmpty)
+    }
+
     /// CM-3: avatar presentation preferences must round-trip through full export (not silently dropped).
     @Test func exportRoundTripsPresentationFields() throws {
         let ctx = try makeContext()

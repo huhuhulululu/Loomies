@@ -37,6 +37,14 @@ public enum ItemEditorService {
             AppLog.error("rejected invalid warmthRaw \(w) for \(item.name)", .data)
             return false
         }
+        // 平铺宽来自自由文本 Double 解析（strtod 语义放行 nan/inf/负值）：非有限或
+        // 非正值拒绝——脏值落库会让 JSON 导出（默认 .throw）永久失败，FitMark 也只认 >0。
+        for measure in [patch.chestFlatWidthInches, patch.waistFlatWidthInches] {
+            if let m = measure, !m.isFinite || m <= 0 {
+                AppLog.error("rejected invalid flat width \(m) for \(item.name)", .data)
+                return false
+            }
+        }
         // Snapshot mutated fields: rollback() 只清脏标记不清内存值 → 失败须先还原（ItemStatusService 同款）。
         let oldName = item.name
         let oldSlotRaw = item.slotRaw

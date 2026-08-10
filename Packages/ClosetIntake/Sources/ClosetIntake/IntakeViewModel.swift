@@ -67,6 +67,9 @@ public final class IntakeViewModel {
             // 否则后续条形码草稿 confirm 会误报「照片不会出现在试穿」。
             mattingFailed = false
             lastError = "That photo was empty. Try another shot or enter details manually."
+            // 本分支已推进代际：在途旧调用的 defer 不会再清 isProcessing（代际不匹配），
+            // 必须在此显式复位，否则 UI 永久卡在 Processing。
+            isProcessing = false
             return
         }
         isProcessing = true

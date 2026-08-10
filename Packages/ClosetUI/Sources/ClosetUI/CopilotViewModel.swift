@@ -104,7 +104,13 @@ public final class CopilotViewModel {
         AppLog.debug("anchors cleared", .copilot)
     }
 
+    /// 在途天气请求代际号：bootstrap 与城市变更可并发调 applyWeather（两次 HTTP 耗时
+    /// 方差大，乱序返回是常态），旧代结果落地会覆盖新代——last-call-wins。
+    private var weatherGeneration = 0
+
     public func applyWeather(_ provider: any WeatherProviding) async {
+        weatherGeneration &+= 1
+        let generation = weatherGeneration
         do {
             let snap: WeatherDaySnapshot
             if let rich = provider as? any WeatherSnapshotProviding {
@@ -114,6 +120,7 @@ public final class CopilotViewModel {
                     forCity: wardrobe.locationCity, on: Date())
                 snap = WeatherDaySnapshot(daytimeTempF: t, sourceLabel: "Weather")
             }
+            guard generation == weatherGeneration else { return }  // 已被更新调用取代
             daytimeTempF = snap.daytimeTempF
             weatherSourceLabel = snap.sourceLabel
             precipProbabilityPercent = snap.precipProbabilityPercent
@@ -121,6 +128,7 @@ public final class CopilotViewModel {
                 "weather \(daytimeTempF)°F src=\(weatherSourceLabel) precip=\(precipProbabilityPercent.map(String.init) ?? "-") city=\(wardrobe.locationCity ?? "-")",
                 .weather)
         } catch {
+            guard generation == weatherGeneration else { return }  // 陈旧失败不得吞新成功
             // Honest source chip — do not leave "—" or stale Open-Meteo after a hard fail.
             // Keep last daytimeTempF for scoring continuity; clear rain cue (unknown).
             weatherSourceLabel = Self.weatherUnavailableSourceLabel

@@ -206,6 +206,66 @@ struct CheckInViewModelTests {
         #expect(coldCity > -20 && coldCity < 90)
     }
 
+    /// 门控天气：daySnapshot 挂起在测试控制的 continuation 上，resume() 后才返回。
+    final class GatedWeather: WeatherSnapshotProviding, @unchecked Sendable {
+        let temp: Double
+        let throwOnResume: Bool
+        private let lock = NSLock()
+        private var cont: CheckedContinuation<Void, Never>?
+        private var entered = false
+        var hasEntered: Bool { lock.lock(); defer { lock.unlock() }; return entered }
+        init(temp: Double, throwOnResume: Bool = false) {
+            self.temp = temp
+            self.throwOnResume = throwOnResume
+        }
+        func daytimeTemperatureF(forCity city: String?, on date: Date) async throws -> Double { temp }
+        func daySnapshot(forCity city: String?, on date: Date) async throws -> WeatherDaySnapshot {
+            await withCheckedContinuation { c in
+                lock.lock(); cont = c; entered = true; lock.unlock()
+            }
+            if throwOnResume { throw URLError(.timedOut) }
+            return WeatherDaySnapshot(
+                daytimeTempF: temp, sourceLabel: "Gated", precipProbabilityPercent: 80)
+        }
+        func resume() {
+            lock.lock(); let c = cont; cont = nil; lock.unlock()
+            c?.resume()
+        }
+    }
+
+    /// 竞态：慢的旧天气请求（bootstrap）完成后不得覆盖已落地的新结果（城市变更）。
+    @Test func staleWeatherResponseDoesNotOverwriteNewer() async throws {
+        let (_, w, _, _) = try setup()
+        let vm = CopilotViewModel(wardrobe: w, daytimeTempF: 70)
+        let slow = GatedWeather(temp: 88)
+        let inFlight = Task { await vm.applyWeather(slow) }
+        for _ in 0..<10_000 where !slow.hasEntered { await Task.yield() }
+        #expect(slow.hasEntered)
+        await vm.applyWeather(FixedWeatherProvider(temperatureF: 45))
+        #expect(vm.daytimeTempF == 45)
+        slow.resume()
+        await inFlight.value
+        // 旧响应作废：温度/来源/降雨全部保持新结果
+        #expect(vm.daytimeTempF == 45)
+        #expect(vm.weatherSourceLabel == "Fixed")
+        #expect(vm.precipProbabilityPercent != 80)
+    }
+
+    /// 竞态：陈旧的失败不得把已成功的新结果改写成 Unavailable（吞掉成功数据）。
+    @Test func staleWeatherFailureDoesNotClobberNewerSuccess() async throws {
+        let (_, w, _, _) = try setup()
+        let vm = CopilotViewModel(wardrobe: w, daytimeTempF: 70)
+        let slowFail = GatedWeather(temp: 0, throwOnResume: true)
+        let inFlight = Task { await vm.applyWeather(slowFail) }
+        for _ in 0..<10_000 where !slowFail.hasEntered { await Task.yield() }
+        #expect(slowFail.hasEntered)
+        await vm.applyWeather(FixedWeatherProvider(temperatureF: 45))
+        slowFail.resume()
+        await inFlight.value
+        #expect(vm.weatherSourceLabel == "Fixed")
+        #expect(vm.daytimeTempF == 45)
+    }
+
     /// Hard provider throw must not leave a silent "—" / stale source (W1 honesty).
     @Test func applyWeatherFailureSurfacesUnavailableSource() async throws {
         struct ThrowingWeather: WeatherProviding {

@@ -236,6 +236,9 @@ public enum DataLifecycleService {
         let snap = try exportSnapshot(in: context, includeBodyDimensions: includeBodyDimensions)
         let enc = JSONEncoder()
         if pretty { enc.outputFormatting = [.prettyPrinted, .sortedKeys] }
+        // 历史脏数据兜底：守卫前落库的 nan/inf 不得把导出永久锁死（默认 .throw 会）。
+        enc.nonConformingFloatEncodingStrategy = .convertToString(
+            positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
         return try enc.encode(snap)
     }
 

@@ -37,14 +37,20 @@ public enum CheckInService {
 
 /// 穿着历史查询：喂 RecommendationService 的防重复（gate #3）。
 public enum WearHistory {
-    /// 截至 asOf 的近 days 天内穿过的单品 id 集合（uuidString）。
+    /// 截至 asOf 的近 days 个日历日（含当天）穿过的单品 id 集合（uuidString）。
+    /// 日粒度而非固定秒数：压制期不随打卡钟点漂移，跨 DST 安全（UI 承诺「de-prioritized 7 days」）。
     public static func recentlyWornItemIDs(
-        within days: Int, asOf date: Date, in context: ModelContext
+        within days: Int, asOf date: Date, in context: ModelContext,
+        calendar: Calendar = .current
     ) -> Set<String> {
-        let cutoff = date.addingTimeInterval(-Double(days) * 86_400)
+        let today = calendar.startOfDay(for: date)
+        guard days > 0,
+              let cutoff = calendar.date(byAdding: .day, value: -(days - 1), to: today),
+              let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)
+        else { return [] }
         let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         var result = Set<String>()
-        for r in records where r.date >= cutoff && r.date <= date {
+        for r in records where r.date >= cutoff && r.date < tomorrow {
             result.formUnion(r.wornItemIDs)
         }
         return result

@@ -106,6 +106,29 @@ struct FeatureGapServicesTests {
         #expect(i.waistFlatWidthInches == nil)
     }
 
+    /// 自由文本 Double 解析会放行 nan/inf/负值（strtod 语义）：服务层必须拒绝，
+    /// 否则脏值落库后 JSON 导出（.throw 策略）永久失败。
+    @Test func itemEditorRejectsNonFiniteOrNonPositiveFlatWidths() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        i.chestFlatWidthInches = 18
+        ctx.insert(i)
+        for bad in [Double.nan, .infinity, -.infinity, -5, 0] {
+            let ok = ItemEditorService.apply(
+                .init(chestFlatWidthInches: bad, replaceFlatWidths: true), to: i, in: ctx)
+            #expect(!ok)
+            #expect(i.chestFlatWidthInches == 18)
+            let okWaist = ItemEditorService.apply(
+                .init(waistFlatWidthInches: bad), to: i, in: ctx)
+            #expect(!okWaist)
+            #expect(i.waistFlatWidthInches == nil)
+        }
+        // 正常值不受守卫误伤
+        #expect(ItemEditorService.apply(
+            .init(chestFlatWidthInches: 19, replaceFlatWidths: true), to: i, in: ctx))
+        #expect(i.chestFlatWidthInches == 19)
+    }
+
     @Test func saveFavoriteFromIDsAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

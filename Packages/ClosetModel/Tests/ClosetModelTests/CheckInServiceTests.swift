@@ -73,6 +73,38 @@ struct CheckInServiceTests {
         #expect(!worn.contains(old.id.uuidString))
     }
 
+    /// 「近 7 天」按日历日算，不是 168 小时滑动窗口：晚间打卡不得比清晨打卡多压制半天。
+    @Test func recentlyWornUsesCalendarDaysNotSlidingHours() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "GMT")!
+        func date(_ y: Int, _ mo: Int, _ d: Int, _ h: Int) -> Date {
+            cal.date(from: DateComponents(year: y, month: mo, day: d, hour: h))!
+        }
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let jeans = mk(ctx, w, "jeans", "bottom")
+        try ctx.save()
+        // 8/3 晚 20:00 打卡
+        CheckInService.recordWear(items: [jeans], on: date(2026, 8, 3, 20), in: w, in: ctx)
+        // 第 7 个日历日（8/9）早上 → 仍压制
+        let day7 = WearHistory.recentlyWornItemIDs(within: 7, asOf: date(2026, 8, 9, 9), in: ctx, calendar: cal)
+        #expect(day7.contains(jeans.id.uuidString))
+        // 第 8 个日历日（8/10）早上 → 解除；旧实现按 168h 算在此仍压制（9:00 < 20:00）
+        let day8 = WearHistory.recentlyWornItemIDs(within: 7, asOf: date(2026, 8, 10, 9), in: ctx, calendar: cal)
+        #expect(!day8.contains(jeans.id.uuidString))
+    }
+
+    /// 非法窗口不得放大为全量压制。
+    @Test func recentlyWornWithNonPositiveDaysIsEmpty() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let top = mk(ctx, w, "top", "top")
+        try ctx.save()
+        CheckInService.recordWear(items: [top], on: today, in: w, in: ctx)
+        #expect(WearHistory.recentlyWornItemIDs(within: 0, asOf: today, in: ctx).isEmpty)
+        #expect(WearHistory.recentlyWornItemIDs(within: -3, asOf: today, in: ctx).isEmpty)
+    }
+
     /// 闭环：打卡 → 穿着历史 → 推荐防重复。
     @Test func closedLoopSuppressesRecentlyWorn() throws {
         let ctx = try makeContext()
