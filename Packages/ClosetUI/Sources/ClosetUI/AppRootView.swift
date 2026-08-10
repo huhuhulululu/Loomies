@@ -646,12 +646,23 @@ public struct ClosetGridView: View {
     }
 
     private var searchEmptyState: some View {
-        ContentUnavailableView {
-            Label(
-                searchVM.emptyStateTitle,
-                systemImage: searchVM.isFiltering ? "magnifyingglass" : "square.grid.2x2")
-        } description: {
-            Text(searchVM.emptyStateDescription)
+        let title = searchVM.emptyStateTitle
+        let description = searchVM.emptyStateDescription
+        return ContentUnavailableView {
+            // A11Y: .combine only on the text column — the action
+            // buttons stay separate, activatable VoiceOver targets
+            // (same fix class as the empty-grid state above).
+            VStack(spacing: 8) {
+                Label(
+                    title,
+                    systemImage: searchVM.isFiltering ? "magnifyingglass" : "square.grid.2x2")
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title). \(description)")
         } actions: {
             if searchVM.isFiltering {
                 Button("Clear search") {
@@ -667,8 +678,6 @@ public struct ClosetGridView: View {
                     .tint(DS.accent)
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(searchVM.emptyStateTitle). \(searchVM.emptyStateDescription)")
     }
 
     private func searchSlotChip(_ slot: String?, title: String) -> some View {

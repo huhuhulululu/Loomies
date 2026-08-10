@@ -45,16 +45,23 @@ public struct CalendarView: View {
                 if filteredPlans.isEmpty {
                     let title = CalendarEmptyCopy.title(attentionOnly: showAttentionOnly)
                     ContentUnavailableView {
-                        Label(title, systemImage: "calendar")
-                    } description: {
-                        Text(CalendarEmptyCopy.description)
+                        // A11Y: .combine only on the text column — the action
+                        // button stays a separate, activatable VoiceOver target
+                        // (same fix class as the empty-grid state).
+                        VStack(spacing: 8) {
+                            Label(title, systemImage: "calendar")
+                            Text(CalendarEmptyCopy.description)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(title). \(CalendarEmptyCopy.description)")
                     } actions: {
                         Button("Plan a favorite") { reloadFavorites(); showPlanPicker = true }
                             .buttonStyle(.borderedProminent).tint(DS.accent)
                             .accessibilityHint("Opens favorites to schedule a look")
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(title). \(CalendarEmptyCopy.description)")
                 } else {
                     List {
                         ForEach(filteredPlans, id: \.id) { plan in
