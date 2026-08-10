@@ -31,7 +31,9 @@ public enum AvatarCinematicLookbook {
 }
 
 /// 约 2s 电影感预览：yaw 切帧 + 背景视差 → HEVC/H.264 MP4（分享用，非主 UI）。
-@MainActor
+/// **非 MainActor**：48 帧 CoreGraphics 合成 + AVAssetWriter 编码约 1-3s，
+/// 钉主线程会冻结滚动/按钮/ProgressView——nonisolated async 在协作池执行，
+/// 依赖均线程安全（BodyAvatarImageCache 锁保护、FullNudeBodyRaster/ItemImageStore nonisolated）。
 public enum AvatarCinematicExporter {
     public struct Request: Sendable {
         public var shape: PopularShape
@@ -316,9 +318,10 @@ public enum AvatarCinematicExporter {
         yaw: BodyAvatarYaw
     ) -> CGImage? {
         // 认证 catalog 真人多角切帧；缺 yaw 帧时 hold 正面（保持真人身份，不跳程序化栅格）
+        // 直连线程安全缓存（BodyAvatarView.bundleResourceURL 是 MainActor 隔离的 View 成员）
         let available: (String) -> Bool = {
             NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
-                && BodyAvatarView.bundleResourceURL(named: $0) != nil
+                && BodyAvatarImageCache.shared.resourceURL(named: $0) != nil
         }
         if let name = BodyAvatarAsset.resolvePhotorealFrameName(
             sex: request.bodySex,
@@ -348,7 +351,7 @@ public enum AvatarCinematicExporter {
     }
 
     private static func loadCGImage(named name: String) -> CGImage? {
-        guard let url = BodyAvatarView.bundleResourceURL(named: name),
+        guard let url = BodyAvatarImageCache.shared.resourceURL(named: name),
               let data = try? Data(contentsOf: url) else { return nil }
         return cgImage(from: data)
     }

@@ -39,6 +39,8 @@ public struct BodyAvatarView: View {
     @State private var yawDegrees: Double = 0
     @State private var dragOriginDegrees: Double?
     @StateObject private var depthMotion = DepthParallaxMotion()
+    /// onChange(reduceMotion) 的可见性守卫：离屏视图树不得重启传感器。
+    @State private var isOnScreen = false
     /// 拖拽附加的视差（与 360 水平切帧并存）
     @State private var dragParallax = DepthParallaxSample()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -191,12 +193,18 @@ public struct BodyAvatarView: View {
         .onAppear {
             // Cache key is versioned (v3); do NOT clear on every appear —
             // hero + Other looks + Favorites would thrash warp and feel janky.
+            isOnScreen = true
             if resolvedDepth != .off, !reduceMotion { depthMotion.start() }
         }
-        .onDisappear { depthMotion.stop() }
+        .onDisappear {
+            isOnScreen = false
+            depthMotion.stop()
+        }
         .onChange(of: reduceMotion) { _, reduced in
+            // 可见性守卫：TabView 保留离屏视图树，disappear 后收到 reduceMotion
+            // 变化不得重启传感器（否则无 onDisappear 配对，30Hz 永转耗电）。
             if reduced { depthMotion.stop() }
-            else if resolvedDepth != .off { depthMotion.start() }
+            else if isOnScreen, resolvedDepth != .off { depthMotion.start() }
         }
     }
 

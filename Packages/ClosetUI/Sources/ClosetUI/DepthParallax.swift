@@ -103,32 +103,84 @@ public struct DepthParallaxSample: Equatable, Sendable {
     }
 }
 
-/// iOS 设备姿态 → 视差；macOS/测试为静止 0。
+/// 进程级共享设备姿态源（Apple 明文：全 App 只建**一个** `CMMotionManager` 实例，
+/// 多实例互相干扰采样率）。引用计数：首个客户端 attach 启动传感器，最后一个
+/// detach（或弱引用清空自愈）停止——列表 N 个 avatar 不再各起一个 manager。
 @MainActor
-final class DepthParallaxMotion: ObservableObject {
-    @Published private(set) var attitude = DepthParallaxSample()
+final class SharedDeviceMotion {
+    static let shared = SharedDeviceMotion()
 
     #if canImport(CoreMotion) && os(iOS)
     private let manager = CMMotionManager()
     #endif
+    private struct Client {
+        weak var owner: AnyObject?
+        let fire: (DepthParallaxSample) -> Void
+    }
+    private var clients: [ObjectIdentifier: Client] = [:]
 
-    func start() {
+    var clientCount: Int { clients.count }
+
+    func attach(_ owner: AnyObject, handler: @escaping (DepthParallaxSample) -> Void) {
+        let wasEmpty = clients.isEmpty
+        clients[ObjectIdentifier(owner)] = Client(owner: owner, fire: handler)
+        guard wasEmpty else { return }
         #if canImport(CoreMotion) && os(iOS)
         guard manager.isDeviceMotionAvailable else { return }
         manager.deviceMotionUpdateInterval = 1.0 / 30.0
         manager.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
             guard let data, let self else { return }
-            self.attitude = .fromAttitude(
+            self.broadcast(.fromAttitude(
                 roll: data.attitude.roll,
-                pitch: data.attitude.pitch)
+                pitch: data.attitude.pitch))
         }
         #endif
     }
 
-    func stop() {
+    func detach(_ owner: AnyObject) {
+        clients.removeValue(forKey: ObjectIdentifier(owner))
+        stopIfIdle()
+    }
+
+    private func broadcast(_ sample: DepthParallaxSample) {
+        // 弱引用自愈：owner 已释放（漏配对 stop）的条目剔除，不让传感器永转。
+        clients = clients.filter { $0.value.owner != nil }
+        guard !clients.isEmpty else { stopIfIdle(); return }
+        for c in clients.values { c.fire(sample) }
+    }
+
+    private func stopIfIdle() {
+        guard clients.isEmpty else { return }
         #if canImport(CoreMotion) && os(iOS)
         manager.stopDeviceMotionUpdates()
         #endif
+    }
+}
+
+/// iOS 设备姿态 → 视差；macOS/测试为静止 0。薄壳：委托进程级 `SharedDeviceMotion`，
+/// start/stop 幂等（onAppear + onChange 双 start 不重复计数）。
+@MainActor
+final class DepthParallaxMotion: ObservableObject {
+    @Published private(set) var attitude = DepthParallaxSample()
+    private let sharedMotion: SharedDeviceMotion
+    private var isActive = false
+
+    init(sharedMotion: SharedDeviceMotion = .shared) {
+        self.sharedMotion = sharedMotion
+    }
+
+    func start() {
+        guard !isActive else { return }
+        isActive = true
+        sharedMotion.attach(self) { [weak self] sample in
+            self?.attitude = sample
+        }
+    }
+
+    func stop() {
+        guard isActive else { return }
+        isActive = false
+        sharedMotion.detach(self)
         attitude = DepthParallaxSample()
     }
 }

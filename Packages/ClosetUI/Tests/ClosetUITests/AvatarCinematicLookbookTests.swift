@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import CoreGraphics
 import ClosetCore
 @testable import ClosetUI
@@ -30,6 +31,21 @@ struct AvatarCinematicLookbookTests {
         }
         #expect(yaws.contains(.deg180))
         #expect(yaws.contains(.deg90))
+    }
+
+    /// 导出全链回归（此前无直测）：在非 MainActor 上下文跑完整 writer 管线，
+    /// 产出非空 MP4——锁定「编码可离主线程执行」的重构不破功能。
+    @Test func exportMP4ProducesNonEmptyFileOffMainActor() async throws {
+        let req = AvatarCinematicExporter.Request(
+            shape: .rectangle, width: 96, height: 144, duration: 0.2, fps: 8)
+        let url = try await Task.detached(priority: .userInitiated) {
+            try await AvatarCinematicExporter.exportMP4(req)
+        }.value
+        defer { try? FileManager.default.removeItem(at: url) }
+        let size = (try FileManager.default
+            .attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        #expect(size > 0)
+        #expect(url.pathExtension == "mp4")
     }
 
     @Test func exportErrorsHaveActionableCopy() {

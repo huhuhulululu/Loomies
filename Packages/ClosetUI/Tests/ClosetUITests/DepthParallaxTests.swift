@@ -2,6 +2,39 @@ import Testing
 import CoreGraphics
 @testable import ClosetUI
 
+/// 进程级共享 motion（Apple 明文全 App 单 CMMotionManager 实例）：
+/// 引用计数启停 + 客户端幂等，列表 N 个 avatar 不再各起一个传感器。
+@Suite("SharedDeviceMotion")
+@MainActor
+struct SharedDeviceMotionTests {
+    @Test func refCountsClientsAndIsIdempotentPerClient() {
+        let shared = SharedDeviceMotion()   // 测试用独立实例（不打 .shared 全局态）
+        let a = DepthParallaxMotion(sharedMotion: shared)
+        let b = DepthParallaxMotion(sharedMotion: shared)
+        #expect(shared.clientCount == 0)
+        a.start()
+        #expect(shared.clientCount == 1)
+        a.start()   // 幂等：onAppear + onChange 双 start 不重复计数
+        #expect(shared.clientCount == 1)
+        b.start()
+        #expect(shared.clientCount == 2)
+        a.stop()
+        #expect(shared.clientCount == 1)
+        a.stop()    // 幂等：重复 stop 不下穿
+        #expect(shared.clientCount == 1)
+        b.stop()
+        #expect(shared.clientCount == 0)
+    }
+
+    @Test func stopResetsAttitudeToNeutral() {
+        let shared = SharedDeviceMotion()
+        let m = DepthParallaxMotion(sharedMotion: shared)
+        m.start()
+        m.stop()
+        #expect(m.attitude.x == 0 && m.attitude.y == 0)
+    }
+}
+
 @Suite("DepthParallax")
 struct DepthParallaxTests {
     @Test func clampKeepsUnitRange() {
