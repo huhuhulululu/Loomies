@@ -247,30 +247,44 @@ struct BodyMorphImageView: View {
     }
 }
 
-/// 简单内存缓存，避免滑杆每帧全图 rewarp。
+/// 内存缓存，避免滑杆每帧全图 rewarp。
+/// NSCache 按字节 cost 限额（warp 输出单张 ≈9.8MB，条目限容峰值 ~275MB）、
+/// 近似 LRU（旧「随机半清」当前 yaw 帧 50% 中枪，恰好击穿本缓存的设立目的）；
+/// **miss（资产缺失）也负缓存**——否则缺资产每 tick 重走读盘+解码。
 @MainActor
 final class BodyMorphImageCache {
     static let shared = BodyMorphImageCache()
-    private var map: [String: Image] = [:]
-    private let maxEntries = 28
+
+    final class Box {
+        let image: Image?
+        init(_ image: Image?) { self.image = image }
+    }
+
+    private let cache: NSCache<NSString, Box> = {
+        let c = NSCache<NSString, Box>()
+        c.totalCostLimit = 96 * 1024 * 1024
+        c.countLimit = 64
+        return c
+    }()
+
+    /// 测试探针：render 实际执行次数（验证 miss 也被缓存，不每 tick 重试）。
+    private(set) var renderAttempts = 0
 
     func image(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
         let m = morph.clamped()
         let wKey = Int(width.rounded())
         // v3：乳贴带扩宽 + 无纵向 height warp
         let key = "v3|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
-        if let hit = map[key] { return hit }
-        guard let rendered = render(named: name, morph: m, width: width) else { return nil }
-        if map.count >= maxEntries {
-            // 半清而非全清，保留热点 yaw
-            let drop = map.count / 2
-            for k in map.keys.prefix(drop) { map.removeValue(forKey: k) }
-        }
-        map[key] = rendered
+        if let box = cache.object(forKey: key as NSString) { return box.image }
+        renderAttempts += 1
+        let rendered = render(named: name, morph: m, width: width)
+        let pixelW = max(256, min(1280, width * 2))
+        let cost = rendered == nil ? 1 : Int(pixelW * pixelW * 1.5 * 4)
+        cache.setObject(Box(rendered), forKey: key as NSString, cost: cost)
         return rendered
     }
 
-    func clear() { map.removeAll() }
+    func clear() { cache.removeAllObjects() }
 
     private func fmt(_ v: Double) -> String { String(format: "%.3f", v) }
 

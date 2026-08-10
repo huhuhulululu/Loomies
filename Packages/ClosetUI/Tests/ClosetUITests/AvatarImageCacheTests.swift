@@ -1,0 +1,44 @@
+import Testing
+import SwiftUI
+import Foundation
+@testable import ClosetUI
+
+@Suite("AvatarImageCaches")
+@MainActor
+struct AvatarImageCacheTests {
+
+    /// bundle probe 表有上限：key 域可被数据驱动（资产名来自调用方），
+    /// 每个 miss 永久占一条会把缓存变成泄漏。
+    @Test func resourceProbeTableIsBounded() {
+        let cache = BodyAvatarImageCache()
+        for i in 0..<600 {
+            _ = cache.resourceURL(named: "definitely-missing-\(i)")
+        }
+        #expect(cache.resourceProbeCount <= 512)
+        // 越界清空后仍可正常 probe
+        _ = cache.resourceURL(named: "definitely-missing-after")
+        #expect(cache.resourceProbeCount >= 1)
+    }
+
+    /// 负缓存语义保留：已知失败返回 .some(nil)，从未加载返回 nil。
+    @Test func imageCacheKeepsNegativeSemantics() {
+        let cache = BodyAvatarImageCache()
+        #expect(cache.cachedImage(forKey: "never") == nil)
+        cache.storeImage(nil, forKey: "known-miss")
+        let hit = cache.cachedImage(forKey: "known-miss")
+        #expect(hit != nil)          // 有缓存记录
+        #expect(hit! == nil)         // 记录内容是「失败」
+        cache.storeImage(Image(systemName: "circle"), forKey: "ok", cost: 1024)
+        #expect(cache.cachedImage(forKey: "ok")! != nil)
+    }
+
+    /// morph 缓存对 miss（资产缺失）也要负缓存：缺资产不得每 tick 重走读盘+解码。
+    @Test func morphCacheCachesMisses() {
+        let cache = BodyMorphImageCache()
+        let before = cache.renderAttempts
+        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
+        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
+        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
+        #expect(cache.renderAttempts == before + 1)
+    }
+}

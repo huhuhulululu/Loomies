@@ -818,29 +818,36 @@ public struct BodyAvatarView: View {
             key = "empty|\(layer.id)"
         }
         if let cached = BodyAvatarImageCache.shared.cachedImage(forKey: key) { return cached }
-        let img = loadLayerImage(layer)
-        BodyAvatarImageCache.shared.storeImage(img, forKey: key)
+        let (img, cost) = loadLayerImage(layer)
+        BodyAvatarImageCache.shared.storeImage(img, forKey: key, cost: cost)
         return img
     }
 
-    private static func loadLayerImage(_ layer: BodyAvatarLayer) -> Image? {
+    private static func loadLayerImage(_ layer: BodyAvatarLayer) -> (image: Image?, cost: Int) {
         if let rel = layer.localRelativePath,
            let data = ItemImageStore.loadData(relativePath: rel) {
             #if canImport(UIKit)
-            if let ui = UIImage(data: data) { return Image(uiImage: ui) }
+            if let ui = UIImage(data: data) {
+                return (Image(uiImage: ui), Int(ui.size.width * ui.size.height * 4))
+            }
             #elseif canImport(AppKit) && !os(iOS)
-            if let ns = NSImage(data: data) { return Image(nsImage: ns) }
+            if let ns = NSImage(data: data) {
+                return (Image(nsImage: ns), Int(ns.size.width * ns.size.height * 4))
+            }
             #endif
         }
         if let name = layer.imageAssetName, let img = bundleImage(named: name) {
-            return img
+            // bundleImage 已按自身 key 计费；此处外层 key 记名义成本即可
+            return (img, 1)
         }
         if let name = layer.imageAssetName {
             #if canImport(UIKit)
-            if let ui = UIImage(named: name) { return Image(uiImage: ui) }
+            if let ui = UIImage(named: name) {
+                return (Image(uiImage: ui), Int(ui.size.width * ui.size.height * 4))
+            }
             #endif
         }
-        return nil
+        return (nil, 1)
     }
 
     /// Empty-layer placeholder VoiceOver: human title, never raw `slotRaw` / enum string.
@@ -896,60 +903,129 @@ public struct BodyAvatarView: View {
     public static func bundleImage(named name: String) -> Image? {
         let key = "bundle|\(name)"
         if let cached = BodyAvatarImageCache.shared.cachedImage(forKey: key) { return cached }
-        let img = loadBundleImage(named: name)
-        BodyAvatarImageCache.shared.storeImage(img, forKey: key)
+        let (img, cost) = loadBundleImage(named: name)
+        BodyAvatarImageCache.shared.storeImage(img, forKey: key, cost: cost)
         return img
     }
 
-    private static func loadBundleImage(named name: String) -> Image? {
+    private static func loadBundleImage(named name: String) -> (image: Image?, cost: Int) {
         guard let url = bundleResourceURL(named: name),
-              let data = try? Data(contentsOf: url) else { return nil }
+              let data = try? Data(contentsOf: url) else { return (nil, 1) }
         #if canImport(UIKit)
-        if let ui = UIImage(data: data, scale: 1) { return Image(uiImage: ui) }
+        if let ui = UIImage(data: data, scale: 1) {
+            return (Image(uiImage: ui), Int(ui.size.width * ui.size.height * 4))
+        }
         #elseif canImport(AppKit)
-        if let ns = NSImage(data: data) { return Image(nsImage: ns) }
+        if let ns = NSImage(data: data) {
+            return (Image(nsImage: ns), Int(ns.size.width * ns.size.height * 4))
+        }
         #endif
-        return nil
+        return (nil, 1)
     }
 
     #if canImport(UIKit)
     /// 原图 UIImage（scale=1，避免系统二次压缩缩放）。
+    /// 经 NSCache 备忘：morph render 每次重走读盘 + 全量解码（539KB PNG →
+    /// 6.3MB 位图）会与滑杆 30fps 叠加成主线程热点。
     public static func bundleUIImage(named name: String) -> UIImage? {
+        if let hit = BodyAvatarImageCache.shared.cachedPlatformImage(named: name) {
+            return hit
+        }
         guard let url = bundleResourceURL(named: name),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return UIImage(data: data, scale: 1)
+              let data = try? Data(contentsOf: url),
+              let ui = UIImage(data: data, scale: 1) else { return nil }
+        BodyAvatarImageCache.shared.storePlatformImage(
+            ui, named: name, cost: Int(ui.size.width * ui.size.height * 4))
+        return ui
     }
     #endif
 
     #if canImport(AppKit) && !os(iOS)
     public static func bundleNSImage(named name: String) -> NSImage? {
+        if let hit = BodyAvatarImageCache.shared.cachedPlatformImage(named: name) {
+            return hit
+        }
         guard let url = bundleResourceURL(named: name),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return NSImage(data: data)
+              let data = try? Data(contentsOf: url),
+              let ns = NSImage(data: data) else { return nil }
+        BodyAvatarImageCache.shared.storePlatformImage(
+            ns, named: name, cost: Int(ns.size.width * ns.size.height * 4))
+        return ns
     }
     #endif
 }
 
 // MARK: - Decode / probe memoization
 
-/// 简单内存缓存（仿 `BodyMorphImageCache`）：hero 30fps TimelineView 每 tick
-/// 重走 figureStack → layerImage / bundle probe，不能每帧读盘 + 解码。
-/// 键 = path/name；**失败（nil）也缓存**，否则缺失资产每 tick 照样打盘。
-/// 线程安全（NSLock）：`hasRenderableVisual` 也会被 exporter / 测试在非 Main 上下文调用。
+/// 内存缓存：hero 30fps TimelineView 每 tick 重走 figureStack → layerImage /
+/// bundle probe，不能每帧读盘 + 解码。键 = path/name；**失败（nil）也缓存**，
+/// 否则缺失资产每 tick 照样打盘。
+/// 位图走 NSCache：按字节 cost 限额（条目数限容会让 96 张解码位图峰值 ~600MB
+/// → jetsam），近似 LRU（旧「随机半清」按 Dictionary hash 序丢，当前帧 50% 中枪），
+/// 内存压力下系统自动清；NSCache 天然线程安全（exporter / 测试在非 Main 调用）。
 final class BodyAvatarImageCache: @unchecked Sendable {
     static let shared = BodyAvatarImageCache()
+
+    /// 缓存值盒：image == nil 表示「已知失败」（负缓存）。
+    final class ImageBox {
+        let image: Image?
+        init(_ image: Image?) { self.image = image }
+    }
 
     private let lock = NSLock()
     /// Bundle probe 结果（含 miss）；key = 资源名。
     private var resourceURLs: [String: URL?] = [:]
-    /// 解码结果（含失败 nil）；key 见 `layerImage` / `bundleImage`。
-    private var images: [String: Image?] = [:]
-    private let maxEntries = 96
+    /// probe 表上限：key 域可被数据驱动（资产名来自调用方），miss 永久占条会变泄漏。
+    /// 越界整表清空——probe 重跑廉价（Bundle.url），无需 LRU。
+    private let maxResourceEntries = 512
+
+    private let images: NSCache<NSString, ImageBox> = {
+        let c = NSCache<NSString, ImageBox>()
+        c.totalCostLimit = 128 * 1024 * 1024   // 约 20 张 1024×1536 解码位图
+        c.countLimit = 256                     // cost 误报兜底
+        return c
+    }()
+
+    /// 平台原图（UIImage/NSImage，morph render 输入）单独计费。
+    #if canImport(UIKit)
+    private let platformImages: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        c.totalCostLimit = 64 * 1024 * 1024
+        c.countLimit = 128
+        return c
+    }()
+    func cachedPlatformImage(named name: String) -> UIImage? {
+        platformImages.object(forKey: name as NSString)
+    }
+    func storePlatformImage(_ image: UIImage, named name: String, cost: Int) {
+        platformImages.setObject(image, forKey: name as NSString, cost: max(1, cost))
+    }
+    #elseif canImport(AppKit)
+    private let platformImages: NSCache<NSString, NSImage> = {
+        let c = NSCache<NSString, NSImage>()
+        c.totalCostLimit = 64 * 1024 * 1024
+        c.countLimit = 128
+        return c
+    }()
+    func cachedPlatformImage(named name: String) -> NSImage? {
+        platformImages.object(forKey: name as NSString)
+    }
+    func storePlatformImage(_ image: NSImage, named name: String, cost: Int) {
+        platformImages.setObject(image, forKey: name as NSString, cost: max(1, cost))
+    }
+    #endif
+
+    /// 测试探针：probe 表当前条数。
+    var resourceProbeCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return resourceURLs.count
+    }
 
     func resourceURL(named name: String) -> URL? {
         lock.lock()
         defer { lock.unlock() }
         if let hit = resourceURLs[name] { return hit }
+        if resourceURLs.count >= maxResourceEntries { resourceURLs.removeAll() }
         let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar")
             ?? Bundle.module.url(forResource: name, withExtension: "png")
         resourceURLs[name] = url
@@ -958,19 +1034,12 @@ final class BodyAvatarImageCache: @unchecked Sendable {
 
     /// `.some(nil)` = 已知失败；`nil` = 从未加载。
     func cachedImage(forKey key: String) -> Image?? {
-        lock.lock()
-        defer { lock.unlock() }
-        return images[key]
+        guard let box = images.object(forKey: key as NSString) else { return nil }
+        return .some(box.image)
     }
 
-    func storeImage(_ image: Image?, forKey key: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        if images.count >= maxEntries {
-            // 半清而非全清，保留热点（同 BodyMorphImageCache）
-            for k in images.keys.prefix(images.count / 2) { images.removeValue(forKey: k) }
-        }
-        images[key] = image
+    func storeImage(_ image: Image?, forKey key: String, cost: Int = 1) {
+        images.setObject(ImageBox(image), forKey: key as NSString, cost: max(1, cost))
     }
 }
 
