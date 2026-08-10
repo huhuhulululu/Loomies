@@ -106,8 +106,9 @@ public enum DemoGarmentSilhouette {
         _ ctx: CGContext, zone: CGRect, name: String,
         fill: CGColor, light: CGColor, shade: CGColor
     ) {
-        let blazer = name.localizedCaseInsensitiveContains("blazer")
-            || name.localizedCaseInsensitiveContains("jacket")
+        // foldedKey：locale 无关（localizedCaseInsensitiveContains 在 tr 下 I≠i）
+        let folded = TextNormalize.foldedKey(name)
+        let blazer = folded.contains("blazer") || folded.contains("jacket")
         let w = zone.width, h = zone.height
         let midX = zone.midX
         // 躯干 + 短袖
@@ -200,7 +201,7 @@ public enum DemoGarmentSilhouette {
         _ ctx: CGContext, zone: CGRect, name: String,
         fill: CGColor, light: CGColor, shade: CGColor
     ) {
-        let skirt = name.localizedCaseInsensitiveContains("skirt")
+        let skirt = TextNormalize.foldedKey(name).contains("skirt")
         let w = zone.width, h = zone.height
         let midX = zone.midX
         let path = CGMutablePath()
@@ -236,8 +237,8 @@ public enum DemoGarmentSilhouette {
         _ ctx: CGContext, zone: CGRect, name: String,
         fill: CGColor, light: CGColor, shade: CGColor
     ) {
-        let pumps = name.localizedCaseInsensitiveContains("pump")
-            || name.localizedCaseInsensitiveContains("heel")
+        let foldedShoe = TextNormalize.foldedKey(name)
+        let pumps = foldedShoe.contains("pump") || foldedShoe.contains("heel")
         let w = zone.width, h = zone.height
         let footW = w * 0.34
         let footH = h * (pumps ? 0.55 : 0.48)

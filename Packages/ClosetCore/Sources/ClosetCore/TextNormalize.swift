@@ -13,4 +13,11 @@ public enum TextNormalize {
 
     /// nil 或 trim 后为空。
     public static func isBlank(_ s: String?) -> Bool { blankToNil(s) == nil }
+
+    /// Locale 无关的关键词折叠（大小写 + 变音符号，locale: nil）。
+    /// 名称关键词分类 / 搜索一律用它——`localizedCaseInsensitiveContains` 走设备
+    /// locale，土耳其语下 I→ı 会让 "SKIRT" 匹配不到 "skirt"。
+    public static func foldedKey(_ s: String) -> String {
+        s.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+    }
 }

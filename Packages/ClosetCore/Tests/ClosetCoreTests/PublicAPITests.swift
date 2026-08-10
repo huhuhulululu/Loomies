@@ -85,19 +85,41 @@ struct PublicAPITests {
     /// G2: captures request URLs so we can assert the day label without network.
     private final class CapturingTransport: PublicAPITransport, @unchecked Sendable {
         var urls: [URL] = []
+        let geocodeTimezone: String?
+        init(geocodeTimezone: String? = nil) { self.geocodeTimezone = geocodeTimezone }
         func get(url: URL) async throws -> Data {
             urls.append(url)
             if url.host()?.contains("geocoding") == true {
-                return #"{"results":[{"name":"X","latitude":40.0,"longitude":-74.0}]}"#.data(using: .utf8)!
+                let tz = geocodeTimezone.map { #","timezone":"\#($0)""# } ?? ""
+                return #"{"results":[{"name":"X","latitude":40.0,"longitude":-74.0\#(tz)}]}"#
+                    .data(using: .utf8)!
             }
             return #"{"daily":{"temperature_2m_max":[70.0]}}"#.data(using: .utf8)!
         }
     }
 
-    @Test func forecastDateFormattedInDeviceLocalCalendar() async throws {
-        let transport = CapturingTransport()
+    /// 「今天」按衣柜城市时区取日，不随设备时区变：设备在上海查纽约衣柜，
+    /// 不得因设备已过午夜请求到纽约「明天」的最高温。
+    @Test func forecastDateUsesCityTimezoneCalendar() async throws {
+        let transport = CapturingTransport(geocodeTimezone: "Asia/Tokyo")
         let p = OpenMeteoWeatherProvider(transport: transport)
-        // Fixed instant: 02:00 GMT — still "yesterday" local evening in US timezones.
+        // 2026-03-10 16:00 GMT：东京已是 3/11 01:00，GMT/美洲仍是 3/10。
+        var gmt = Calendar(identifier: .gregorian)
+        gmt.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = gmt.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 16))!
+        _ = try await p.daytimeTemperatureF(forCity: "X", on: date)
+        let forecastURL = transport.urls.first { $0.host() == "api.open-meteo.com" }
+        let qs = try #require(forecastURL?.query)
+        #expect(qs.contains("start_date=2026-03-11"))
+        #expect(qs.contains("end_date=2026-03-11"))
+        // 日界口径两端一致：请求显式带城市时区，而非 auto
+        #expect(qs.contains("timezone=Asia%2FTokyo") || qs.contains("timezone=Asia/Tokyo"))
+    }
+
+    /// Geocode 未返回 timezone（历史 fixture / 罕见响应）→ 退回设备本地历 + auto。
+    @Test func forecastDateFallsBackToDeviceCalendarWithoutCityTimezone() async throws {
+        let transport = CapturingTransport(geocodeTimezone: nil)
+        let p = OpenMeteoWeatherProvider(transport: transport)
         var gmt = Calendar(identifier: .gregorian)
         gmt.timeZone = TimeZone(secondsFromGMT: 0)!
         let date = gmt.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 2))!
@@ -108,6 +130,16 @@ struct PublicAPITests {
         let qs = try #require(forecastURL?.query)
         #expect(qs.contains("start_date=\(expected)"))
         #expect(qs.contains("end_date=\(expected)"))
+        #expect(qs.contains("timezone=auto"))
+    }
+
+    /// parseGeocode 提取 IANA timezone 字段（Open-Meteo geocoding 文档化字段）。
+    @Test func parseGeocodeExtractsTimezone() throws {
+        let with = #"{"results":[{"name":"Tokyo","latitude":35.7,"longitude":139.7,"timezone":"Asia/Tokyo"}]}"#
+        let place = try OpenMeteoJSON.parseGeocode(with.data(using: .utf8)!)
+        #expect(place.timezone == "Asia/Tokyo")
+        let without = #"{"results":[{"name":"X","latitude":1.0,"longitude":2.0}]}"#
+        #expect(try OpenMeteoJSON.parseGeocode(without.data(using: .utf8)!).timezone == nil)
     }
 
     /// G3: cancellation must propagate, not silently fall back offline.

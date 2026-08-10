@@ -22,7 +22,9 @@ public enum SearchService {
     /// 在 context 内按条件筛 Item，按 name 升序。
     public static func searchItems(_ query: Query, in context: ModelContext) -> [Item] {
         let all = (try? context.fetch(FetchDescriptor<Item>())) ?? []
-        let needle = query.text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // foldedKey：变音符号折叠（"sezane" 命中 "Sézane"）+ locale 无关大小写。
+        let needle = TextNormalize.foldedKey(
+            query.text.trimmingCharacters(in: .whitespacesAndNewlines))
         return all.filter { item in
             if let wid = query.wardrobeID, item.wardrobe?.id != wid { return false }
             if !matches(item, statusRaw: query.statusRaw, slotRaw: query.slotRaw) { return false }
@@ -34,8 +36,8 @@ public enum SearchService {
                 if !has { return false }
             }
             if !needle.isEmpty {
-                let name = item.name.lowercased()
-                let brand = (item.brand ?? "").lowercased()
+                let name = TextNormalize.foldedKey(item.name)
+                let brand = TextNormalize.foldedKey(item.brand ?? "")
                 if !name.contains(needle) && !brand.contains(needle) { return false }
             }
             return true

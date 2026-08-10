@@ -490,7 +490,8 @@ public enum BodyAvatarComposer {
     /// 展示叠衣槽：在 mapSlot 基础上，用名称纠偏「西装写在 top」等历史/脏数据。
     public static func displaySlot(slotRaw: String, itemName: String) -> BodyAvatarSlot? {
         let base = mapSlot(slotRaw)
-        let n = itemName.lowercased()
+        // foldedKey：与 DemoGarmentSilhouette 同一折叠标准（大小写 locale 无关 + 变音符号）
+        let n = TextNormalize.foldedKey(itemName)
         // 名称强烈暗示外套，但槽位误标 top → 提到 outerwear 以便与 tee 同层
         if base == .top,
            n.contains("blazer") || n.contains("jacket") || n.contains("coat")

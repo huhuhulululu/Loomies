@@ -23,7 +23,9 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         let name = (city ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw PublicAPIError.unavailable }
         let place = try await geocode(name: name)
-        let day = try await forecastDay(latitude: place.latitude, longitude: place.longitude, on: date)
+        let day = try await forecastDay(
+            latitude: place.latitude, longitude: place.longitude, on: date,
+            timeZoneIdentifier: place.timezone)
         return WeatherDaySnapshot(
             daytimeTempF: day.maxF,
             sourceLabel: "Open-Meteo",
@@ -37,11 +39,17 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         public var latitude: Double
         public var longitude: Double
         public var countryCode: String?
-        public init(name: String, latitude: Double, longitude: Double, countryCode: String? = nil) {
+        /// IANA 时区标识（Open-Meteo geocoding 文档化字段）；nil 时退回设备本地历 + auto。
+        public var timezone: String?
+        public init(
+            name: String, latitude: Double, longitude: Double,
+            countryCode: String? = nil, timezone: String? = nil
+        ) {
             self.name = name
             self.latitude = latitude
             self.longitude = longitude
             self.countryCode = countryCode
+            self.timezone = timezone
         }
     }
 
@@ -67,9 +75,15 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         try await forecastDay(latitude: latitude, longitude: longitude, on: date).maxF
     }
 
-    public func forecastDay(latitude: Double, longitude: Double, on date: Date) async throws -> ForecastDay {
+    public func forecastDay(
+        latitude: Double, longitude: Double, on date: Date,
+        timeZoneIdentifier: String? = nil
+    ) async throws -> ForecastDay {
         var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
-        let day = Self.dayString(date)
+        // 日界口径两端一致：有城市时区（geocode 返回）→ dayString 与请求都用它，
+        // 设备时区 ≠ 城市时区（出差/双城衣柜）不再取错日；无 → 设备本地历 + auto（旧行为）。
+        let cityTZ = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+        let day = Self.dayString(date, timeZone: cityTZ ?? .current)
         comps?.queryItems = [
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
@@ -77,7 +91,7 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
                 name: "daily",
                 value: "temperature_2m_max,precipitation_probability_max"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
-            URLQueryItem(name: "timezone", value: "auto"),
+            URLQueryItem(name: "timezone", value: cityTZ != nil ? timeZoneIdentifier! : "auto"),
             URLQueryItem(name: "start_date", value: day),
             URLQueryItem(name: "end_date", value: day),
         ]
@@ -86,10 +100,10 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         return try OpenMeteoJSON.parseForecastDay(data)
     }
 
-    private static func dayString(_ date: Date) -> String {
-        // API 用 timezone=auto（按坐标的本地日界），start/end_date 必须按设备本地历
-        // 取日——GMT 历会让美西晚间误取“明天”的最高温。
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+    private static func dayString(_ date: Date, timeZone: TimeZone) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = timeZone
+        let c = cal.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 2026, c.month ?? 1, c.day ?? 1)
     }
 }
@@ -105,7 +119,8 @@ public enum OpenMeteoJSON {
         else { throw PublicAPIError.decodeFailed }
         let name = (first["name"] as? String) ?? "Unknown"
         let cc = first["country_code"] as? String
-        return .init(name: name, latitude: lat, longitude: lon, countryCode: cc)
+        let tz = first["timezone"] as? String
+        return .init(name: name, latitude: lat, longitude: lon, countryCode: cc, timezone: tz)
     }
 
     public static func parseDailyMaxF(_ data: Data) throws -> Double {

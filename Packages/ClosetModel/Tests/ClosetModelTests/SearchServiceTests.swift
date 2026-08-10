@@ -40,6 +40,16 @@ struct SearchServiceTests {
         #expect(hits[0].name == "Tee")
     }
 
+    /// 搜索折叠变音符号：入库名 "Sézane" 必须能被 "sezane" 搜到（美国键盘打不出 é）。
+    @Test func searchIgnoresDiacritics() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let i = Item(name: "Café Cardigan"); i.brand = "Sézane"; i.wardrobe = w; ctx.insert(i)
+        try ctx.save()
+        #expect(SearchService.searchItems(.init(text: "sezane"), in: ctx).count == 1)
+        #expect(SearchService.searchItems(.init(text: "cafe"), in: ctx).count == 1)
+    }
+
     @Test func searchFiltersSlotAndOccasionAndWardrobe() throws {
         let ctx = try makeContext()
         let a = Wardrobe(name: "A"); ctx.insert(a)
