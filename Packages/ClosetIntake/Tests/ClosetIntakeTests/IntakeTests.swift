@@ -417,29 +417,71 @@ struct IntakeTests {
         }
     }
 
+    /// 会合打标：tag() 挂起在测试控制的 continuation 队列上，releaseNext()
+    /// 按进入顺序放行一个；waitUntilEntered 轮询确认第 N 次 tag() 确实已进入。
+    /// 与 GatedTaggingService 同构但支持多次并发进入 —— 确定性握手，替代固定 sleep。
+    final class RendezvousTaggingService: TaggingService, @unchecked Sendable {
+        private let lock = NSLock()
+        private var blocked: [CheckedContinuation<Void, Never>] = []
+        private var entered = 0
+        var enteredCount: Int { lock.lock(); defer { lock.unlock() }; return entered }
+        /// 轮询直到第 count 次 tag() 确实挂起（此刻 process 必在途）。
+        func waitUntilEntered(_ count: Int) async {
+            for _ in 0..<100_000 where enteredCount < count { await Task.yield() }
+        }
+        func tag(_ imageData: Data) async throws -> ItemTags {
+            await withCheckedContinuation { c in
+                lock.lock()
+                blocked.append(c)
+                entered += 1
+                lock.unlock()
+            }
+            let slot: GarmentSlot = imageData.first == 0x2 ? .dress : .top
+            return ItemTags(slot: slot)
+        }
+        /// 放行最早进入、仍挂起的一个 tag()。
+        func releaseNext() {
+            lock.lock()
+            let c = blocked.isEmpty ? nil : blocked.removeFirst()
+            lock.unlock()
+            c?.resume()
+        }
+    }
+
     /// 并发 process()：旧调用的结果不得覆盖新照片草稿（last-call-wins）。
+    /// 确定性会合：确认 first 已挂起在 tag() 才启动 second，不靠固定 sleep 排序。
     @Test func concurrentProcessLastCallWins() async throws {
+        let gate = RendezvousTaggingService()
         let vm = IntakeViewModel(
             matting: MockMattingService(),
-            tagging: DelayedTaggingService(delayNanos: 100_000_000),
+            tagging: gate,
             productLookup: nil)
         let first = Task { await vm.process(Data([0x1])) }  // → top
-        try await Task.sleep(nanoseconds: 20_000_000)       // 让 first 进入 await
+        await gate.waitUntilEntered(1) // first 确已挂起在 tag()
+        try #require(gate.enteredCount == 1)
         let second = Task { await vm.process(Data([0x2])) } // → dress
+        await gate.waitUntilEntered(2) // second 也已挂起：其 processGeneration 已自增
+        try #require(gate.enteredCount == 2)
+        gate.releaseNext() // 放行 first：收尾时已被 second 取代，结果必须被丢弃
+        gate.releaseNext() // 放行 second
         _ = await (first.value, second.value)
         #expect(vm.draft?.slot == .dress) // 后调用赢，旧结果被丢弃
         #expect(vm.isProcessing == false)
     }
 
     /// reset() 取消在途 process()：其结果不得复活草稿。
+    /// 确定性会合：确认 process 确已挂起在 tag() 才 reset，不靠固定 sleep 排序。
     @Test func resetCancelsInFlightProcess() async throws {
+        let gate = RendezvousTaggingService()
         let vm = IntakeViewModel(
             matting: MockMattingService(),
-            tagging: DelayedTaggingService(delayNanos: 100_000_000),
+            tagging: gate,
             productLookup: nil)
         let inFlight = Task { await vm.process(Data([0x1])) }
-        try await Task.sleep(nanoseconds: 20_000_000) // 确保 process 已开始并挂起
+        await gate.waitUntilEntered(1) // process 确已开始并挂起在 tag()
+        try #require(gate.enteredCount == 1)
         vm.reset()
+        gate.releaseNext() // 放行后收尾：代际守卫必须丢弃其结果
         await inFlight.value
         #expect(vm.draft == nil)        // 草稿不复活
         #expect(vm.mattedImage == nil)
@@ -801,14 +843,14 @@ struct IntakeTests {
 
     /// ModelSave 失败：confirm 返回 nil、诚实报错、草稿保留可重试，
     /// Item 不得落库，已写出的层图文件必须一并清除（无孤儿文件）。
+    /// 只断言本测试 confirm 写出的那个文件：ItemImageStore.rootDirectory 是
+    /// 跨测试进程共享的真盘目录，全目录快照 diff 会被并行进程的外来增删打乱。
     @Test(.serialized) func confirmSaveFailureRollsBackItemAndImage() async throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .top))
         await vm.process(try tinyPNG()) // 可解码 → 会写出层图文件
         vm.draft?.name = "Silk Tee"
-        let dirBefore = Set((try? FileManager.default
-            .contentsOfDirectory(atPath: ItemImageStore.rootDirectory.path)) ?? [])
         ModelSave.forceFailure(on: ctx)
         defer { ModelSave.clearForcedFailure(on: ctx) }
         let item = vm.confirm(into: w, context: ctx)
@@ -817,9 +859,9 @@ struct IntakeTests {
         #expect(vm.draft != nil)            // 草稿保留，用户可重试
         #expect(vm.draft?.name == "Silk Tee")
         #expect(try ctx.fetch(FetchDescriptor<Item>()).isEmpty) // 无滞留入库
-        let dirAfter = Set((try? FileManager.default
-            .contentsOfDirectory(atPath: ItemImageStore.rootDirectory.path)) ?? [])
-        #expect(dirAfter == dirBefore)      // 层图已随回滚删除，无孤儿文件
+        let rel = try #require(vm.lastWrittenLayerImagePath) // confirm 确曾写出层图
+        #expect(ItemImageStore.loadData(relativePath: rel) == nil) // 已随回滚删除，无孤儿文件
+        ItemImageStore.delete(relativePath: rel) // 兜底清理：仅本测试自己的文件，不碰外来文件
     }
 
     /// INT-1: 层图路径已置 statusMessage（归一失败 "Added, but…"）后 ModelSave 失败：

@@ -2,8 +2,11 @@ import Testing
 import Foundation
 @testable import ClosetModel
 
-// .serialized：共享 ItemImageStore.rootDirectory 真盘目录，须与其他触盘套件互斥。
+// .serialized：进程内共享 ItemImageStore 根目录，须与其他触盘套件互斥。
+// 根目录已按进程隔离（ItemImageTestRoot.install → ITEM_IMAGE_ROOT 临时目录）。
 @Suite(.serialized) struct ItemImageStoreTests {
+
+    init() { ItemImageTestRoot.install() }
 
     @Test func saveLoadRoundTrip() {
         let id = UUID()

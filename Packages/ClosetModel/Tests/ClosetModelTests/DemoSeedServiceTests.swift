@@ -3,10 +3,14 @@ import SwiftData
 import Foundation
 @testable import ClosetModel
 
-// .serialized：共享 ItemImageStore.rootDirectory 真盘目录 + 全局 forceFailure hook，
+// .serialized：进程内共享 ItemImageStore 根目录 + 全局 forceFailure hook，
 // 须与其他触盘套件互斥（ModelLaneGapFixesTests 的 seed 失败钉测）。
+// 根目录已按进程隔离（ItemImageTestRoot.install → ITEM_IMAGE_ROOT 临时目录），
+// 跨进程并行的其他 package 测试不再共享真盘目录。
 @MainActor
 @Suite(.serialized) struct DemoSeedServiceTests {
+
+    init() { ItemImageTestRoot.install() }
 
     func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

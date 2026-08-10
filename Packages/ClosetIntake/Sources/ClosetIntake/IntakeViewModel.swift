@@ -21,6 +21,13 @@ public final class IntakeViewModel {
     /// Non-error flash (barcode fill / nothing-to-change). Cleared on next error or reset.
     public private(set) var statusMessage: String?
 
+    /// Test hook: relative path of the layer image written by the most recent
+    /// `confirm` (nil when no image was written). Lets save-failure rollback tests
+    /// assert on the exact file instead of diffing the shared ItemImageStore
+    /// directory, which parallel test-bundle processes also mutate.
+    /// Mirrors ModelSave/ItemImageStore forceFailure hooks.
+    private(set) var lastWrittenLayerImagePath: String?
+
     private let productLookup: (any ProductLookupProviding)?
 
     /// 代际计数：process() 新调用与 reset() 自增，在途旧调用的结果被丢弃。
@@ -273,6 +280,7 @@ public final class IntakeViewModel {
             if let layerPNG = GarmentLayerNormalizer.normalize(imageData: img, slot: bodySlot) {
                 if let rel = ItemImageStore.save(data: layerPNG, for: item.id, ext: "png") {
                     item.localImageRelativePath = rel
+                    lastWrittenLayerImagePath = rel // test hook：回滚测试精确断言此文件
                 } else {
                     // 磁盘写失败：衣物本体仍入库，但层图丢失不得静默——诚实提示可重拍。
                     statusMessage = Self.layerImageSaveFailedMessage

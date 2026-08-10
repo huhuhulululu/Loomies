@@ -8,6 +8,8 @@ import ClosetCore
 @MainActor
 struct ModelLaneGapFixesTests {
 
+    init() { ItemImageTestRoot.install() }
+
     func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -351,16 +353,11 @@ struct ModelLaneGapFixesTests {
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
         let fm = FileManager.default
-        let root = ItemImageStore.rootDirectory
+        let root = ItemImageStore.rootDirectory   // 进程私有临时根（ITEM_IMAGE_ROOT），快照不再受跨进程干扰
         let before = Set((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
             .filter { $0.hasSuffix(".png") }
-        defer {
-            // 兜底清理：失败路径应已删图；若源码泄漏则在此移除，不污染共享目录
-            let now = Set((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
-            for name in now.subtracting(before) where name.hasSuffix(".png") {
-                try? fm.removeItem(at: root.appendingPathComponent(name))
-            }
-        }
+        // 无兜底清理：根目录进程私有，泄漏文件不污染共享目录；
+        // 旧实现会误删并行进程正在用的 PNG（Loop19 flake 根因之一）。
         ModelSave.forceFailure(on: ctx)
         defer { ModelSave.clearForcedFailure(on: ctx) }
         #expect(DemoSeedService.seed(w, in: ctx) == .saveFailed)
