@@ -15,15 +15,20 @@ public enum ImageReconcileService {
         public var deadPathsCleared: Int
     }
 
+    /// - Parameter directory: 孤儿扫描目录（默认生产图根）。测试注入私有临时目录——
+    ///   共享 per-process 根上并行套件互写文件，按共享根扫孤儿既不确定又会误删别家文件。
     @discardableResult
-    public static func reconcile(in context: ModelContext) -> Receipt {
+    public static func reconcile(
+        in context: ModelContext,
+        directory: URL? = ItemImageStore.rootDirectory
+    ) -> Receipt {
         let items = (try? context.fetch(FetchDescriptor<Item>())) ?? []
         let referenced = Set(items.compactMap(\.localImageRelativePath).filter { !$0.isEmpty })
 
         // 孤儿文件：目录扫描减去 DB 引用集（纯文件操作，无 DB 依赖）
         var orphansRemoved = 0
         let fm = FileManager.default
-        if let dir = ItemImageStore.rootDirectory,
+        if let dir = directory,
            let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
             for url in entries {
                 let rel = "\(ItemImageStore.folderName)/\(url.lastPathComponent)"
