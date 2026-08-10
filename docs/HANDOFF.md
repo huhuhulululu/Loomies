@@ -1,6 +1,6 @@
 # 交接文档（HANDOFF）
 
-> 2026-08-10。CLI **647 tests** 全绿（D80 打磨波收敛 + D81 后续波 + rounds 31-46 两波猎手 61 项收口）+ **TestFlight build 28 已上传**（D79）。测试数以 `docs/ARCHITECTURE.md` 为准。
+> 2026-08-10。CLI **647 tests** 全绿（D80 打磨波收敛 + D81 后续波 + rounds 31-46 两波猎手 61 项收口）+ **TestFlight build 29 已上传**（打磨收口版；build 28 见 D79）。测试数以 `docs/ARCHITECTURE.md` 为准。
 
 ## 一句话状态
 

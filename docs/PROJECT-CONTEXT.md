@@ -12,7 +12,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell | min iOS 26，首发美
 
 - **586 tests** 全绿（Core 206 / Model 149 / UI 193 / Intake 38）
 - **本地 v1.0 UI 闭环**：Today/Closet/Calendar/Me + BodyMorph + 合身网格 + 城市气候 + 数据导出/删除全部 + photoreal catalog 纸娃娃（D63–D75）
-- CloudKit 默认 off；TestFlight **build 28** 在 ASC（D79）
+- CloudKit 默认 off；TestFlight **build 29** 在 ASC（2026-08-10，rounds 31-46 打磨收口版；build 28 见 D79）
 - 真机/云（WeatherKit 真接、Vision、相机、CK）仍后置
 
 ## 里程碑
