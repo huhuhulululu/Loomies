@@ -141,7 +141,7 @@ public struct MeView: View {
                             AppLog.notice("data export ready body=\(includeBodyInExport)", .data)
                         } catch {
                             dataMessage = DataLifecycleService.exportFailedMessage
-                            AppLog.error("data export failed: \(error)", .data)
+                            AppLog.error("data export failed: \(AppLog.errRef(error))", .data)
                         }
                     }
                     .accessibilityHint(DataLifecycleService.exportButtonAccessibilityHint)
@@ -183,7 +183,7 @@ public struct MeView: View {
                             AppLog.notice("diagnostics exported", .diagnostics)
                         } catch {
                             diagText = DiagnosticsExport.exportFailedMessage
-                            AppLog.error("diagnostics export failed: \(error)", .diagnostics)
+                            AppLog.error("diagnostics export failed: \(AppLog.errRef(error))", .diagnostics)
                         }
                     }
                     .accessibilityHint(DiagnosticsExport.exportButtonAccessibilityHint)
@@ -200,12 +200,16 @@ public struct MeView: View {
                 if debug.panelEnabled {
                     debugSection
                 } else {
+                    // DEBUG-only：Release/TestFlight 不暴露入口——verbose 会把 debug 级
+                    // 明细灌进日志环并渲染在 Me 页（肩窥面）；调试构建外走 -debugPanel 参数。
+                    #if DEBUG
                     Section {
                         Button("Enable debug panel") {
                             debug.panelEnabled = true
                         }
                         .foregroundStyle(DS.accent)
                     }
+                    #endif
                 }
             }
             .navigationTitle("Me")
@@ -221,7 +225,7 @@ public struct MeView: View {
                         // RootView @Query 空柜 → 自动回 Onboarding。
                     } catch {
                         dataMessage = DataLifecycleService.deleteAllFailedMessage
-                        AppLog.error("deleteAll failed: \(error)", .data)
+                        AppLog.error("deleteAll failed: \(AppLog.errRef(error))", .data)
                     }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -809,11 +813,11 @@ struct QuickAddSheet: View {
                             item.wardrobe = nil
                             context.rollback()
                             message = Self.saveFailedMessage
-                            AppLog.error("quickAdd save failed \(trimmed)", .intake)
+                            AppLog.error("quickAdd save failed", .intake)
                             // Stay on form with toast (no silent dismiss); next Save retries.
                             return
                         }
-                        AppLog.info("quickAdd \(item.name) slot=\(item.slotRaw)", .intake)
+                        AppLog.info("quickAdd item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .intake)
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

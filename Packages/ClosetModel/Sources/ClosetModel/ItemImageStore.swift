@@ -51,10 +51,10 @@ public enum ItemImageStore {
         do {
             try data.write(to: url, options: .atomic)
             let rel = "\(folderName)/\(name)"
-            AppLog.info("item image saved \(rel) bytes=\(data.count)", .data)
+            AppLog.debug("item image saved bytes=\(data.count)", .data)
             return rel
         } catch {
-            AppLog.error("item image save failed: \(error)", .data)
+            AppLog.error("item image save failed: \(AppLog.errRef(error))", .data)
             return nil
         }
     }

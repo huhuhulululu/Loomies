@@ -30,14 +30,42 @@ struct DiagnosticsExportTests {
                                               flags: ["coldStart": "true"])
         #expect(snap.wardrobeCount == 1)
         #expect(snap.itemCount == 1)
-        #expect(snap.wardrobes.first?.name == "NYC")
+        #expect(snap.wardrobes.first?.hasCity == true)
         #expect(snap.wardrobes.first?.availableCount == 1)
         #expect(snap.flags["coldStart"] == "true")
         #expect(snap.recentLogLines.contains(where: { $0.contains("diag-test") }))
 
         let json = try DiagnosticsExport.jsonString(in: ctx, build: "3")
-        #expect(json.contains("NYC"))
+        // 诊断脱敏：衣柜名与城市不得出现在给支持方的包里
+        #expect(!json.contains("NYC"))
+        #expect(!json.contains("New York"))
         #expect(json.contains("itemCount"))
+    }
+
+    /// 端到端隐私锁：经真实服务路径产生的日志（含实体操作）随诊断导出时，
+    /// 不得携带单品名/衣柜名/城市/绝对路径——日志源头必须用 AppLog.ref 稳定标识。
+    @Test func diagnosticsJSONCarriesNoPIIFromServiceLogs() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Secret Closet", locationCity: "Hidden City"); ctx.insert(w)
+        let i = Item(name: "Sézane Silk Blouse"); i.slotRaw = "top"; i.wardrobe = w
+        ctx.insert(i)
+        try ctx.save()
+
+        AppLog.ring.clear()
+        let prevLevel = AppLog.minLevel
+        AppLog.setMinLevel(.debug)
+        defer { AppLog.setMinLevel(prevLevel) }
+        // 真实服务路径打日志（编辑/状态/打卡）
+        _ = ItemEditorService.apply(.init(name: "Sézane Silk Blouse"), to: i, in: ctx)
+        _ = ItemStatusService.setStatus(i, to: "inWash", in: ctx)
+        _ = CheckInService.recordWear(items: [], on: Date(), in: w, in: ctx)
+
+        let json = try DiagnosticsExport.jsonString(in: ctx)
+        #expect(!json.contains("Sézane"))
+        #expect(!json.contains("Secret Closet"))
+        #expect(!json.contains("Hidden City"))
+        #expect(!json.contains("/var/"))
+        #expect(!json.contains("/Users/"))
     }
 
     @Test func bodyCompleteFlagWhenProfileFull() throws {

@@ -21,10 +21,10 @@ public enum ItemStatusService {
             item.statusRaw = old
             item.revision -= 1
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("status save failed \(item.name): \(old)→\(statusRaw)", .data)
+            AppLog.error("status save failed item=\(AppLog.ref(item.id)): \(old)→\(statusRaw)", .data)
             return false
         }
-        AppLog.info("status \(item.name): \(old)→\(statusRaw)", .data)
+        AppLog.info("status item=\(AppLog.ref(item.id)): \(old)→\(statusRaw)", .data)
         return true
     }
 

@@ -86,7 +86,7 @@ public final class IntakeViewModel {
         } catch {
             workingImage = imageData
             mattingSucceeded = false
-            AppLog.error("intake matting failed: \(error)", .intake)
+            AppLog.error("intake matting failed: \(AppLog.errRef(error))", .intake)
         }
         // 打标/OCR 失败同样诚实：打标失败草稿退回默认（top/casual），状态条提示
         // 「自动预填失败」；仅 OCR 失败时打标结果是真的，不得谎称「用了默认值」。
@@ -98,7 +98,7 @@ public final class IntakeViewModel {
         } catch {
             tags = nil
             taggingFailed = true
-            AppLog.error("intake tagging failed: \(error)", .intake)
+            AppLog.error("intake tagging failed: \(AppLog.errRef(error))", .intake)
         }
         var d = IntakeDraft(slot: tags?.slot ?? .top)
         d.color = tags?.color
@@ -112,7 +112,7 @@ public final class IntakeViewModel {
                 d.size = label.size
             } catch {
                 ocrFailed = true
-                AppLog.error("intake OCR failed: \(error)", .intake)
+                AppLog.error("intake OCR failed: \(AppLog.errRef(error))", .intake)
             }
         }
         d.name = Self.suggestedName(for: d)
@@ -218,12 +218,12 @@ public final class IntakeViewModel {
             statusMessage = filledAny
                 ? Self.barcodeFilledMessage(source: hit.source)
                 : Self.barcodeFoundNothingToFillMessage
-            AppLog.info("product facts hit source=\(hit.source) code=\(code) filled=\(filledAny)", .intake)
+            AppLog.info("product facts hit source=\(hit.source) codeLen=\(code.count) filled=\(filledAny)", .intake)
         } catch {
             guard generation == processGeneration else { return }  // 已被 reset/新照片取代
             lastError = "Product lookup failed. You can still enter details manually."
             statusMessage = nil
-            AppLog.error("product lookup: \(error)", .intake)
+            AppLog.error("product lookup: \(AppLog.errRef(error))", .intake)
         }
     }
 
@@ -289,13 +289,13 @@ public final class IntakeViewModel {
                 } else {
                     // 磁盘写失败：衣物本体仍入库，但层图丢失不得静默——诚实提示可重拍。
                     statusMessage = Self.layerImageSaveFailedMessage
-                    AppLog.error("intakeConfirm layer image save failed \(name)", .intake)
+                    AppLog.error("intakeConfirm layer image save failed item=\(AppLog.ref(item.id))", .intake)
                 }
             } else {
                 // 归一失败不回存紧裁剪图：叠衣 composer 把任何 hasVisual 层当全身画布，
                 // 紧 bbox 会被拉成全身拉伸。留空 → 槽位占位框，并诚实提示可重拍。
                 statusMessage = Self.layerNormalizeFailedMessage
-                AppLog.error("intakeConfirm layer normalize failed \(name)", .intake)
+                AppLog.error("intakeConfirm layer normalize failed item=\(AppLog.ref(item.id))", .intake)
             }
         }
         guard ModelSave.save(context, label: "intakeConfirm") else {
@@ -309,13 +309,13 @@ public final class IntakeViewModel {
             // 层图路径可能已置 statusMessage（"Added, but…"）——但本次落库已回滚，
             // 单品并未入库，不得同时闪现成功措辞与保存失败（lastError 与 statusMessage 互斥）。
             statusMessage = nil
-            AppLog.error("intakeConfirm save failed \(name)", .intake)
+            AppLog.error("intakeConfirm save failed item=\(AppLog.ref(item.id))", .intake)
             return nil
         }
         if mattingFailed {
             // 抠图失败路径：衣物已入库但没有任何 try-on 层——诚实提示，不静默无图入库。
             statusMessage = Self.mattingFailedSavedMessage
-            AppLog.info("intakeConfirm saved without try-on layer (matting failed) \(name)", .intake)
+            AppLog.info("intakeConfirm saved without try-on layer (matting failed) item=\(AppLog.ref(item.id))", .intake)
         }
         // confirm 成功也是一代终结：在途 enrich 的代际守卫必须失效，
         // 否则 lookup 返回时守卫通过 → 富化草稿在落库后复活，再次 confirm 生成重复单品。

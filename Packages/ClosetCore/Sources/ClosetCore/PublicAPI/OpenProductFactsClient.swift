@@ -74,7 +74,7 @@ public struct OpenProductFactsClient: ProductLookupProviding, Sendable {
                 throw CancellationError()
             } catch {
                 // 瞬态故障（网络/5xx/decode）：记录并尝试下一个目录 host。
-                AppLog.notice("product lookup host \(host) failed (\(error)); trying next host", .data)
+                AppLog.notice("product lookup host \(host) failed (\(AppLog.errRef(error))); trying next host", .data)
                 lastError = error
             }
         }

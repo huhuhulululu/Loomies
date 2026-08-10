@@ -16,7 +16,7 @@ public enum CheckInService {
         // 同柜守卫：外柜单品不得计入本柜快照（与 OutfitDraftService 不变量一致）。
         let items = items.filter { $0.wardrobe?.id == wardrobe.id }
         guard !items.isEmpty else {
-            AppLog.error("checkIn rejected: no items wardrobe=\(wardrobe.name)", .data)
+            AppLog.error("checkIn rejected: no items wardrobe=\(AppLog.ref(wardrobe.id))", .data)
             return nil
         }
         let rec = WearRecord(date: date)
@@ -27,10 +27,10 @@ public enum CheckInService {
         guard ModelSave.save(context, label: "checkIn") else {
             // rollback 一并丢弃 pending insert（delete 只删行，脏标记会滞留）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("checkIn save failed wardrobe=\(wardrobe.name)", .data)
+            AppLog.error("checkIn save failed wardrobe=\(AppLog.ref(wardrobe.id))", .data)
             return nil
         }
-        AppLog.info("checkIn \(items.count) items wardrobe=\(wardrobe.name)", .data)
+        AppLog.info("checkIn \(items.count) items wardrobe=\(AppLog.ref(wardrobe.id))", .data)
         return rec
     }
 }

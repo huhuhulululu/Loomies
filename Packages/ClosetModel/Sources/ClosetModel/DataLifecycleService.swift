@@ -381,7 +381,7 @@ public enum DataLifecycleService {
                 try fm.removeItem(at: url)
                 any = true
             } catch {
-                AppLog.error("wipe item image failed: \(error)", .data)
+                AppLog.error("wipe item image failed: \(AppLog.errRef(error))", .data)
             }
         }
         return any || entries.isEmpty

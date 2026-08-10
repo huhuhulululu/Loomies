@@ -34,14 +34,14 @@ public enum ItemEditorService {
         // 保暖度必须在 Warmth 序级内（ItemStatusService allowed-set 同款守卫）：
         // 脏 raw 会在 Adapter 解析为 nil → 天气硬过滤当未知静默放行。
         if let w = patch.warmthRaw, Warmth(rawValue: w) == nil {
-            AppLog.error("rejected invalid warmthRaw \(w) for \(item.name)", .data)
+            AppLog.error("rejected invalid warmthRaw \(w) for item=\(AppLog.ref(item.id))", .data)
             return false
         }
         // 平铺宽来自自由文本 Double 解析（strtod 语义放行 nan/inf/负值）：非有限或
         // 非正值拒绝——脏值落库会让 JSON 导出（默认 .throw）永久失败，FitMark 也只认 >0。
         for measure in [patch.chestFlatWidthInches, patch.waistFlatWidthInches] {
             if let m = measure, !m.isFinite || m <= 0 {
-                AppLog.error("rejected invalid flat width \(m) for \(item.name)", .data)
+                AppLog.error("rejected invalid flat width for item=\(AppLog.ref(item.id))", .data)
                 return false
             }
         }
@@ -59,7 +59,7 @@ public enum ItemEditorService {
         if let name = patch.name {
             guard let t = TextNormalize.blankToNil(name) else {
                 // 空白名拒绝而非静默丢弃：静默丢弃后 UI 仍弹 Saved.，用户无从分辨。
-                AppLog.error("rejected blank name patch for \(item.name)", .data)
+                AppLog.error("rejected blank name patch for item=\(AppLog.ref(item.id))", .data)
                 return false
             }
             item.name = t
@@ -95,10 +95,10 @@ public enum ItemEditorService {
             item.waistFlatWidthInches = oldWaistFlatWidthInches
             item.revision = oldRevision
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("edited item save failed \(item.name)", .data)
+            AppLog.error("edited item save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
-        AppLog.info("edited item \(item.name) slot=\(item.slotRaw)", .data)
+        AppLog.info("edited item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .data)
         return true
     }
 }

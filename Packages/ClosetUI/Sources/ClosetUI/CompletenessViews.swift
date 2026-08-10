@@ -592,7 +592,7 @@ public enum ProfileLabels {
         // 撞同 owner 其他衣柜名拒绝（自身大小写调整不算冲突）——与 create 同守卫。
         if WardrobeManageActions.nameConflicts(
             t, among: wardrobe.owner?.wardrobes ?? [], excluding: wardrobe) {
-            AppLog.error("wardrobe rename duplicate blocked \(t)", .data)
+            AppLog.error("wardrobe rename duplicate blocked", .data)
             return false
         }
         let old = wardrobe.name
@@ -603,7 +603,7 @@ public enum ProfileLabels {
             AppLog.error("wardrobe rename save failed", .data)
             return false
         }
-        AppLog.notice("wardrobe renamed \(t)", .data)
+        AppLog.notice("wardrobe renamed \(AppLog.ref(wardrobe.id))", .data)
         return true
     }
 
@@ -621,7 +621,7 @@ public enum ProfileLabels {
             AppLog.error("closet city save failed", .data)
             return false
         }
-        AppLog.notice("closet city=\(wardrobe.locationCity ?? "-")", .data)
+        AppLog.notice("closet city changed hasCity=\(wardrobe.locationCity != nil)", .data)
         return true
     }
 }

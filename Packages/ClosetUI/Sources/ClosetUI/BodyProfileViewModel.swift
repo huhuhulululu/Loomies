@@ -182,7 +182,7 @@ public final class BodyProfileViewModel {
             return
         }
         message = "Model: \(sex.displayTitle)."
-        AppLog.info("body sex=\(sex.rawValue)", .data)
+        AppLog.info("body sex changed", .data)
     }
 
     /// 切换 catalog 表型（外观/肤色族）并落库。
@@ -200,7 +200,7 @@ public final class BodyProfileViewModel {
             return
         }
         message = "Look: \(phenotype.displayTitle)."
-        AppLog.info("body phenotype=\(phenotype.rawValue)", .data)
+        AppLog.info("body phenotype changed", .data)
     }
 
     /// 用腰臀推断上臀并标记 provisional。

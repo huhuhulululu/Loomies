@@ -23,7 +23,7 @@ public enum OutfitFavoriteService {
         let outfit = try OutfitDraftService.create(
             name: name, items: items, in: wardrobe,
             isFavorite: true, occasion: occasion, source: source, context: context)
-        AppLog.notice("favorite outfit \(name) items=\(items.count)", .data)
+        AppLog.notice("favorite outfit=\(AppLog.ref(outfit.id)) items=\(items.count)", .data)
         return outfit
     }
 
@@ -38,7 +38,7 @@ public enum OutfitFavoriteService {
         guard ModelSave.save(context, label: "outfitFavoriteToggle") else {
             outfit.isFavorite = previous
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("favorite toggle save failed \(outfit.name)", .data)
+            AppLog.error("favorite toggle save failed outfit=\(AppLog.ref(outfit.id))", .data)
             return false
         }
         return true

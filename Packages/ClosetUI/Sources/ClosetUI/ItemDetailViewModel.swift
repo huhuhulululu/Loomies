@@ -106,15 +106,15 @@ public final class ItemDetailViewModel {
             waistFlat = item.waistFlatWidthInches.map { String($0) } ?? ""
             locationID = item.location?.id
             message = "Saved."
-            AppLog.info("ItemDetail save \(item.name) slot=\(item.slotRaw)", .app)
+            AppLog.info("ItemDetail save item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .app)
         } else if !locationOk && edited && statusOk {
             // Only location failed — specific toast (Me Storage parity).
             message = StorageLocationService.assignSaveFailedMessage
-            AppLog.error("ItemDetail location assign failed \(item.name)", .app)
+            AppLog.error("ItemDetail location assign failed item=\(AppLog.ref(item.id))", .app)
         } else {
             message = Self.saveFailedMessage
             AppLog.error(
-                "ItemDetail save failed \(item.name) edit=\(edited) status=\(statusOk) loc=\(locationOk)",
+                "ItemDetail save failed item=\(AppLog.ref(item.id)) edit=\(edited) status=\(statusOk) loc=\(locationOk)",
                 .app)
         }
     }
@@ -141,7 +141,7 @@ public final class ItemDetailViewModel {
     /// On save failure: keeps the local image, does not set `didDelete` (no silent success toast).
     public func delete(in context: ModelContext) {
         let path = item.localImageRelativePath
-        let label = item.name
+        let label = AppLog.ref(item.id)   // 日志安全标识：删除日志不携带用户命名
         let ok = DeleteService.deleteItem(item, in: context)
         if ok {
             ItemImageStore.delete(relativePath: path)

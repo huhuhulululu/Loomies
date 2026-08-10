@@ -66,7 +66,7 @@ public enum WardrobeManageActions {
             AppLog.error("wardrobe manage create save failed", .data)
             return (createFailedMessage, nil)
         }
-        AppLog.notice("wardrobe created \(name)", .data)
+        AppLog.notice("wardrobe created \(AppLog.ref(w.id))", .data)
         return (createdMessage(name), w)
     }
 }

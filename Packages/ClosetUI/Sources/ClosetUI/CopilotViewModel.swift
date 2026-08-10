@@ -97,7 +97,7 @@ public final class CopilotViewModel {
     public func toggleAnchor(_ item: Item) {
         if anchorIDs.contains(item.id) { anchorIDs.remove(item.id) }
         else { anchorIDs.insert(item.id) }
-        AppLog.debug("anchor toggle \(item.name) now=\(anchorIDs.count)", .copilot)
+        AppLog.debug("anchor toggle item=\(AppLog.ref(item.id)) now=\(anchorIDs.count)", .copilot)
     }
 
     public func clearAnchors() {
@@ -126,7 +126,7 @@ public final class CopilotViewModel {
             weatherSourceLabel = snap.sourceLabel
             precipProbabilityPercent = snap.precipProbabilityPercent
             AppLog.info(
-                "weather \(daytimeTempF)°F src=\(weatherSourceLabel) precip=\(precipProbabilityPercent.map(String.init) ?? "-") city=\(wardrobe.locationCity ?? "-")",
+                "weather \(daytimeTempF)°F src=\(weatherSourceLabel) precip=\(precipProbabilityPercent.map(String.init) ?? "-") hasCity=\(wardrobe.locationCity != nil)",
                 .weather)
         } catch {
             guard generation == weatherGeneration else { return }  // 陈旧失败不得吞新成功
@@ -134,7 +134,7 @@ public final class CopilotViewModel {
             // Keep last daytimeTempF for scoring continuity; clear rain cue (unknown).
             weatherSourceLabel = Self.weatherUnavailableSourceLabel
             precipProbabilityPercent = nil
-            AppLog.error("weather failed: \(error)", .weather)
+            AppLog.error("weather failed: \(AppLog.errRef(error))", .weather)
         }
     }
 

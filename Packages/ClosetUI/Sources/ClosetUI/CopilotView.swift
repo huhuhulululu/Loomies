@@ -782,7 +782,7 @@ public struct CopilotView: View {
                 toast = "Couldn't export preview — try again"
             }
             flash(toast)
-            AppLog.error("cinematic export: \(error)", .copilot)
+            AppLog.error("cinematic export: \(AppLog.errRef(error))", .copilot)
             // Clear failure glyph after toast window so retry looks clean.
             // 代际守卫：连续两次失败时第一个计时器不得提前清掉第二次的失败三角。
             cinematicFailureToken &+= 1
@@ -872,7 +872,7 @@ public struct CopilotView: View {
         await vm.applyWeather(CompositeWeatherProvider.production)
         runRefresh()
         AppLog.info(
-            "city climate reapplied city=\(vm.wardrobe.locationCity ?? "-") temp=\(vm.daytimeTempF)",
+            "city climate reapplied hasCity=\(vm.wardrobe.locationCity != nil) temp=\(vm.daytimeTempF)",
             .weather)
     }
 }

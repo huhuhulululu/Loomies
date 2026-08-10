@@ -39,6 +39,19 @@ public enum AppLog {
 
     public static func setMinLevel(_ level: Level) { minLevel = level }
 
+    // MARK: - 日志安全标识（PII 不入日志）
+
+    /// 用户内容（名称/城市/条码原文）不入日志——用 id 前 8 位稳定标识替代，
+    /// 可跨日志行关联同一实体，但不可逆推用户输入。
+    public static func ref(_ id: UUID) -> String { String(id.uuidString.prefix(8)) }
+
+    /// 错误摘要：domain#code。禁止 `\(error)` 全量插值——Cocoa 错误的 userInfo
+    /// 携带 NSFilePath/NSURL（容器 UUID 绝对路径，准设备标识符），会随诊断导出外流。
+    public static func errRef(_ err: any Error) -> String {
+        let ns = err as NSError
+        return "\(ns.domain)#\(ns.code)"
+    }
+
     public static func debug(_ message: @autoclosure () -> String, _ cat: Category = .app,
                              file: String = #fileID, line: Int = #line) {
         log(.debug, message(), cat, file: file, line: line)
@@ -86,13 +99,15 @@ public enum AppLog {
                              message: message, file: file, line: line)
         ring.append(entry)
         #if canImport(OSLog)
+        // .private：unified log（sysdiagnose/Console/MDM 采集）是出设备通道，
+        // 动态消息一律走系统兜底脱敏；调试期用 log profile / Xcode 仍可见明文。
         let logger = Logger(subsystem: "com.pinglin.closet", category: cat.rawValue)
         switch level {
-        case .debug:  logger.debug("\(message, privacy: .public)")
-        case .info:   logger.info("\(message, privacy: .public)")
-        case .notice: logger.notice("\(message, privacy: .public)")
-        case .error:  logger.error("\(message, privacy: .public)")
-        case .fault:  logger.fault("\(message, privacy: .public)")
+        case .debug:  logger.debug("\(message, privacy: .private)")
+        case .info:   logger.info("\(message, privacy: .private)")
+        case .notice: logger.notice("\(message, privacy: .private)")
+        case .error:  logger.error("\(message, privacy: .private)")
+        case .fault:  logger.fault("\(message, privacy: .private)")
         }
         #else
         print("[\(level)][\(cat.rawValue)] \(message)")
@@ -123,9 +138,22 @@ public final class LogRing: @unchecked Sendable {
 
     public init(capacity: Int) { self.capacity = max(1, capacity) }
 
+    /// 单条消息截断上限：超长 error dump（SwiftData/AVFoundation userInfo 可达数 KB）
+    /// 会把 200 条环撑到数 MB 并挤满诊断包 80 行配额。
+    public static let maxMessageLength = 512
+
     public func append(_ e: LogEntry) {
         lock.lock(); defer { lock.unlock() }
-        buf.append(e)
+        let entry: LogEntry
+        if e.message.count > Self.maxMessageLength {
+            entry = LogEntry(
+                date: e.date, level: e.level, category: e.category,
+                message: String(e.message.prefix(Self.maxMessageLength)) + "…",
+                file: e.file, line: e.line)
+        } else {
+            entry = e
+        }
+        buf.append(entry)
         if buf.count > capacity { buf.removeFirst(buf.count - capacity) }
     }
 

@@ -43,4 +43,61 @@ struct AppLogTests {
         #expect(e.lineText.contains("hello"))
         #expect(e.lineText.contains("info"))
     }
+
+    /// 超长消息截断：数 KB 的 error dump 不得把 200 条环撑到数 MB / 挤满诊断配额。
+    @Test func ringTruncatesOversizedMessages() {
+        let ring = LogRing(capacity: 5)
+        let long = String(repeating: "x", count: 5_000)
+        ring.append(LogEntry(date: Date(), level: .error, category: .data,
+                             message: long, file: "x", line: 1))
+        let stored = ring.snapshot().first?.message ?? ""
+        #expect(stored.count <= LogRing.maxMessageLength + 1)  // +1 省略号
+        #expect(stored.hasSuffix("…"))
+        // 正常长度不受影响
+        ring.append(LogEntry(date: Date(), level: .info, category: .data,
+                             message: "short", file: "x", line: 1))
+        #expect(ring.snapshot().last?.message == "short")
+    }
+
+    /// 日志安全标识：ref 稳定且不可逆；errRef 不展开 userInfo（防 NSFilePath 外流）。
+    @Test func refAndErrRefCarryNoUserContent() {
+        let id = UUID()
+        #expect(AppLog.ref(id) == String(id.uuidString.prefix(8)))
+        let err = NSError(
+            domain: "NSCocoaErrorDomain", code: 512,
+            userInfo: [NSFilePathErrorKey: "/var/mobile/Containers/secret/path.jpg"])
+        let r = AppLog.errRef(err)
+        #expect(r == "NSCocoaErrorDomain#512")
+        #expect(!r.contains("/var"))
+    }
+
+    /// 静态隐私 lint：全仓 Sources 的 AppLog 行禁止插值用户内容
+    /// （单品/衣柜/搭配/位置名、城市原文、error 全量 dump）。回归即失败。
+    @Test func appLogCallSitesCarryNoPIIPatterns() throws {
+        let packagesDir = URL(fileURLWithPath: #filePath)   // …/Packages/ClosetCore/Tests/ClosetCoreTests/AppLogTests.swift
+            .deletingLastPathComponent()                    // ClosetCoreTests
+            .deletingLastPathComponent()                    // Tests
+            .deletingLastPathComponent()                    // ClosetCore
+            .deletingLastPathComponent()                    // Packages
+        let forbidden = [
+            #"\(item.name"#, #"\(wardrobe.name"#, #"\(outfit.name"#,
+            #"\(location.name"#, #"\(dest.name"#, #"\(w.name"#,
+            #"\(error)"#, #"locationCity ??"#,
+        ]
+        var violations: [String] = []
+        let fm = FileManager.default
+        let en = fm.enumerator(at: packagesDir, includingPropertiesForKeys: nil)
+        while let url = en?.nextObject() as? URL {
+            guard url.pathExtension == "swift",
+                  url.path.contains("/Sources/") else { continue }
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
+            where line.contains("AppLog.") {
+                for pat in forbidden where line.contains(pat) {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ \(pat)")
+                }
+            }
+        }
+        #expect(violations.isEmpty, "\(violations)")
+    }
 }

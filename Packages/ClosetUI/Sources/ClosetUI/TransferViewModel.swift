@@ -53,7 +53,7 @@ public final class TransferViewModel {
         }
         message = "Moved to \(dest.name)."
         didTransfer = true
-        AppLog.notice("transfer \(item.name) → \(dest.name)", .data)
+        AppLog.notice("transfer item=\(AppLog.ref(item.id)) → wardrobe=\(AppLog.ref(dest.id))", .data)
         return true
     }
 }

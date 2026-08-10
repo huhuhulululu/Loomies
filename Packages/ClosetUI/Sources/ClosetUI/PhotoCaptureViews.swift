@@ -309,10 +309,10 @@ public struct AddPieceSheet: View {
                 guard ModelSave.save(context, label: "quickAdd") else {
                     context.delete(item)
                     message = IntakeViewModel.confirmSaveFailedMessage
-                    AppLog.error("manualAdd save failed \(trimmed)", .intake)
+                    AppLog.error("manualAdd save failed", .intake)
                     return
                 }
-                AppLog.info("manualAdd \(item.name) slot=\(item.slotRaw)", .intake)
+                AppLog.info("manualAdd item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .intake)
                 dismiss()
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -389,7 +389,7 @@ public struct AddPieceSheet: View {
                     Section {
                         Button("Add to closet") {
                             if let item = intakeVM.confirm(into: wardrobe, context: context) {
-                                AppLog.info("intake confirmed \(item.name)", .intake)
+                                AppLog.info("intake confirmed item=\(AppLog.ref(item.id))", .intake)
                                 // Sheet dismisses now — hand any post-save honesty flash
                                 // (matting/layer/image save failed) to the parent first.
                                 if let flash = Self.postConfirmFlash(

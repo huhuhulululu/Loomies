@@ -113,10 +113,10 @@ public enum DemoSeedService {
             }
             // rollback 一并丢弃 pending inserts（delete 只删行，脏标记会滞留）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("demoSeed save failed wardrobe=\(wardrobe.name)", .data)
+            AppLog.error("demoSeed save failed wardrobe=\(AppLog.ref(wardrobe.id))", .data)
             return .saveFailed
         }
-        AppLog.notice("demoSeed +\(count) items into \(wardrobe.name)", .data)
+        AppLog.notice("demoSeed +\(count) items into wardrobe=\(AppLog.ref(wardrobe.id))", .data)
         return .added(count)
     }
 

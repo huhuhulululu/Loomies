@@ -21,10 +21,11 @@ public enum DiagnosticsExport {
         public var flags: [String: String]
     }
 
+    /// 诊断脱敏：不携带用户命名的衣柜名与常住城市（诊断包会分享给支持方/第三方）。
+    /// id 前 8 位可跨日志行关联同一衣柜；`hasCity` 只报有无。
     public struct WardrobeSummary: Codable, Sendable, Equatable {
         public var id: String
-        public var name: String
-        public var city: String?
+        public var hasCity: Bool
         public var itemCount: Int
         public var availableCount: Int
         public var slots: [String: Int]
@@ -58,15 +59,14 @@ public enum DiagnosticsExport {
                     slots[key, default: 0] += 1
                 }
                 return WardrobeSummary(
-                    id: w.id.uuidString,
-                    name: w.name,
-                    city: w.locationCity,
+                    id: String(w.id.uuidString.prefix(8)),
+                    hasCity: w.locationCity != nil,
                     itemCount: wItems.count,
                     availableCount: wItems.filter { $0.statusRaw == "available" }.count,
                     slots: slots
                 )
             }
-            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——快照可复现
+            .sorted { $0.id < $1.id }   // id 排序——快照可复现且不依赖用户命名
 
             let iso = ISO8601DateFormatter()
             iso.formatOptions = [.withInternetDateTime]

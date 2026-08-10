@@ -25,7 +25,7 @@ public final class OutfitActionsViewModel {
             message = Self.savedToFavoritesMessage
         } catch {
             message = Self.failureMessage(prefix: "Couldn't save", error: error)
-            AppLog.error("favorite failed \(error)", .app)
+            AppLog.error("favorite failed \(AppLog.errRef(error))", .app)
         }
     }
 
@@ -50,7 +50,7 @@ public final class OutfitActionsViewModel {
             message = "Added to calendar."
         } catch {
             message = Self.failureMessage(prefix: "Couldn't plan", error: error)
-            AppLog.error("plan failed \(error)", .app)
+            AppLog.error("plan failed \(AppLog.errRef(error))", .app)
         }
     }
 

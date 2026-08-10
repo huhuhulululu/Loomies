@@ -40,7 +40,7 @@ public enum ModelSave {
             AppLog.debug("ModelSave.\(label) ok", .data)
             return true
         } catch {
-            AppLog.error("ModelSave.\(label) failed: \(error)", .data)
+            AppLog.error("ModelSave.\(label) failed: \(AppLog.errRef(error))", .data)
             #if DEBUG
             if mode == .strict { assertionFailure("ModelSave.\(label): \(error)") }
             #endif

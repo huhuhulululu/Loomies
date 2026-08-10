@@ -29,7 +29,7 @@ public enum StorageLocationService {
         // 父节点必须同柜（与 assign 同守卫）：跨柜父节点破坏同柜不变量，拒绝创建
         if let parent {
             guard parent.wardrobe?.id == wardrobe.id else {
-                AppLog.error("location create cross-wardrobe parent blocked \(name)", .data)
+                AppLog.error("location create cross-wardrobe parent blocked", .data)
                 return nil
             }
         }
@@ -37,7 +37,7 @@ public enum StorageLocationService {
         let siblings = parent?.children
             ?? (wardrobe.locations ?? []).filter { $0.parent == nil }
         if siblings.contains(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
-            AppLog.error("location create duplicate sibling blocked \(trimmedName)", .data)
+            AppLog.error("location create duplicate sibling blocked", .data)
             return nil
         }
         let loc = StorageLocation(name: trimmedName)
@@ -47,7 +47,7 @@ public enum StorageLocationService {
         guard ModelSave.save(context, label: "locationCreate") else {
             // rollback 一并丢弃 pending insert（delete 只删行，脏标记会滞留）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("locationCreate save failed \(name)", .data)
+            AppLog.error("locationCreate save failed", .data)
             return nil
         }
         return loc
@@ -71,7 +71,7 @@ public enum StorageLocationService {
             item.location = previous
             item.revision = previousRevision
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("locationAssign save failed \(item.name)", .data)
+            AppLog.error("locationAssign save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
         return true

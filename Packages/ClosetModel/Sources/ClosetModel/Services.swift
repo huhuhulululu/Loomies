@@ -44,7 +44,7 @@ public enum TransferService {
                 propagateToCalendarPlans(outfit, in: context)
             }
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
-            AppLog.error("transfer save failed \(item.name)", .data)
+            AppLog.error("transfer save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
         return true

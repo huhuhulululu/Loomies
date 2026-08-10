@@ -94,7 +94,7 @@ public enum DeleteService {
                 CalendarPlanService.recomputeAttention(for: outfit, in: context)
             }
             context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
-            AppLog.error("deleteItem save failed \(item.name)", .data)
+            AppLog.error("deleteItem save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
         return true
@@ -125,7 +125,7 @@ public enum DeleteService {
                 child.parent = previous
             }
             context.rollback()   // 失败删除不得滞留
-            AppLog.error("deleteLocation save failed \(location.name)", .data)
+            AppLog.error("deleteLocation save failed location=\(AppLog.ref(location.id))", .data)
             return false
         }
         return true
