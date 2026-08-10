@@ -265,7 +265,7 @@ public struct CalendarView: View {
 
 /// Me → Storage empty list — recovery is the Add field above (no fake inventory / try-on).
 public enum StorageEmptyCopy {
-    public static let title = "No locations yet."
+    public static let title = "No locations yet"
     /// Row swipe-delete hint (parity Calendar / Favorites).
     public static let rowSwipeAccessibilityHint = "Swipe to remove"
 }

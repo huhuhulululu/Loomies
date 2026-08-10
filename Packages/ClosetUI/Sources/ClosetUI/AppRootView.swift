@@ -73,7 +73,7 @@ public struct MeView: View {
                     }
                 }
                 Section("Demo") {
-                    Button("Load sample pieces") {
+                    Button("Load samples") {
                         let outcome = DemoSeedService.seed(wardrobe, in: context)
                         seedMessage = outcome.meDemoFlashMessage
                     }
@@ -535,7 +535,7 @@ public struct ClosetGridView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(DS.accent)
-                        // Same demo-not-photos VO as Me → Demo Load sample pieces.
+                        // Same demo-not-photos VO as Me → Demo Load samples.
                         .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
                         Button("Add piece") { showIntake = true }
                     }

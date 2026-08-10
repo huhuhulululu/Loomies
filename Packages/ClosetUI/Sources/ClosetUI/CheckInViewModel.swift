@@ -35,7 +35,7 @@ public final class CheckInViewModel {
     public var canCheckIn: Bool { !selectedIDs.isEmpty }
 
     /// 落库前选中项解析不到任何在柜单品时的诚实提示（无静默零件打卡）。
-    public static let staleSelectionMessage = "Couldn't check in — selected pieces no longer in this closet"
+    public nonisolated static let staleSelectionMessage = "Couldn't check in — selected pieces no longer in this closet"
 
     /// Logs wear. On save fail: keeps selection + fitFeedback, sets `message`, returns nil.
     /// Stale selection (items transferred/deleted since) is dropped first; if nothing

@@ -434,7 +434,7 @@ public struct CopilotView: View {
             Text("Get a full look in a minute")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DS.ink)
-            Text("Load sample pieces, or add from Closet. Then anchor one item or use full-auto.")
+            Text("Load samples, or add from Closet. Then anchor one item or use full-auto.")
                 .font(.caption)
                 .foregroundStyle(DS.muted)
             Button {
@@ -446,7 +446,7 @@ public struct CopilotView: View {
                     vm.refresh()
                 }
             } label: {
-                Text("Load sample pieces")
+                Text("Load samples")
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
@@ -967,7 +967,8 @@ enum CopilotWoreIt {
                 ? "Checked in \(n) pieces · de-prioritized 7 days"
                 : "Checked in \(n) pieces"
         case .noResolvablePieces:
-            return "Couldn't check in — look pieces missing from closet"
+            // Shared with CheckInViewModel stale-selection toast (same condition, one copy).
+            return CheckInViewModel.staleSelectionMessage
         case .saveFailed:
             return CheckInService.saveFailedMessage
         }

@@ -18,7 +18,7 @@ public enum OutfitDraftError: Error, Equatable, LocalizedError {
         case .wardrobeMismatch:
             return "Those pieces aren't in this closet."
         case .saveFailed:
-            return "Couldn't save this look — try again."
+            return "Couldn't save this look — try again"
         }
     }
 }

@@ -15,7 +15,7 @@ public enum DeleteError: Error, Equatable, LocalizedError {
         case .personHasWardrobes:
             return "This person still has closets. Remove them first."
         case .saveFailed:
-            return "Couldn't delete — try again."
+            return "Couldn't delete — try again"
         }
     }
 }
