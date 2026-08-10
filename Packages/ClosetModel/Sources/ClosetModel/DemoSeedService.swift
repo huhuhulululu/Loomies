@@ -37,7 +37,7 @@ public enum DemoSeedService {
             case .alreadyPopulated:
                 return "Already seeded."
             case .added(let n):
-                return "Added \(n) sample pieces."
+                return "Added \(n) samples."
             case .saveFailed:
                 return DemoSeedService.saveFailedMessage
             }

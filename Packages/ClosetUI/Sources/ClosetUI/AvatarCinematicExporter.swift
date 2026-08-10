@@ -90,7 +90,7 @@ public enum AvatarCinematicExporter {
         public var toastMessage: String {
             switch self {
             case .noCroquis: return "Couldn't preview body — try again"
-            case .writerFailed: return "Export failed — free storage & retry"
+            case .writerFailed: return "Couldn't export — free storage & retry"
             case .encodeFailed: return "Couldn't export preview — try again"
             }
         }
