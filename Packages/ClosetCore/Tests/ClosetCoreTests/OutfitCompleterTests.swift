@@ -23,6 +23,26 @@ struct OutfitCompleterTests {
         #expect(out[0].outfit.itemIDs == ["b", "myTop", "sh"])
     }
 
+    /// 每槽截断前按体型 affinity 预打分：id 序垫底但最合体型的单品必须进入枚举——
+    /// 旧「随机 UUID 前缀截断」等于打分前随机抽样，大衣柜最合适单品从未被评估。
+    @Test func slotTruncationPrefersBodyAffinityOverIDOrder() {
+        var pool: [CandidateItem] = (0...12).map { item(String(format: "t%02d", $0), .top) }
+        pool.append(CandidateItem(
+            id: "t99", slot: .top, occasions: ["work"], warmth: .light,
+            status: .available, color: GarmentColor(hueDegrees: 0, isNeutral: true),
+            attributes: [.wrap, .belt, .highWaist]))
+        pool.append(item("b", .bottom))
+        pool.append(item("sh", .shoes))
+        let out = OutfitCompleter.complete(
+            anchors: [], pool: pool, context: ctx,
+            scoring: ScoringContext(bodyShape: .hourglass), maxSuggestions: 3)
+        #expect(out.contains { $0.outfit.itemIDs.contains("t99") })
+        // 无体型上下文时保持纯 id 序截断（行为不变）
+        let plain = OutfitCompleter.complete(
+            anchors: [], pool: pool, context: ctx, scoring: sctx, maxSuggestions: 30)
+        #expect(!plain.contains { $0.outfit.itemIDs.contains("t99") })
+    }
+
     /// 无锚定 full-auto：池内裙装与上下装两种骨架都要产出（组合枝拆分不得漏形态），
     /// 且不出现裙 + 上/下装的非法混搭。
     @Test func fullAutoYieldsBothDressAndSeparatesShapes() {

@@ -32,6 +32,21 @@ struct AvatarImageCacheTests {
         #expect(cache.cachedImage(forKey: "ok")! != nil)
     }
 
+    /// 程序化裸体栅格缓存：同参数只栅格化一次——旧实现在 View body 里直接
+    /// makeCGImage，30fps TimelineView 下每次重求值都全画布重绘 ~30 个抗锯齿椭圆。
+    @Test func fullNudeCacheRendersOnce() {
+        let cache = FullNudeBodyImageCache()
+        let before = cache.renderAttempts
+        _ = cache.image(sex: .female, phenotype: .eastAsian, morph: .neutral,
+                        shape: nil, yaw: .deg0, width: 64, height: 96)
+        _ = cache.image(sex: .female, phenotype: .eastAsian, morph: .neutral,
+                        shape: nil, yaw: .deg0, width: 64, height: 96)
+        #expect(cache.renderAttempts == before + 1)
+        _ = cache.image(sex: .female, phenotype: .eastAsian, morph: .neutral,
+                        shape: nil, yaw: .deg90, width: 64, height: 96)
+        #expect(cache.renderAttempts == before + 2)
+    }
+
     /// 非有限/非正宽度（首帧布局瞬态）安全降级为 nil，不 trap（Int(NaN) 陷阱）。
     @Test func morphCacheSurvivesNonFiniteWidth() {
         let cache = BodyMorphImageCache()

@@ -206,6 +206,47 @@ public enum FullNudeBodyRaster: Sendable {
 #if canImport(SwiftUI)
 import SwiftUI
 
+/// 程序化裸体栅格缓存（interim 路径：photoreal 资产缺失/表型未覆盖时走这条）。
+/// NSCache 按字节 cost 计费 + miss 负缓存（姊妹缓存同纪律）；
+/// 旧实现在 View body 里直接 makeCGImage，30fps TimelineView 下每次重求值全画布重绘。
+@MainActor
+final class FullNudeBodyImageCache {
+    static let shared = FullNudeBodyImageCache()
+
+    final class Box {
+        let image: CGImage?
+        init(_ image: CGImage?) { self.image = image }
+    }
+
+    private let cache: NSCache<NSString, Box> = {
+        let c = NSCache<NSString, Box>()
+        c.totalCostLimit = 48 * 1024 * 1024
+        c.countLimit = 64
+        return c
+    }()
+
+    /// 测试探针：栅格化实际执行次数。
+    private(set) var renderAttempts = 0
+
+    func image(
+        sex: AvatarBodySex, phenotype: AvatarBodyPhenotype,
+        morph: BodyMorphParams, shape: PopularShape?,
+        yaw: BodyAvatarYaw, width: Int, height: Int
+    ) -> CGImage? {
+        let m = morph.clamped()
+        let key = "\(sex.rawValue)|\(phenotype.rawValue)|\(shape?.rawValue ?? "-")"
+            + "|\(yaw.rawValue)|\(width)x\(height)|"
+            + String(format: "%.3f|%.3f|%.3f|%.3f|%.3f", m.chest, m.waist, m.hip, m.shoulder, m.height)
+        if let box = cache.object(forKey: key as NSString) { return box.image }
+        renderAttempts += 1
+        let img = FullNudeBodyRaster.makeCGImage(
+            sex: sex, phenotype: phenotype, morph: morph, shape: shape,
+            yaw: yaw, width: width, height: height)
+        cache.setObject(Box(img), forKey: key as NSString, cost: img == nil ? 1 : width * height * 4)
+        return img
+    }
+}
+
 /// SwiftUI 包装：全 nude 多人种 2D 底座（零遮盖；替代 pastie/thong croquis）。
 public struct FullNudeBodyImageView: View {
     public var sex: AvatarBodySex
@@ -236,7 +277,8 @@ public struct FullNudeBodyImageView: View {
         let safeW = min(4096, max(64, logicalWidth.isFinite ? logicalWidth : 64))
         let h = max(96, Int(safeW * 1.5))
         let w = Int(safeW)
-        let img = FullNudeBodyRaster.makeCGImage(
+        // 经缓存：30fps TimelineView 下 body 每次重求值不得全画布重绘（~30 个抗锯齿椭圆）
+        let img = FullNudeBodyImageCache.shared.image(
             sex: sex,
             phenotype: phenotype,
             morph: morph,

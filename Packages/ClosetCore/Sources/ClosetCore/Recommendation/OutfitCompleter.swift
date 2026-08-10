@@ -31,9 +31,18 @@ public enum OutfitCompleter {
         let anchorIDs = Set(anchors.map(\.id))
         // 候选池：过四条正确性 + 去掉已锚定项（防重复用）
         let filtered = CandidateFilter.filter(pool, context: context).filter { !anchorIDs.contains($0.id) }
+        // 截断前廉价预打分（体型 affinity）：纯 id 前缀截断等于打分前随机抽样
+        //（Item.id 是随机 UUID），大衣柜最合体型的单品可能从未进入枚举。
+        // (预分降序, id 升序) 保确定性；无体型上下文时退化为原 id 序。
+        let preShape = scoring.bodyShape?.popularCategory
         func options(_ slot: GarmentSlot) -> [CandidateItem] {
-            // 组合前封顶：只取 id 升序前 maxOptionsPerSlot 个（确定性截断）
-            Array(filtered.filter { $0.slot == slot }.sorted { $0.id < $1.id }.prefix(Self.maxOptionsPerSlot))
+            let scored = filtered.filter { $0.slot == slot }.map { it in
+                (item: it, pre: preShape.map { BodyShapeStyling.affinity(items: [it], shape: $0) } ?? 0)
+            }
+            return Array(
+                scored.sorted { $0.pre != $1.pre ? $0.pre > $1.pre : $0.item.id < $1.item.id }
+                    .prefix(Self.maxOptionsPerSlot)
+                    .map(\.item))
         }
 
         let hasDress  = anchors.contains { $0.slot == .dress }
