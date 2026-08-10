@@ -19,6 +19,7 @@ done
 echo "TOTAL_TESTS=$total"
 if [[ "${1:-}" == "--ios" ]]; then
   echo "=== xcodebuild simulator ==="
+  command -v xcodegen >/dev/null || { echo "xcodegen missing — brew install xcodegen" >&2; exit 1; }
   cd app-shell && xcodegen generate
   xcodebuild -scheme ClosetApp -project ClosetApp.xcodeproj \
     -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2' \

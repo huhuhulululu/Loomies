@@ -83,7 +83,7 @@ if [[ $EXPORT_STATUS -ne 0 ]]; then
     xcrun altool --upload-app \
       --type ios \
       --file "$IPA" \
-      --apiKey "${ASC_KEY_ID}" \
+      --apiKey "${ASC_KEY_ID:?set ASC_KEY_ID (source app-shell/.env.asc)}" \
       --apiIssuer "${ASC_ISSUER_ID}"
   else
     echo "Set ASC_ISSUER_ID to upload, or drag IPA into Transporter.app"

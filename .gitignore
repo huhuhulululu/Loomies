@@ -6,6 +6,10 @@ preview/
 .build/
 Packages/*/.build/
 
+# Python
+__pycache__/
+*.pyc
+
 # Claude 工作产物
 .claude/worktrees/
 .planning/
