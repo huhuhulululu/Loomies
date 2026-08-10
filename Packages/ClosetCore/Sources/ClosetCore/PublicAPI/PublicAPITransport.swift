@@ -53,9 +53,10 @@ public struct FixtureTransport: PublicAPITransport {
         // Substring keys: "geocoding-api.open-meteo.com", "api.open-meteo.com", …
         // Prefer the **longest** match so nested hosts don't collide
         // (`api.open-meteo.com` ⊂ `geocoding-api.open-meteo.com`).
+        // (长度, 键名) 双键决胜：等长 key 同时命中时不得随 Dictionary hash 序串台
         let hit = fixtures
             .filter { s.contains($0.key) }
-            .max(by: { $0.key.count < $1.key.count })
+            .max(by: { ($0.key.count, $0.key) < ($1.key.count, $1.key) })
         if let data = hit?.value { return data }
         throw PublicAPIError.notFound
     }

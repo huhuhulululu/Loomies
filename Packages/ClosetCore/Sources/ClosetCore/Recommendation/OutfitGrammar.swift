@@ -48,7 +48,9 @@ public enum OutfitGrammar {
                 subtypeCounts[key, default: 0] += 1
             }
         }
-        for (st, count) in subtypeCounts where count > 1 {
+        // 排序遍历：Dictionary 迭代序随进程 hash seed，violations 是 public API，
+        // 多个重复 subtype 时返回顺序不得漂移。
+        for st in subtypeCounts.filter({ $0.value > 1 }).keys.sorted() {
             result.append(.duplicateSubtype(st))
         }
         return result

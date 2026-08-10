@@ -461,7 +461,8 @@ public enum BodyAvatarComposer {
                 fitScale: fit.scale,
                 fitOffsetY: fit.offsetY)
         }
-        .sorted { $0.zIndex < $1.zIndex }
+        // (zIndex, id) 双键：Swift sort 非稳定，「zIndex 表无并列」是隐式前提，显式保证
+        .sorted { ($0.zIndex, $0.id) < ($1.zIndex, $1.id) }
     }
 
     /// `GarmentSlot` / item.slotRaw → 叠衣槽（accessory 不叠）。

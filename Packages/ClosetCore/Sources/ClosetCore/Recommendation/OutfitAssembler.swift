@@ -11,6 +11,8 @@ public struct Outfit: Sendable, Equatable {
 /// 组套器：从已过滤候选池产出 grammar-valid 搭配（DESIGN §F4）。
 /// 冷天（日间代表温度 < 60°F）且有外套则加层。确定性顺序，取前 maxOutfits。
 /// 注：当前为 O(基底×shoes×outerwear) 朴素枚举，适配百件级衣橱；大池的 beam search 优化留 v1.x。
+/// ⚠️ 生产路径已由 `OutfitCompleter`（锚定+补全+打分）取代，`assemble` 仅测试引用且
+/// 截断不看分数（itemIDs 字典序前 N）；保留作 v0.9 参考实现，新代码勿用。
 public enum OutfitAssembler {
 
     static let coldThresholdF = 60.0
@@ -23,7 +25,7 @@ public enum OutfitAssembler {
         let shoes = byID(pool.filter { $0.slot == .shoes })
         let outerwear = byID(pool.filter { $0.slot == .outerwear })
 
-        guard let firstShoes = shoes.first else { return [] }
+        guard !shoes.isEmpty else { return [] }
 
         var bases: [[CandidateItem]] = dresses.map { [$0] }
         for t in tops { for b in bottoms { bases.append([t, b]) } }

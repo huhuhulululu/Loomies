@@ -865,6 +865,8 @@ public struct CopilotView: View {
     private func bootstrap() async {
         // 历史导出扫尾（崩溃/未清理残留）；此刻不可能有在用的导出文件
         AvatarCinematicExporter.sweepTemporaryExports()
+        // 图片目录 ↔ DB 对账：回收崩溃窗口孤儿文件、清死路径（UI 回到诚实无照片态）
+        ImageReconcileService.reconcile(in: context)
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         await vm.applyWeather(CompositeWeatherProvider.production)
         // Prefer live @Query profile; fall back to context fetch for first paint.
