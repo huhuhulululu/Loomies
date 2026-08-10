@@ -9,7 +9,10 @@ public extension Item {
         let slot = GarmentSlot.resolved(slotRaw, name: name)
         let status = ClosetCore.ItemStatus(rawValue: statusRaw) ?? .available
         let warmth = warmthRaw.flatMap { Warmth(rawValue: $0) }
+        // 「中性」语义必须可达：quick-add 只写 colorIsNeutral 不写 colorHue——
+        // 若被 .map 吞掉，全 quick-add 衣柜所有搭配同分 1.0，推荐退化为 UUID 序。
         let color = colorHue.map { GarmentColor(hueDegrees: $0, isNeutral: colorIsNeutral) }
+            ?? (colorIsNeutral ? GarmentColor(hueDegrees: 0, isNeutral: true) : nil)
         let attrs = Set(attributesRaw.compactMap { StyleAttribute(rawValue: $0) })
         return CandidateItem(
             id: id.uuidString, slot: slot, subtype: subtype,

@@ -27,9 +27,13 @@ public enum BodyShapeStyling {
     }
 
     /// outfit 对某体型的综合体型加权（累加各单品各属性）。
+    /// 属性按 rawValue 排序后累加：Set 迭代序随进程 hash seed 变化，浮点加法
+    /// 不满足结合律——权重表一旦引入非整数值，无序累加会让同输入产生末位不同
+    /// 的 affinity，绕过排序 tie-break（防「改权重表就爆」）。
     public static func affinity(items: [CandidateItem], shape: PopularShape) -> Double {
         items.reduce(0.0) { sum, item in
-            sum + item.attributes.reduce(0.0) { $0 + weight(shape, $1) }
+            sum + item.attributes.sorted { $0.rawValue < $1.rawValue }
+                .reduce(0.0) { $0 + weight(shape, $1) }
         }
     }
 }

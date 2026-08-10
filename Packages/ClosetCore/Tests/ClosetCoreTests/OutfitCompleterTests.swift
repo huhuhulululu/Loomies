@@ -23,6 +23,28 @@ struct OutfitCompleterTests {
         #expect(out[0].outfit.itemIDs == ["b", "myTop", "sh"])
     }
 
+    /// 端到端置换不变性：锚定集顺序（SwiftData 关系数组不保序）不得改变
+    /// 建议列表的内容、顺序、分数与理由文案。
+    @Test func suggestionsInvariantToAnchorOrder() {
+        let anchors = [
+            item("a-top", .top, hue: 0, neutral: false),
+            item("a-outer", .outerwear, hue: 30, neutral: false),
+        ]
+        let pool = [
+            item("b1", .bottom, hue: 60, neutral: false),
+            item("b2", .bottom, hue: 120, neutral: false),
+            item("sh", .shoes, hue: 180, neutral: false),
+        ]
+        let sctxShaped = ScoringContext(bodyShape: .hourglass)
+        let forward = OutfitCompleter.complete(
+            anchors: anchors, pool: pool, context: ctx, scoring: sctxShaped, maxSuggestions: 5)
+        let backward = OutfitCompleter.complete(
+            anchors: anchors.reversed(), pool: pool, context: ctx, scoring: sctxShaped, maxSuggestions: 5)
+        #expect(forward.map(\.outfit.itemIDs) == backward.map(\.outfit.itemIDs))
+        #expect(forward.map(\.score.value) == backward.map(\.score.value))
+        #expect(forward.map(\.score.reasons) == backward.map(\.score.reasons))
+    }
+
     @Test func anchorDressCompletesWithShoes() {
         let out = OutfitCompleter.complete(anchors: [item("d", .dress)], pool: [item("sh", .shoes)],
                                            context: ctx, scoring: sctx, maxSuggestions: 3)

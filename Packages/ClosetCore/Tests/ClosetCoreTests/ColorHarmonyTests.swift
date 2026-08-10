@@ -44,6 +44,25 @@ struct ColorHarmonyTests {
         #expect(!ColorHarmony.followsSixtyThirtyTen(busy))
     }
 
+    /// 置换不变性：族聚类不得依赖输入顺序——同一套衣服的分数/文案不能随
+    /// SwiftData 关系数组顺序漂移（贪心聚族对排列不满足交换律的回归锁）。
+    @Test func sixtyThirtyTenIsPermutationInvariant() {
+        let hues: [Double] = [0, 30, 60, 120, 180]
+        let base = ColorHarmony.followsSixtyThirtyTen(hues.map { GarmentColor(hueDegrees: $0) })
+        let permutations: [[Double]] = [
+            hues.reversed(),
+            [30, 0, 60, 120, 180],
+            [120, 180, 0, 60, 30],
+            [60, 120, 30, 180, 0],
+        ]
+        for p in permutations {
+            #expect(ColorHarmony.followsSixtyThirtyTen(p.map { GarmentColor(hueDegrees: $0) }) == base)
+        }
+        // 环绕邻接（350° 与 10° 相距 20°）排序后仍算同族
+        #expect(ColorHarmony.followsSixtyThirtyTen(
+            [350, 10, 180].map { GarmentColor(hueDegrees: $0) }))
+    }
+
     @Test func nonFiniteHueIsNeutralNotClashing() {
         // NaN/±inf 色相无法判距离 → 中性，不误报「色彩冲突」。
         let nan = GarmentColor(hueDegrees: .nan)

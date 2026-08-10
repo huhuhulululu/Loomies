@@ -51,9 +51,13 @@ public enum ColorHarmony {
 
     /// 60-30-10：非中性色相族 ≤ 3（主/辅/点缀）才算平衡。相距 ≤30° 视为同族。
     /// 非有限色相（NaN/±inf）不计入族数（与 relation 的 nil 化一致：脏数据不产生误判）。
+    /// 聚族前按色相排序：贪心聚族对排列不满足交换律，同一套衣服的分数/文案
+    /// 不得随输入顺序（SwiftData 关系数组不保序）漂移；环绕邻接由 hueDistance 处理。
     public static func followsSixtyThirtyTen(_ colors: [GarmentColor]) -> Bool {
+        let hues = colors.filter { !$0.isNeutral }.map(\.hueDegrees)
+            .filter(\.isFinite).sorted()
         var families: [Double] = []
-        for h in colors.filter({ !$0.isNeutral }).map(\.hueDegrees) where h.isFinite {
+        for h in hues {
             if !families.contains(where: { hueDistance($0, h) <= 30 }) { families.append(h) }
         }
         return families.count <= 3

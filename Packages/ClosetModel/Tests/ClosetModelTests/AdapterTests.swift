@@ -16,6 +16,23 @@ struct AdapterTests {
         return ModelContext(container)
     }
 
+    /// quick-add 只写 colorIsNeutral 不写 colorHue：中性语义必须传到推荐层，
+    /// 否则全 quick-add 衣柜所有搭配同分（配色分支永不触发），推荐退化为 UUID 序。
+    @Test func adapterKeepsNeutralWhenHueMissing() throws {
+        let ctx = try makeContext()
+        let neutral = Item(name: "quick tee"); neutral.slotRaw = "top"
+        neutral.colorIsNeutral = true   // colorHue 留 nil（quick-add 路径）
+        ctx.insert(neutral)
+        let c = neutral.toCandidateItem()
+        #expect(c.color != nil)
+        #expect(c.color?.isNeutral == true)
+        // 既无 hue 也非中性 → 仍是「颜色未知」
+        let unknown = Item(name: "x"); unknown.slotRaw = "top"
+        unknown.colorIsNeutral = false
+        ctx.insert(unknown)
+        #expect(unknown.toCandidateItem().color == nil)
+    }
+
     @Test func adapterMapsAllFields() throws {
         let ctx = try makeContext()
         let it = Item(name: "x")
