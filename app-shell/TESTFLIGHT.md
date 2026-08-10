@@ -1,6 +1,6 @@
 # TestFlight 发布手册
 
-## 状态（2026-08-03）
+## 状态（2026-08-05）
 
 | 项 | 状态 |
 |----|------|
@@ -8,7 +8,12 @@
 | App Icon 1024 | ✅ |
 | PrivacyInfo.xcprivacy | ✅ |
 | 出口合规 `ITSAppUsesNonExemptEncryption=NO` | ✅ |
-| 版本 `0.1.0` (build 4+) | ✅ |
+| 版本 `0.1.0` (build **28**) | ✅ |
+| Build 28 | ✅ Delivery `09d8ffe1-2731-4ba7-a8ca-68638271e5e6`（ModelSave 诚实链 + 空态/VO 扫尾 + 天气源/fail-orange + Storage 列表 + cloth-done 完善） |
+| Build 27 | ✅ Delivery `3c30f1d9-51ad-4e15-8c48-d7f1d7e92e96`（Open-Meteo 天气 + 条码 Open Facts + 旅程 e2e 打磨 / displaySlot 全链路） |
+| Build 26 | ✅ Delivery `8cce71fe-be57-4cbc-ae7f-bbd51a7b1d4f`（纸娃娃正确穿衣 D75：displaySlot 全链路 + 侧淡 + 空层/fitCaption） |
+| Build 25 | ✅ Delivery `fcd039ee-3ab2-4435-a735-d7b06213b431`（catalog 丁字裤 + 多人种多角 + Body 流程 D71） |
+| Build 24 | ✅ Delivery `f8670c42-31c3-49d8-975e-06fcf8a18347`（早期 3D/hybrid） |
 | `scripts/tf-upload-now.sh` | ✅ 一键 archive+export+altool |
 | Archive codesign | ✅ Manual + profile `Closet App Store TF2`（仅 App 目标） |
 | ASC API 上传 | ✅ Key `YFRZC2GC2V` + Issuer 已接线 |
@@ -43,10 +48,10 @@ cp -n .env.asc.example .env.asc
 # 编辑 .env.asc 填 ASC_ISSUER_ID=...
 source .env.asc
 
-# 3) 注册 Bundle ID + App 记录（首次）— 用 API 或网页：
+# 3) 注册 Bundle ID + App 记录（首次，已完成 — 实际 ASC 记录：Loomies / Loomy001）
 #    Bundle ID: com.pinglin.closet
-#    Name: Closet
-#    SKU: closet-001
+#    Name: Loomies
+#    SKU: Loomy001
 #    主语言: English (U.S.)
 #    可用性: United States only (D9)
 
@@ -85,7 +90,7 @@ xcodebuild -exportArchive -archivePath build/ClosetApp.xcarchive \
   -allowProvisioningUpdates
 
 # 有 Issuer 后上传
-xcrun altool --upload-app --type ios --file build/export/Closet.ipa \
+xcrun altool --upload-app --type ios --file build/export/Loomies.ipa \
   --apiKey YFRZC2GC2V --apiIssuer "$ASC_ISSUER_ID"
 ```
 

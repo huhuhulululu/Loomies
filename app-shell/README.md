@@ -1,7 +1,7 @@
 # App 外壳（Xcode）
 
 > 薄壳 App target + 四个本地 SPM 包。逻辑/UI 在 `Packages/`，本目录只负责组装与运行。
-> 包测试：Core 92 + Model 40 + UI 20 + Intake 4 = **156 tests**。
+> 包测试：Core 206 + Model 149 + UI 187 + Intake 38 = **580 tests**。
 > 首启自动灌 sample pieces；Closet「+」手填入库；Today 建议可「I wore this」。
 
 ## 一键：生成 / 构建 / 跑模拟器
@@ -18,7 +18,7 @@ xcodebuild -scheme ClosetApp -project ClosetApp.xcodeproj \
   -configuration Debug build
 
 # 3) 安装并启动（先 boot 模拟器）
-APP=~/Library/Developer/Xcode/DerivedData/ClosetApp-*/Build/Products/Debug-iphonesimulator/Closet.app
+APP=~/Library/Developer/Xcode/DerivedData/ClosetApp-*/Build/Products/Debug-iphonesimulator/Loomies.app
 UDID=$(xcrun simctl list devices available | grep 'iPhone 17 Pro' | grep -v unavailable | head -1 | grep -oE '[A-F0-9-]{36}')
 xcrun simctl boot "$UDID" 2>/dev/null || true
 open -a Simulator

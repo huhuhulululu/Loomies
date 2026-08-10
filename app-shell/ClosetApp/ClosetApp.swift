@@ -134,6 +134,17 @@ struct OnboardingScreen: View {
                     Button("Get started") { onFinish() }
                         .disabled(!vm.canFinish)
                 }
+                if !vm.message.isEmpty {
+                    Section {
+                        // Fail/validation orange (not muted success chrome); VO hears the toast.
+                        Text(vm.message)
+                            .foregroundStyle(
+                                CustomerFlashStyle.isFailure(vm.message)
+                                    || vm.message == OnboardingViewModel.needNameAndCityMessage
+                                    ? Color.orange : .secondary)
+                            .accessibilityLabel(vm.message)
+                    }
+                }
             }
             .navigationTitle("Welcome")
         }

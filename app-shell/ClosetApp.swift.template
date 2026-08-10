@@ -1,4 +1,6 @@
-// App 入口模板（拖进 Xcode iOS App target，替换默认 App 文件）。
+// ⚠️ 历史模板：仅作 CloudKit 私有库接线参考，不是可直接拖用的 drop-in 文件。
+//    真实入口为 ClosetApp/ClosetApp.swift（@main + RootView + Onboarding，CloudKit 默认关闭）。
+//    本模板仍保留 CLOUDKIT_CONTAINER_ID 占位符与旧 schema 列表，与现行代码已漂移，勿直接替换。
 // 需填：CLOUDKIT_CONTAINER_ID（如 "iCloud.com.yourteam.closet"）。
 import SwiftUI
 import SwiftData
