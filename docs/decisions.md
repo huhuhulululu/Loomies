@@ -502,8 +502,8 @@ body-first 打磨：胶囊假人仍是最大 fidelity gap。
 
 ## D81 [2026-08-10] 打磨波续：a11y / 测试隔离 / 文案统一 / 工具链
 D80 收敛后增量打磨（commit 粒度），不新增产品功能，仅抬升质量底线：
-- **文案统一（80081fb, 2e8929a）**：失败 toast 标点统一、空态标题、「Load samples」文案、共享 stale-check-in 常量、导出失败口吻。
-- **a11y（b9d6ae1, ecdb7aa）**：`.combine` 只圈文本列、CTA 独立 VO target（入库拍摄 + Closet 空态）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44` / `measureStepperHitArea=44` / `orbitChevronHitArea=44`。
+- **文案统一（80081fb, 2e8929a, fb33e15）**：失败 toast 标点统一、空态标题、「Load samples」文案、共享 stale-check-in 常量、导出失败口吻。
+- **a11y（b9d6ae1, ecdb7aa, 5d50eb7）**：`.combine` 只圈文本列、CTA 独立 VO target（入库拍摄 + Closet/搜索/日历空态）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44` / `measureStepperHitArea=44` / `orbitChevronHitArea=44`。
 - **测试质量（cf98879）**：`ITEM_IMAGE_ROOT` per-process 临时目录隔离；异步测试 rendezvous 替代 wall-clock sleep。
 - **工具链（bd8ca35, 09322f9）**：脚本可移植化、ASC 凭据走 env（`.env.asc`）、xcodegen 前置 guard、pyc 出跟踪 + gitignore。
 - 测试数 **580 → 586**（Core 206 / Model 149 / UI 193 / Intake 38；增量来自 a11y 两波）。后续同类波按 commit 追加，不再逐波计数。
