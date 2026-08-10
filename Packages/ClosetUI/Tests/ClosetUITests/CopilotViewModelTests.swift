@@ -7,8 +7,8 @@ import ClosetCore
 
 @MainActor
 struct CopilotViewModelTests {
-
     init() {
+        ItemImageTestRoot.install()   // 触盘套件：根目录按进程隔离，勿写真机目录
         // 避免 DebugSettings 单例污染用例
         DebugSettings.shared.forceColdStart = false
         DebugSettings.shared.disableAntiRepeat = false

@@ -353,7 +353,7 @@ struct ModelLaneGapFixesTests {
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
         let fm = FileManager.default
-        let root = ItemImageStore.rootDirectory   // 进程私有临时根（ITEM_IMAGE_ROOT），快照不再受跨进程干扰
+        let root = try #require(ItemImageStore.rootDirectory)   // 进程私有临时根（ITEM_IMAGE_ROOT），快照不再受跨进程干扰
         let before = Set((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
             .filter { $0.hasSuffix(".png") }
         // 无兜底清理：根目录进程私有，泄漏文件不污染共享目录；

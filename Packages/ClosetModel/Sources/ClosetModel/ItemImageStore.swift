@@ -22,16 +22,20 @@ public enum ItemImageStore {
     /// 测试可设环境变量 ITEM_IMAGE_ROOT 重定向到按进程隔离的临时目录——
     /// 并行跑的多个测试进程共享真实真盘目录会互相看到/删到对方文件。
     /// rootDirectory 与 absoluteURL 必须共用同一基目录，否则存取路径分叉。
-    private static var baseDirectory: URL {
+    /// Application Support 取不到（理论罕见）时**不退 tmp**——tmp 被系统按存储压力
+    /// 任意清空，静默写进易失目录 = 全部单品图必然反向孤儿；诚实失败（save 返回
+    /// nil → intake 显示重试文案）优于静默丢失。
+    private static var baseDirectory: URL? {
         if let override = ProcessInfo.processInfo.environment["ITEM_IMAGE_ROOT"], !override.isEmpty {
             return URL(fileURLWithPath: override, isDirectory: true)
         }
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
     }
 
-    public static var rootDirectory: URL {
-        let dir = baseDirectory.appendingPathComponent(folderName, isDirectory: true)
+    /// nil = 基目录不可用（fail-closed；调用方按「目录空」处理）。
+    public static var rootDirectory: URL? {
+        guard let base = baseDirectory else { return nil }
+        let dir = base.appendingPathComponent(folderName, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }
@@ -47,7 +51,11 @@ public enum ItemImageStore {
             return nil
         }
         let name = "\(itemID.uuidString).\(ext)"
-        let url = rootDirectory.appendingPathComponent(name)
+        guard let dir = rootDirectory else {
+            AppLog.error("item image save failed: storage directory unavailable", .data)
+            return nil
+        }
+        let url = dir.appendingPathComponent(name)
         do {
             try data.write(to: url, options: .atomic)
             let rel = "\(folderName)/\(name)"
@@ -60,8 +68,8 @@ public enum ItemImageStore {
     }
 
     public static func absoluteURL(relativePath: String?) -> URL? {
-        guard let relativePath, !relativePath.isEmpty else { return nil }
-        return baseDirectory.appendingPathComponent(relativePath)
+        guard let relativePath, !relativePath.isEmpty, let base = baseDirectory else { return nil }
+        return base.appendingPathComponent(relativePath)
     }
 
     public static func loadData(relativePath: String?) -> Data? {

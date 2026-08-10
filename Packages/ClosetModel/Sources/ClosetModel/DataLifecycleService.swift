@@ -378,9 +378,9 @@ public enum DataLifecycleService {
     /// 清空 Application Support/ItemImages 下文件；目录本身保留。
     @discardableResult
     public static func wipeItemImageDirectory() -> Bool {
-        let dir = ItemImageStore.rootDirectory
         let fm = FileManager.default
-        guard let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+        guard let dir = ItemImageStore.rootDirectory,
+              let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return false
         }
         // 全删才算成功：部分失败也报 true 会让「照片已删」的收据撒谎。

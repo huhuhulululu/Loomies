@@ -11,6 +11,8 @@ import ClosetIntake
 /// 主路径打磨回归：种子 → 推荐 → 收藏/计划 → 打卡 → 检索 → 体型 → 导出/删除。
 @MainActor
 struct FeatureJourneyTests {
+    init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
+
 
     func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

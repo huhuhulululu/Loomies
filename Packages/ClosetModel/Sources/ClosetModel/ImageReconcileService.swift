@@ -22,9 +22,9 @@ public enum ImageReconcileService {
 
         // 孤儿文件：目录扫描减去 DB 引用集（纯文件操作，无 DB 依赖）
         var orphansRemoved = 0
-        let dir = ItemImageStore.rootDirectory
         let fm = FileManager.default
-        if let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
+        if let dir = ItemImageStore.rootDirectory,
+           let entries = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {
             for url in entries {
                 let rel = "\(ItemImageStore.folderName)/\(url.lastPathComponent)"
                 guard !referenced.contains(rel) else { continue }

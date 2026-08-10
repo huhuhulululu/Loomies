@@ -8,6 +8,8 @@ import ClosetCore
 /// 全仓此前无任何 reconcile 机制（wipe 只在 Delete all 内部）。
 @MainActor
 struct ImageReconcileServiceTests {
+    init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
+
 
     func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

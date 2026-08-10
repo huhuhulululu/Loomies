@@ -5,6 +5,8 @@ import Foundation
 
 @MainActor
 struct DataLifecycleServiceTests {
+    init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
+
 
     func makeContext() throws -> ModelContext {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)

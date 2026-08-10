@@ -6,6 +6,8 @@ import ClosetModel
 
 @Suite("Layer renderable visual (hasVisual vs load)")
 struct LayerRenderableVisualTests {
+    init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
+
 
     @Test func missingLocalPathIsNotRenderableDespiteHasVisual() {
         let layer = BodyAvatarLayer(
