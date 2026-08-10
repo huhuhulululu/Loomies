@@ -11,4 +11,17 @@ struct FitMarkCopyTests {
         #expect(FitMarkCopy.label(.tight) == "Runs tight")
         #expect(FitMarkCopy.label(.loose) == "Runs loose")
     }
+
+    /// Detail must not overclaim try-on / “fit as intended”; measurement ease only.
+    @Test func detailIsProportionGuideNotTryOn() {
+        for v in [FitVerdict.tight, .fitted, .loose] {
+            let d = FitMarkCopy.detail(v)
+            #expect(d.localizedCaseInsensitiveContains("proportion guide"))
+            #expect(d.localizedCaseInsensitiveContains("flat widths")
+                || d.localizedCaseInsensitiveContains("measures"))
+            #expect(!d.localizedCaseInsensitiveContains("try-on"))
+            #expect(!d.localizedCaseInsensitiveContains("as intended"))
+            #expect(!d.localizedCaseInsensitiveContains("on your body"))
+        }
+    }
 }

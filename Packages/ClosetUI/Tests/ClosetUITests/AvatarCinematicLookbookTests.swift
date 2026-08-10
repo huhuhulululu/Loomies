@@ -42,11 +42,113 @@ struct AvatarCinematicLookbookTests {
             #expect(err.toastMessage.count < 80)
         }
         #expect(AvatarCinematicExporter.ExportError.noCroquis.toastMessage
-            .localizedCaseInsensitiveContains("missing"))
+            .localizedCaseInsensitiveContains("try")
+            || AvatarCinematicExporter.ExportError.noCroquis.toastMessage
+            .localizedCaseInsensitiveContains("preview"))
         #expect(AvatarCinematicExporter.ExportError.writerFailed.toastMessage
             .localizedCaseInsensitiveContains("storage")
             || AvatarCinematicExporter.ExportError.writerFailed.toastMessage
             .localizedCaseInsensitiveContains("retry"))
+    }
+}
+
+@Suite("FullNudeBodyRaster")
+struct FullNudeBodyRasterTests {
+    @Test func rasterProducesOpaqueSkinPixelsForEachPhenotype() {
+        for p in AvatarBodyPhenotype.allCases {
+            let img = FullNudeBodyRaster.makeCGImage(
+                sex: .female,
+                phenotype: p,
+                morph: .neutral,
+                shape: .hourglass,
+                yaw: .deg0,
+                width: 128,
+                height: 192)
+            #expect(img != nil, "raster nil for \(p.rawValue)")
+            guard let img else { continue }
+            #expect(img.width == 128 && img.height == 192)
+            // Center torso should be non-transparent skin (not empty canvas).
+            let alpha = sampleAlpha(img, x: 64, y: 100)
+            #expect(alpha > 0.5, "expected body pixel for \(p.rawValue)")
+        }
+    }
+
+    @Test func africanRasterDarkerThanEuropeanAtTorso() {
+        let eu = FullNudeBodyRaster.makeCGImage(
+            sex: .female, phenotype: .european, yaw: .deg0, width: 96, height: 144)!
+        let af = FullNudeBodyRaster.makeCGImage(
+            sex: .female, phenotype: .african, yaw: .deg0, width: 96, height: 144)!
+        let euL = sampleLuma(eu, x: 48, y: 75)
+        let afL = sampleLuma(af, x: 48, y: 75)
+        #expect(afL < euL)
+    }
+
+    @Test func sideYawNarrowerThanFront() {
+        #expect(FullNudeBodyRaster.yawWidthFactor(.deg90)
+            < FullNudeBodyRaster.yawWidthFactor(.deg0))
+        #expect(FullNudeBodyRaster.yawWidthFactor(.deg45)
+            < FullNudeBodyRaster.yawWidthFactor(.deg0))
+        #expect(FullNudeBodyRaster.yawWidthFactor(.deg180)
+            == FullNudeBodyRaster.yawWidthFactor(.deg0))
+    }
+
+    @Test func maleAndFemaleRastersBothFullNudeCapable() {
+        for sex in AvatarBodySex.allCases {
+            let img = FullNudeBodyRaster.makeCGImage(
+                sex: sex, phenotype: .latinx, yaw: .deg0, width: 80, height: 120)
+            #expect(img != nil)
+        }
+    }
+
+    @Test func shapePresetsFeedDistinctScalesIntoRaster() {
+        let pearS = MannequinSegmentScales.resolve(
+            sex: .female, morph: .neutral, shape: .pear, phenotype: .eastAsian)
+        let invS = MannequinSegmentScales.resolve(
+            sex: .female, morph: .neutral, shape: .invertedTriangle, phenotype: .eastAsian)
+        #expect(pearS.hipWidth > invS.hipWidth)
+        #expect(invS.shoulderWidth > pearS.shoulderWidth)
+        #expect(FullNudeBodyRaster.makeCGImage(
+            sex: .female, phenotype: .eastAsian, morph: .neutral,
+            shape: .pear, yaw: .deg0, width: 80, height: 120) != nil)
+        #expect(FullNudeBodyRaster.makeCGImage(
+            sex: .female, phenotype: .eastAsian, morph: .neutral,
+            shape: .invertedTriangle, yaw: .deg0, width: 80, height: 120) != nil)
+    }
+
+    // MARK: - pixel helpers
+
+    private func sampleAlpha(_ image: CGImage, x: Int, y: Int) -> Double {
+        sample(image, x: x, y: y).a
+    }
+
+    private func sampleLuma(_ image: CGImage, x: Int, y: Int) -> Double {
+        let p = sample(image, x: x, y: y)
+        return 0.299 * p.r + 0.587 * p.g + 0.114 * p.b
+    }
+
+    private func sample(
+        _ image: CGImage, x: Int, y: Int
+    ) -> (r: Double, g: Double, b: Double, a: Double) {
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let cs = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: cs,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return (0, 0, 0, 0) }
+        // CG y-up: convert from top-down sample y if needed — bitmap render uses y-up
+        // Our raster draws with y-up; tests pass y from bottom.
+        ctx.draw(image, in: CGRect(x: -x, y: -y, width: image.width, height: image.height))
+        return (
+            Double(pixel[0]) / 255,
+            Double(pixel[1]) / 255,
+            Double(pixel[2]) / 255,
+            Double(pixel[3]) / 255
+        )
     }
 }
 

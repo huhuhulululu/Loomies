@@ -54,10 +54,18 @@ struct DataLayerTests {
         try ctx.save()
         #expect(o.missing == false)
 
-        TransferService.transfer(item, to: b, in: ctx)
+        let ok = TransferService.transfer(item, to: b, in: ctx)
+        #expect(ok)
         #expect(item.wardrobe?.id == b.id)   // 已转移
         #expect(o.missing == true)           // 原柜搭配缺件
         #expect(item.revision == 1)          // 版本自增
+    }
+
+    /// Save-fail toast must not look like success (caller keeps sheet open).
+    @Test func transferSaveFailedMessageIsHonest() {
+        #expect(TransferService.saveFailedMessage.localizedCaseInsensitiveContains("couldn't move"))
+        #expect(TransferService.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
+        #expect(!TransferService.saveFailedMessage.localizedCaseInsensitiveContains("moved to"))
     }
 
     @Test func transferBackRestoresOutfit() throws {

@@ -12,8 +12,9 @@ public enum GarmentLayerNormalizer {
 
     /// 归一化 PNG；失败返回 nil（调用方回退原图）。
     public static func normalize(imageData: Data, slot: BodyAvatarSlot) -> Data? {
-        guard let src = decodeRGBA(imageData) else { return nil }
-        let bbox = alphaBoundingBox(src) ?? fullBox(src.width, src.height)
+        guard let decoded = decodeRGBA(imageData) else { return nil }
+        let src = decoded.image
+        let bbox = alphaBoundingBox(src, hasAlpha: decoded.hasAlpha) ?? fullBox(src.width, src.height)
         guard let cropped = crop(src, to: bbox) else { return nil }
         let placed = placeOnCanvas(cropped, slot: slot)
         return encodePNG(placed)
@@ -34,10 +35,15 @@ public enum GarmentLayerNormalizer {
 
     // MARK: - Decode / encode
 
-    private static func decodeRGBA(_ data: Data) -> CGImage? {
+    /// 返回统一 RGBA8 像素 + 源图是否真有 alpha（须在 toRGBA8 之前判定——
+    /// 转换后 alphaInfo 恒为 premultipliedLast，JPEG 的不透明信息会丢失）。
+    private static func decodeRGBA(_ data: Data) -> (image: CGImage, hasAlpha: Bool)? {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
-              let cg = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
-        return cg.toRGBA8()
+              let cg = CGImageSourceCreateImageAtIndex(src, 0, nil),
+              let rgba = cg.toRGBA8() else { return nil }
+        let hasAlpha = cg.alphaInfo != .none && cg.alphaInfo != .noneSkipLast
+            && cg.alphaInfo != .noneSkipFirst
+        return (rgba, hasAlpha)
     }
 
     private static func encodePNG(_ image: CGImage) -> Data? {
@@ -56,8 +62,9 @@ public enum GarmentLayerNormalizer {
         CGRect(x: 0, y: 0, width: w, height: h)
     }
 
-    /// 非零 alpha 外接矩形；JPEG 无 alpha 时用非近白像素。
-    private static func alphaBoundingBox(_ image: CGImage) -> CGRect? {
+    /// 非零 alpha 外接矩形；源图无 alpha（如 JPEG）时用非近白像素。
+    /// hasAlpha 来自源 CGImage.alphaInfo——解码时已判定，此处的 image 恒为 RGBA8。
+    private static func alphaBoundingBox(_ image: CGImage, hasAlpha: Bool) -> CGRect? {
         let w = image.width, h = image.height
         guard w > 0, h > 0, let data = image.dataProvider?.data else { return nil }
         let ptr = CFDataGetBytePtr(data)
@@ -65,8 +72,6 @@ public enum GarmentLayerNormalizer {
         let bpr = image.bytesPerRow
         var minX = w, minY = h, maxX = 0, maxY = 0
         var found = false
-        let hasAlpha = image.alphaInfo != .none && image.alphaInfo != .noneSkipLast
-            && image.alphaInfo != .noneSkipFirst
 
         for y in 0..<h {
             for x in 0..<w {

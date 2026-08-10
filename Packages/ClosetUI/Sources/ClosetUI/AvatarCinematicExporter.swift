@@ -38,6 +38,8 @@ public enum AvatarCinematicExporter {
         public var morph: BodyMorphParams
         public var layers: [BodyAvatarLayer]
         public var backdrop: AvatarBackdrop
+        public var bodySex: AvatarBodySex
+        public var bodyPhenotype: AvatarBodyPhenotype
         public var width: Int
         public var height: Int
         public var duration: TimeInterval
@@ -48,6 +50,8 @@ public enum AvatarCinematicExporter {
             morph: BodyMorphParams = .neutral,
             layers: [BodyAvatarLayer] = [],
             backdrop: AvatarBackdrop = .studio,
+            bodySex: AvatarBodySex = .female,
+            bodyPhenotype: AvatarBodyPhenotype = .eastAsian,
             width: Int = 720,
             height: Int = 1080,
             duration: TimeInterval = 2.0,
@@ -57,6 +61,8 @@ public enum AvatarCinematicExporter {
             self.morph = morph
             self.layers = layers
             self.backdrop = backdrop
+            self.bodySex = bodySex
+            self.bodyPhenotype = bodyPhenotype
             self.width = width
             self.height = height
             self.duration = duration
@@ -72,7 +78,7 @@ public enum AvatarCinematicExporter {
         public var errorDescription: String? {
             switch self {
             case .noCroquis:
-                return "Body preview assets are missing. Reopen the app and try again."
+                return "Couldn't build the nude body preview. Try again in a moment."
             case .writerFailed:
                 return "Couldn't start the video writer. Free some storage and try again."
             case .encodeFailed:
@@ -83,7 +89,7 @@ public enum AvatarCinematicExporter {
         /// Short chip copy for Today toast (HIG: concise, actionable).
         public var toastMessage: String {
             switch self {
-            case .noCroquis: return "Preview assets missing — reopen app"
+            case .noCroquis: return "Preview body failed — try again"
             case .writerFailed: return "Export failed — free storage & retry"
             case .encodeFailed: return "Export failed — try again"
             }
@@ -95,18 +101,18 @@ public enum AvatarCinematicExporter {
         let frameCount = max(24, Int(request.duration * Double(request.fps)))
         let w = request.width, h = request.height
 
-        // 预载 lookbook 用到的 yaw 帧
+        // 全 nude 底座：优先已认证 photoreal 正面；否则程序化多人种栅格。
+        // **禁止** 回退 pastie/thong croquis（违反 NudeBodyBaseSpec）。
         let neededYaw: [BodyAvatarYaw] = [
             .deg0, .deg45, .deg90, .deg135, .deg180
         ]
-        var croquis: [BodyAvatarYaw: CGImage] = [:]
+        var bodyFrames: [BodyAvatarYaw: CGImage] = [:]
         for y in neededYaw {
-            if let name = croquisName(shape: request.shape, yaw: y),
-               let img = loadCGImage(named: name) {
-                croquis[y] = img
+            if let img = loadFullNudeBodyFrame(request: request, yaw: y) {
+                bodyFrames[y] = img
             }
         }
-        guard croquis[.deg0] != nil || croquis.values.first != nil else {
+        guard bodyFrames[.deg0] != nil || bodyFrames.values.first != nil else {
             throw ExportError.noCroquis
         }
 
@@ -154,9 +160,13 @@ public enum AvatarCinematicExporter {
             let parallaxX = sin(t * .pi * 2) * 0.85
             let parallaxY = cos(t * .pi * 2 * 0.7) * 0.35
             let pose = AvatarCinematicLookbook.pose(at: t)
-            let body = croquis[pose.yaw] ?? croquis.values.first!
+            guard let body = Self.resolveBodyFrame(yaw: pose.yaw, frames: bodyFrames)
+            else { continue }
 
-            while !input.isReadyForMoreMediaData {
+            while !(try Self.writerReadiness(
+                isReady: input.isReadyForMoreMediaData,
+                writerStatus: writer.status
+            )) {
                 try await Task.sleep(nanoseconds: 2_000_000)
             }
             guard let pb = renderFrame(
@@ -184,6 +194,30 @@ public enum AvatarCinematicExporter {
     }
 
     // MARK: - Frame composite
+
+    /// Missing-yaw fallback: hold 正面 (deg0) deterministically before any
+    /// arbitrary frame — Dictionary iteration order is not a policy.
+    nonisolated static func resolveBodyFrame(
+        yaw: BodyAvatarYaw,
+        frames: [BodyAvatarYaw: CGImage]
+    ) -> CGImage? {
+        frames[yaw] ?? frames[.deg0] ?? frames.values.first
+    }
+
+    /// Back-pressure wait predicate for the writer loop: throws when the writer
+    /// died mid-export (otherwise `isReadyForMoreMediaData == false` would hang
+    /// forever with the film button spinning).
+    nonisolated static func writerReadiness(
+        isReady: Bool,
+        writerStatus: AVAssetWriter.Status
+    ) throws -> Bool {
+        switch writerStatus {
+        case .failed, .cancelled:
+            throw ExportError.encodeFailed
+        default:
+            return isReady
+        }
+    }
 
     private static func renderFrame(
         width w: Int, height h: Int,
@@ -275,13 +309,42 @@ public enum AvatarCinematicExporter {
         return pb
     }
 
-    // MARK: - Asset load
+    // MARK: - Full-nude body frames (never covered croquis)
 
-    private static func croquisName(shape: PopularShape, yaw: BodyAvatarYaw) -> String? {
-        let name = BodyAvatarAsset.croquisName(for: shape, yaw: yaw)
-        if BodyAvatarView.bundleResourceURL(named: name) != nil { return name }
-        let legacy = BodyAvatarAsset.legacyFrontName(for: shape)
-        return BodyAvatarView.bundleResourceURL(named: legacy) != nil ? legacy : nil
+    private static func loadFullNudeBodyFrame(
+        request: Request,
+        yaw: BodyAvatarYaw
+    ) -> CGImage? {
+        // 认证 catalog 真人多角切帧；缺 yaw 帧时 hold 正面（保持真人身份，不跳程序化栅格）
+        let available: (String) -> Bool = {
+            NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
+                && BodyAvatarView.bundleResourceURL(named: $0) != nil
+        }
+        if let name = BodyAvatarAsset.resolvePhotorealFrameName(
+            sex: request.bodySex,
+            phenotype: request.bodyPhenotype,
+            yaw: yaw,
+            available: available),
+           let photo = loadCGImage(named: name)
+        {
+            return photo
+        }
+        if let front = BodyAvatarAsset.resolvePhotorealFrontName(
+            sex: request.bodySex,
+            phenotype: request.bodyPhenotype,
+            available: available),
+           let photo = loadCGImage(named: front)
+        {
+            return photo
+        }
+        return FullNudeBodyRaster.makeCGImage(
+            sex: request.bodySex,
+            phenotype: request.bodyPhenotype,
+            morph: request.morph,
+            shape: request.shape,
+            yaw: yaw,
+            width: request.width,
+            height: request.height)
     }
 
     private static func loadCGImage(named name: String) -> CGImage? {

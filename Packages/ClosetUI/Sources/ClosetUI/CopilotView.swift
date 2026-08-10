@@ -17,6 +17,8 @@ public struct CopilotView: View {
     @State private var showCinematicShare = false
     /// Brief failure pulse on film button (clears with flash toast).
     @State private var cinematicExportFailed = false
+    /// Live body profiles so Me → Body edits re-score Today without relaunch.
+    @Query private var bodyProfiles: [PersonBodyProfile]
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
@@ -25,35 +27,82 @@ public struct CopilotView: View {
 
     private let occasions = ["work", "date", "gala", "casual"]
 
+    private var ownerProfile: PersonBodyProfile? {
+        guard let pid = vm.wardrobe.owner?.id else { return nil }
+        return bodyProfiles.first { $0.personID == pid }
+    }
+
+    /// Equatable snapshot so Me → Body edits re-score without bootstrap-only bodyShape.
+    private var ownerBodySnapshot: OwnerBodySnapshot {
+        OwnerBodySnapshot(profile: ownerProfile)
+    }
+
     public var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    heroCard
-                    if vm.isColdStart { coldStartBanner }
-                    controlsCard
-                    if shouldShowAnchors { anchorSection }
-                    if !vm.suggestions.isEmpty { otherLooksSection }
-                    else if !vm.statusMessage.isEmpty && !vm.isColdStart && !vm.isRefreshing {
-                        emptyLooksNote
-                    }
-                    if let checkInNote {
-                        feedbackChip(checkInNote)
+            todayScrollContent
+                .background(DS.bg.ignoresSafeArea())
+                .navigationTitle("Today")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.large)
+                #endif
+                // Favorites were only under Me — surface after Save (journey 6 discoverability).
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        NavigationLink {
+                            FavoritesView(wardrobe: vm.wardrobe)
+                        } label: {
+                            Label("Favorites", systemImage: "heart")
+                        }
+                        .accessibilityLabel(Self.favoritesToolbarAccessibilityLabel)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .task { await runBootstrapOnce() }
+                .onChange(of: vm.wardrobe.locationCity) { _, _ in
+                    Task { await reapplyWeatherAfterCityChange() }
+                }
+                .onChange(of: ownerBodySnapshot) { _, _ in
+                    reapplyBodyProfileIfNeeded()
+                }
+        }
+    }
+
+    /// Today → Favorites entry (toolbar heart). Kept public for journey tests.
+    public static let favoritesToolbarAccessibilityLabel = "Favorites"
+
+    private var todayScrollContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                heroCard
+                if vm.isColdStart { coldStartBanner }
+                controlsCard
+                if shouldShowAnchors { anchorSection }
+                if !vm.suggestions.isEmpty { otherLooksSection }
+                else if !vm.statusMessage.isEmpty && !vm.isColdStart && !vm.isRefreshing {
+                    emptyLooksNote
+                }
+                if let checkInNote {
+                    feedbackChip(checkInNote)
+                }
             }
-            .background(DS.bg.ignoresSafeArea())
-            .navigationTitle("Today")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
-            .task {
-                guard !didBootstrap else { return }
-                didBootstrap = true
-                await bootstrap()
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private func runBootstrapOnce() async {
+        guard !didBootstrap else { return }
+        didBootstrap = true
+        await bootstrap()
+    }
+
+    private func reapplyBodyProfileIfNeeded() {
+        guard didBootstrap else { return }
+        let changed = vm.applyBodyProfile(ownerProfile)
+        if changed {
+            runRefresh()
+            AppLog.info(
+                "body profile reapplied shape=\(vm.bodyShape?.rawValue ?? "nil")",
+                .copilot)
         }
     }
 
@@ -71,17 +120,60 @@ public struct CopilotView: View {
                     shape: heroShape,
                     morph: bodyMorph,
                     layers: heroLayers,
-                    fitCaption: nil,
-                    showsFitCaption: false,
+                    fitCaption: heroFitCaption,
+                    showsFitCaption: true,
                     enablesOrbit: true,
                     compactChrome: true,
                     backdrop: heroBackdrop,
-                    depthIntensity: .cinematic)
+                    depthIntensity: .cinematic,
+                    bodySex: heroBodySex,
+                    bodyPhenotype: heroBodyPhenotype,
+                    usesMannequin3D: false)
                 .padding(.top, 4)
                 .padding(.horizontal, 4)
                 .frame(minHeight: DS.heroMinHeight)
                 // 场合切换：只重建 backdrop 层（BodyAvatarView 内 .id），勿整卡 remount
                 // （.id 整树会丢 yaw/orbit/@State — WWDC identity）
+
+                // 未叠衣 / 仅 slot 占位：底座仍可见，但明确「还没穿上」——避免误以为穿衣坏了。
+                // Gate on decodeable visuals, not layer count (path-only → placeholders only).
+                // VoiceOver must hear this empty-look hint (do not accessibilityHidden).
+                // Capsule pins to figure canvas only (not full BodyAvatarView stack) so
+                // orbit chrome + fitCaption stay clear on short hero cards.
+                if CopilotEmptyDressOverlay.shouldShow(layers: heroLayers) {
+                    // Selected look with zero wardrobe layers shares "Look items unavailable"
+                    // with title + fitCaption (not generic Undressed / Proportion guide).
+                    // Path-only layers still use the generic undressed capsule.
+                    let emptyHint = CopilotEmptyDressOverlay.message(
+                        isColdStart: vm.isColdStart,
+                        lookItemsUnavailable:
+                            vm.selectedSuggestion != nil && heroLayers.isEmpty)
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .aspectRatio(
+                                CopilotEmptyDressOverlay.canvasAspectRatio,
+                                contentMode: .fit)
+                            .overlay(alignment: .bottom) {
+                                Text(emptyHint)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(DS.ink)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 10)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .padding(
+                                        .bottom,
+                                        CopilotEmptyDressOverlay.canvasBottomPadding)
+                            }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 4)
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(emptyHint)
+                }
 
                 // 场合色微边光（细、不抢切边）
                 RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
@@ -110,12 +202,14 @@ public struct CopilotView: View {
                         .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
-                    .disabled(isExportingCinematic)
+                    .disabled(
+                        isExportingCinematic
+                            || !CopilotCinematicExportCopy.canExport(layers: heroLayers))
                     .accessibilityLabel(
                         cinematicExportFailed
-                        ? "Export failed, double tap to retry"
-                        : "Export cinematic preview")
-                    .accessibilityHint("Creates a short video of this look to share")
+                        ? CopilotCinematicExportCopy.failedLabel
+                        : CopilotCinematicExportCopy.label)
+                    .accessibilityHint(CopilotCinematicExportCopy.hint)
                     .padding(14)
                     Spacer()
                     if vm.isRefreshing {
@@ -133,21 +227,14 @@ public struct CopilotView: View {
                 }
             }
 
-            VStack(spacing: 6) {
-                Text(heroTitle)
-                    .font(.headline)
-                    .foregroundStyle(DS.ink)
-                    .multilineTextAlignment(.center)
-                if !heroSubtitle.isEmpty {
-                    Text(heroSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(DS.muted)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
+            // Wear/fit copy lives on BodyAvatarView.captionBlock (fitCaption);
+            // keep title-only chrome here to avoid duplicating the caption.
+            Text(heroTitle)
+                .font(.headline)
+                .foregroundStyle(DS.ink)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
 
             HStack(spacing: 12) {
                 metaPill(
@@ -160,6 +247,25 @@ public struct CopilotView: View {
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
+
+            // W1.3 / W1.5 — source honesty + practical rain/cool cue
+            VStack(spacing: 2) {
+                Text(vm.weatherSourceLabel)
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+                if let cue = vm.weatherDressCue {
+                    Text(cue)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(DS.ink.opacity(0.75))
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "Weather \(Int(vm.daytimeTempF)) degrees Fahrenheit, \(vm.weatherSourceLabel)"
+                + (vm.weatherDressCue.map { ", \($0)" } ?? ""))
 
             if vm.selectedSuggestion != nil {
                 HStack(spacing: 8) {
@@ -277,48 +383,36 @@ public struct CopilotView: View {
     }
 
     private var heroTitle: String {
-        if let scored = vm.selectedSuggestion {
-            let names = itemNames(for: scored)
-            if names.isEmpty { return "\(scored.outfit.items.count)-piece look" }
-            return names.joined(separator: " · ")
-        }
-        if !vm.anchorIDs.isEmpty { return "Building your look" }
-        if vm.isColdStart { return "Your body, ready to dress" }
-        return "Your look for today"
+        CopilotHeroTitle.text(
+            resolvedItemNames: vm.selectedSuggestion.map(itemNames(for:)) ?? [],
+            hasSelectedSuggestion: vm.selectedSuggestion != nil,
+            hasAnchors: !vm.anchorIDs.isEmpty,
+            isColdStart: vm.isColdStart)
     }
 
-    private var heroSubtitle: String {
-        if vm.selectedSuggestion != nil {
-            return "Proportion guide · not a photo try-on"
-        }
-        if !vm.anchorIDs.isEmpty {
-            return "Tap Complete to fill the rest"
-        }
-        if vm.isColdStart {
-            return "Add pieces or load samples below"
-        }
-        return "Complete a look to see it here"
+    /// Wear/fit copy for hero `BodyAvatarView` caption (not external subtitle).
+    private var heroFitCaption: String {
+        CopilotHeroFitCaption.text(
+            layers: heroLayers,
+            hasSelectedSuggestion: vm.selectedSuggestion != nil,
+            hasAnchors: !vm.anchorIDs.isEmpty,
+            isColdStart: vm.isColdStart)
     }
 
     private var heroShape: PopularShape {
-        if let pid = vm.wardrobe.owner?.id {
-            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-            if let p = profiles.first(where: { $0.personID == pid }),
-               let s = BodyProfileService.displayPopularShape(from: p) {
-                return s
-            }
+        if let p = ownerProfile,
+           let s = BodyProfileService.displayPopularShape(from: p) {
+            return s
         }
         return vm.bodyShape?.popularCategory ?? .rectangle
     }
 
     private var heroBodySex: AvatarBodySex {
-        if let pid = vm.wardrobe.owner?.id {
-            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-            if let p = profiles.first(where: { $0.personID == pid }) {
-                return BodyProfileService.presentationSex(from: p)
-            }
-        }
-        return .female
+        BodyProfileService.presentationSex(from: ownerProfile)
+    }
+
+    private var heroBodyPhenotype: AvatarBodyPhenotype {
+        BodyProfileService.presentationPhenotype(from: ownerProfile)
     }
 
     private var heroLayers: [BodyAvatarLayer] {
@@ -344,10 +438,13 @@ public struct CopilotView: View {
                 .font(.caption)
                 .foregroundStyle(DS.muted)
             Button {
-                let n = DemoSeedService.seedIfEmpty(vm.wardrobe, in: context)
-                flash(n == 0 ? "Closet already has pieces." : "Added \(n) samples.")
-                vm.fullAuto = true
-                vm.refresh()
+                let outcome = DemoSeedService.seedIfEmpty(vm.wardrobe, in: context)
+                flash(outcome.flashMessage)
+                // Only auto-refresh when pieces actually landed (save fail keeps cold-start honest).
+                if case .added = outcome {
+                    vm.fullAuto = true
+                    vm.refresh()
+                }
             } label: {
                 Text("Load sample pieces")
                     .font(.subheadline.weight(.semibold))
@@ -358,6 +455,8 @@ public struct CopilotView: View {
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
             }
             .buttonStyle(.plain)
+            // Same demo-not-photos VO as Me → Demo / Closet empty Load samples.
+            .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -550,7 +649,8 @@ public struct CopilotView: View {
                     backdrop: rowBackdrop,
                     depthIntensity: .off,
                     bodySex: heroBodySex,
-                    usesMannequin3D: true)
+                    bodyPhenotype: heroBodyPhenotype,
+                    usesMannequin3D: false)
                 .frame(width: 56, height: 84)
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                 .allowsHitTesting(false)
@@ -592,14 +692,24 @@ public struct CopilotView: View {
     }
 
     private func feedbackChip(_ text: String) -> some View {
-        Text(text)
+        // Failures orange (parity ItemDetail / Transfer); success stays accent.
+        let fail = Self.feedbackChipIsFailure(text)
+        let tint = fail ? Color.orange : DS.accent
+        return Text(text)
             .font(.caption.weight(.medium))
-            .foregroundStyle(DS.accent)
+            .foregroundStyle(tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(DS.accent.opacity(0.1))
+            .background(tint.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+            // Save / Plan / Wore / seed flash — VO parity with Favorites overlay.
+            .accessibilityLabel(text)
+    }
+
+    /// Today flash chip: honest fail paint — not accent “success” chrome.
+    static func feedbackChipIsFailure(_ text: String) -> Bool {
+        CustomerFlashStyle.isFailure(text)
     }
 
     private func primaryAction(_ title: String, systemImage: String, _ action: @escaping () -> Void) -> some View {
@@ -616,6 +726,11 @@ public struct CopilotView: View {
     }
 
     private func exportCinematicPreview(backdrop: AvatarBackdrop) async {
+        // Defense-in-depth (button is already disabled): no basewear-only video.
+        guard CopilotCinematicExportCopy.canExport(layers: heroLayers) else {
+            flash(CopilotCinematicExportCopy.nothingToPreviewToast)
+            return
+        }
         isExportingCinematic = true
         cinematicExportFailed = false
         defer { isExportingCinematic = false }
@@ -626,6 +741,8 @@ public struct CopilotView: View {
                     morph: bodyMorph,
                     layers: heroLayers,
                     backdrop: backdrop,
+                    bodySex: heroBodySex,
+                    bodyPhenotype: heroBodyPhenotype,
                     width: 720,
                     height: 1080,
                     duration: 2.0,
@@ -659,16 +776,13 @@ public struct CopilotView: View {
     // MARK: - Data helpers
 
     private var bodyMorph: BodyMorphParams {
-        if let pid = vm.wardrobe.owner?.id {
-            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-            if let p = profiles.first(where: { $0.personID == pid }) {
-                let m = BodyProfileService.measurements(from: p)
-                let shape = BodyProfileService.popularShape(from: p)
-                let fine = BodyMorphParams(
-                    chest: p.fineChest, waist: p.fineWaist,
-                    hip: p.fineHip, shoulder: 1, height: p.fineHeight)
-                return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
-            }
+        if let p = ownerProfile {
+            let m = BodyProfileService.measurements(from: p)
+            let shape = BodyProfileService.popularShape(from: p)
+            let fine = BodyMorphParams(
+                chest: p.fineChest, waist: p.fineWaist,
+                hip: p.fineHip, shoulder: 1, height: p.fineHeight)
+            return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
         }
         return BodyMorphParams.preset(for: vm.bodyShape?.popularCategory ?? .rectangle)
     }
@@ -682,13 +796,22 @@ public struct CopilotView: View {
     }
 
     private func checkIn(_ scored: ScoredOutfit) {
-        let ids = Set(scored.outfit.itemIDs)
-        let items = (vm.wardrobe.items ?? []).filter { ids.contains($0.id.uuidString) }
-        guard !items.isEmpty else { return }
-        _ = CheckInService.recordWear(items: items, on: Date(), in: vm.wardrobe, in: context)
-        vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
-        flash("Checked in \(items.count) pieces · de-prioritized 7 days")
-        AppLog.info("ui checkIn \(items.count)", .copilot)
+        let result = CopilotWoreIt.perform(
+            itemIDs: scored.outfit.itemIDs,
+            wardrobe: vm.wardrobe,
+            context: context)
+        switch result {
+        case .checkedIn(let n):
+            // Re-score so anti-repeat actually applies (toast must not lie).
+            runRefresh()
+            AppLog.info("ui checkIn \(n)", .copilot)
+        case .noResolvablePieces:
+            AppLog.notice("ui checkIn unresolved itemIDs", .copilot)
+        case .saveFailed:
+            AppLog.error("ui checkIn ModelSave failed", .copilot)
+        }
+        flash(CopilotWoreIt.flashMessage(
+            result, antiRepeatEnabled: !DebugSettings.shared.disableAntiRepeat))
     }
 
     private func runRefresh() {
@@ -707,17 +830,221 @@ public struct CopilotView: View {
 
     private func bootstrap() async {
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
-        await vm.applyWeather(CityClimateWeatherProvider())
-        if let pid = vm.wardrobe.owner?.id {
-            let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-            if let p = profiles.first(where: { $0.personID == pid }) {
-                vm.bodyShape = BodyProfileService.bodyShape(from: p)
-            }
+        await vm.applyWeather(CompositeWeatherProvider.production)
+        // Prefer live @Query profile; fall back to context fetch for first paint.
+        if let p = ownerProfile {
+            _ = vm.applyBodyProfile(p)
+        } else {
+            _ = vm.loadBodyShape(in: context)
         }
         if !vm.isColdStart {
             vm.fullAuto = true
             vm.refresh()
         }
         AppLog.debug("Copilot hero polished appear items=\(vm.availableItems.count)", .copilot)
+    }
+
+    /// After closet city changes (Me → City), refresh climate + looks so °F / outerwear track the new city.
+    private func reapplyWeatherAfterCityChange() async {
+        await vm.applyWeather(CompositeWeatherProvider.production)
+        runRefresh()
+        AppLog.info(
+            "city climate reapplied city=\(vm.wardrobe.locationCity ?? "-") temp=\(vm.daytimeTempF)",
+            .weather)
+    }
+}
+
+/// Lightweight Me → Body change signal for Today re-score (not a full profile copy).
+struct OwnerBodySnapshot: Equatable {
+    var popular: String?
+    var sex: String?
+    var phenotype: String?
+    var bust: Double?
+    var waist: Double?
+    var hip: Double?
+    var highHip: Double?
+    var fineChest: Double
+    var fineWaist: Double
+    var fineHip: Double
+    var fineHeight: Double
+
+    init(profile: PersonBodyProfile?) {
+        popular = profile?.popularShapeOverrideRaw
+        sex = profile?.presentationSexRaw
+        phenotype = profile?.presentationPhenotypeRaw
+        bust = profile?.bustInches
+        waist = profile?.waistInches
+        hip = profile?.hipInches
+        highHip = profile?.highHipInches
+        fineChest = profile?.fineChest ?? 1
+        fineWaist = profile?.fineWaist ?? 1
+        fineHip = profile?.fineHip ?? 1
+        fineHeight = profile?.fineHeight ?? 1
+    }
+}
+
+/// Empty-look capsule + VoiceOver copy when the hero has nothing on-canvas.
+/// Layers that exist but fail to decode still count as empty (slot placeholders only).
+enum CopilotEmptyDressOverlay {
+    /// Matches `BodyAvatarView.modelCanvas` (width:height = 2:3).
+    static let canvasAspectRatio: CGFloat = 2.0 / 3.0
+    /// Inset of capsule from the bottom edge of the figure canvas band.
+    static let canvasBottomPadding: CGFloat = 28
+
+    /// Capsule host: figure canvas band only — never full stack bottom
+    /// (which would cover orbit chrome + fitCaption on short cards).
+    enum Placement: Equatable {
+        case canvasOnly
+        case fullStackBottom
+    }
+
+    static let placement: Placement = .canvasOnly
+
+    /// `true` when no layer decodes to an on-canvas image (empty or placeholder-only).
+    static func shouldShow(layers: [BodyAvatarLayer]) -> Bool {
+        !layers.contains(where: { BodyAvatarView.hasRenderableVisual($0) })
+    }
+
+    /// Capsule when hero has no on-canvas garments.
+    /// - `lookItemsUnavailable`: selected look resolved to zero wardrobe layers → share
+    ///   title recovery phrase (not generic "Undressed · complete a look…").
+    ///   Path-only / placeholder layers keep the generic undressed line.
+    static func message(isColdStart: Bool, lookItemsUnavailable: Bool = false) -> String {
+        if lookItemsUnavailable {
+            return "\(CopilotHeroTitle.unavailablePhrase) · undressed"
+        }
+        return isColdStart
+            ? "Model ready · load samples to dress"
+            : "Undressed · complete a look to layer clothes"
+    }
+
+    /// Height of the top canvas band for a given content width (aspect-fit by width).
+    static func canvasBandHeight(forWidth width: CGFloat) -> CGFloat {
+        guard width > 0, canvasAspectRatio > 0 else { return 0 }
+        return width / canvasAspectRatio
+    }
+
+    /// `true` when pinning a capsule to the full stack bottom would sit over
+    /// chrome below the figure canvas (orbit / fitCaption).
+    static func fullStackBottomWouldCoverChrome(
+        stackSize: CGSize,
+        chromeMinHeight: CGFloat = 44
+    ) -> Bool {
+        let canvasH = canvasBandHeight(forWidth: stackSize.width)
+        return stackSize.height >= canvasH + chromeMinHeight
+    }
+}
+
+/// Today "Wore it": resolve wardrobe pieces, record wear, honest flash (no silent no-op).
+enum CopilotWoreIt {
+    enum Result: Equatable {
+        case checkedIn(pieceCount: Int)
+        case noResolvablePieces
+        case saveFailed
+    }
+
+    @discardableResult
+    static func perform(
+        itemIDs: [String],
+        wardrobe: Wardrobe,
+        context: ModelContext,
+        on date: Date = Date()
+    ) -> Result {
+        let ids = Set(itemIDs)
+        let items = (wardrobe.items ?? []).filter { ids.contains($0.id.uuidString) }
+        guard !items.isEmpty else { return .noResolvablePieces }
+        guard CheckInService.recordWear(items: items, on: date, in: wardrobe, in: context) != nil
+        else { return .saveFailed }
+        return .checkedIn(pieceCount: items.count)
+    }
+
+    /// `antiRepeatEnabled` mirrors `runRefresh`: when DebugSettings disables anti-repeat,
+    /// wornWithin7DaysIDs is empty and pieces are NOT de-prioritized — toast must not claim it.
+    static func flashMessage(_ result: Result, antiRepeatEnabled: Bool = true) -> String {
+        switch result {
+        case .checkedIn(let n):
+            return antiRepeatEnabled
+                ? "Checked in \(n) pieces · de-prioritized 7 days"
+                : "Checked in \(n) pieces"
+        case .noResolvablePieces:
+            return "Couldn't check in — look pieces missing from closet"
+        case .saveFailed:
+            return CheckInService.saveFailedMessage
+        }
+    }
+}
+
+/// Hero title copy: wardrobe-resolved names only (never Core outfit count when IDs miss).
+/// Stale/unresolved `itemIDs` → empty `heroLayers` + undressed capsule; title must not claim N-piece.
+enum CopilotHeroTitle {
+    /// Shared recovery phrase for title / empty capsule / fitCaption when selected look is empty.
+    static let unavailablePhrase = "Look items unavailable"
+
+    static func text(
+        resolvedItemNames: [String],
+        hasSelectedSuggestion: Bool,
+        hasAnchors: Bool,
+        isColdStart: Bool
+    ) -> String {
+        if hasSelectedSuggestion {
+            let names = resolvedItemNames.filter { !$0.isEmpty }
+            if !names.isEmpty { return names.joined(separator: " · ") }
+            // Unresolved wardrobe IDs (or empty names): do not use scored.outfit.items.count.
+            return unavailablePhrase
+        }
+        if hasAnchors { return "Building your look" }
+        if isColdStart { return "Your body, ready to dress" }
+        return "Your look for today"
+    }
+}
+
+/// Cinematic share export VoiceOver — layered proportion video, not try-on.
+enum CopilotCinematicExportCopy {
+    static let label = "Export layered look preview"
+    static let failedLabel = "Export failed, double tap to retry"
+    static let hint =
+        "Creates a short layered proportion video to share, not photo try-on"
+    /// Honest toast when export is attempted with nothing on-canvas.
+    static let nothingToPreviewToast = "Nothing on the model to preview"
+
+    /// Film export gate: with zero on-canvas garments the video is basewear-only,
+    /// contradicting the "layered look preview" label — same predicate as the
+    /// empty-dress capsule.
+    static func canExport(layers: [BodyAvatarLayer]) -> Bool {
+        !CopilotEmptyDressOverlay.shouldShow(layers: layers)
+    }
+}
+
+/// Hero wear/fit caption for `BodyAvatarView` (paper-doll layering, not VTON).
+enum CopilotHeroFitCaption {
+    static func text(
+        layers: [BodyAvatarLayer],
+        hasSelectedSuggestion: Bool,
+        hasAnchors: Bool,
+        isColdStart: Bool
+    ) -> String {
+        if hasSelectedSuggestion {
+            let summary = OutfitAvatarComposer.wearSummary(of: layers)
+            // Path presence ≠ on-canvas image; require decode success (failed load → placeholders).
+            if layers.contains(where: { BodyAvatarView.hasRenderableVisual($0) }) {
+                return "\(summary) · proportion guide · not photo try-on"
+            }
+            if !layers.isEmpty {
+                return "\(summary) · add item photos for layered preview"
+            }
+            // Empty layers under a selected look = unresolved IDs; align with title + capsule.
+            return "\(CopilotHeroTitle.unavailablePhrase) · not a photo try-on"
+        }
+        if hasAnchors {
+            let summary = OutfitAvatarComposer.wearSummary(of: layers)
+            if summary != "undressed" {
+                return "\(summary) · tap Complete to fill the rest"
+            }
+            return "Tap Complete to fill the rest"
+        }
+        if isColdStart {
+            return "Add pieces or load samples below"
+        }
+        return "Complete a look to see it here"
     }
 }

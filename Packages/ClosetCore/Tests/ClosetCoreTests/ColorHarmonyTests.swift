@@ -43,4 +43,23 @@ struct ColorHarmonyTests {
                     GarmentColor(hueDegrees: 120), GarmentColor(hueDegrees: 240)]
         #expect(!ColorHarmony.followsSixtyThirtyTen(busy))
     }
+
+    @Test func nonFiniteHueIsNeutralNotClashing() {
+        // NaN/±inf 色相无法判距离 → 中性，不误报「色彩冲突」。
+        let nan = GarmentColor(hueDegrees: .nan)
+        let inf = GarmentColor(hueDegrees: .infinity)
+        #expect(ColorHarmony.relation(nan, red) == .neutral)
+        #expect(ColorHarmony.relation(red, nan) == .neutral)
+        #expect(ColorHarmony.relation(inf, GarmentColor(hueDegrees: 70)) == .neutral)
+        #expect(ColorHarmony.isHarmonious([nan, GarmentColor(hueDegrees: 70)]))
+    }
+
+    @Test func nonFiniteHueNotCountedAsNewFamily() {
+        // NaN 不应计入 60-30-10 族数（否则脏数据破坏平衡判定）。
+        #expect(ColorHarmony.followsSixtyThirtyTen([
+            GarmentColor(hueDegrees: .nan),
+            GarmentColor(hueDegrees: 0),
+            GarmentColor(hueDegrees: 120),
+            GarmentColor(hueDegrees: 240)]))
+    }
 }

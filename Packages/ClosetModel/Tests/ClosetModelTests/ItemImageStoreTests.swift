@@ -2,7 +2,8 @@ import Testing
 import Foundation
 @testable import ClosetModel
 
-struct ItemImageStoreTests {
+// .serialized：共享 ItemImageStore.rootDirectory 真盘目录，须与其他触盘套件互斥。
+@Suite(.serialized) struct ItemImageStoreTests {
 
     @Test func saveLoadRoundTrip() {
         let id = UUID()

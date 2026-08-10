@@ -68,4 +68,19 @@ struct RecommendationServiceTests {
         let out = RecommendationService.suggestions(for: w, anchors: [top], occasion: "work", daytimeTempF: 75)
         #expect(out.isEmpty)   // 在洗件不入候选
     }
+
+    /// M1: 外来衣柜的锚定项必须被丢弃，绝不流入建议（跨柜硬约束不依赖调用方过滤）。
+    @Test func foreignAnchorDroppedFromSuggestions() throws {
+        let ctx = try makeContext()
+        let a = Wardrobe(name: "A"); let b = Wardrobe(name: "B"); ctx.insert(a); ctx.insert(b)
+        mk(ctx, a, "topA", "top"); mk(ctx, a, "bottomA", "bottom"); mk(ctx, a, "shoesA", "shoes")
+        let foreign = mk(ctx, b, "topB", "top")
+        try ctx.save()
+        let out = RecommendationService.suggestions(
+            for: a, anchors: [foreign], occasion: "work", daytimeTempF: 75, maxSuggestions: 3)
+        #expect(!out.isEmpty)   // A 自身成套，仍可产出建议
+        for s in out {
+            #expect(!s.outfit.itemIDs.contains(foreign.id.uuidString))
+        }
+    }
 }

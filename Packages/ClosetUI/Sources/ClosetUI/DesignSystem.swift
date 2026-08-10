@@ -14,3 +14,27 @@ public enum DS {
     public static let radiusLg: CGFloat = 18
     public static let heroMinHeight: CGFloat = 360
 }
+
+/// Today / Favorites / Calendar / Closet flash chips — fail must not paint as accent “success.”
+public enum CustomerFlashStyle {
+    public static func isFailure(_ text: String) -> Bool {
+        let t = text.lowercased()
+        return t.contains("couldn't")
+            || t.contains("failed")
+            || t.contains("missing from closet")
+    }
+
+    /// Bottom overlay / list toast chip (Favorites · Calendar · Closet seed).
+    @ViewBuilder
+    public static func overlayChip(_ text: String) -> some View {
+        let fail = isFailure(text)
+        Text(text)
+            .font(.caption.weight(fail ? .medium : .regular))
+            .foregroundStyle(fail ? Color.orange : DS.ink)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(fail ? Color.orange.opacity(0.12) : DS.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityLabel(text)
+    }
+}

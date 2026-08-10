@@ -49,4 +49,78 @@ struct DiagnosticsExportTests {
         let snap = DiagnosticsExport.snapshot(in: ctx)
         #expect(snap.bodyProfileComplete == true)
     }
+
+    /// M3: multi-person — one incomplete profile must drag the flag to false (not profiles.first only).
+    @Test func bodyCompleteFlagFalseWhenAnyProfileIncomplete() throws {
+        let ctx = try makeContext()
+        let full = PersonBodyProfile(personID: UUID())
+        full.bustInches = 36; full.waistInches = 26; full.hipInches = 36; full.highHipInches = 34
+        ctx.insert(full)
+        let partial = PersonBodyProfile(personID: UUID())
+        partial.bustInches = 36 // missing waist/hip/highHip → incomplete
+        ctx.insert(partial)
+        try ctx.save()
+
+        let snap = DiagnosticsExport.snapshot(in: ctx)
+        #expect(snap.bodyProfileComplete == false)
+    }
+
+    /// M3: no profiles at all → nil (unknown), not false.
+    @Test func bodyCompleteFlagNilWhenNoProfiles() throws {
+        let ctx = try makeContext()
+        let snap = DiagnosticsExport.snapshot(in: ctx)
+        #expect(snap.bodyProfileComplete == nil)
+    }
+
+    /// Slot histogram uses GarmentSlot.resolved (displaySlot truth), not bare slotRaw.
+    @Test func slotHistogramResolvesDirtyBlazerAsOuterwear() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "LA"); ctx.insert(w)
+        let dirty = Item(name: "Navy Blazer")
+        dirty.slotRaw = "top" // storage dirty; product truth = outerwear
+        dirty.wardrobe = w
+        dirty.statusRaw = "available"
+        ctx.insert(dirty)
+        let tee = Item(name: "White tee")
+        tee.slotRaw = "top"
+        tee.wardrobe = w
+        tee.statusRaw = "available"
+        ctx.insert(tee)
+        try ctx.save()
+
+        let snap = DiagnosticsExport.snapshot(in: ctx)
+        let slots = snap.wardrobes.first?.slots ?? [:]
+        #expect(slots["outerwear"] == 1)
+        #expect(slots["top"] == 1)
+        #expect(slots["top"] != 2) // must not lump blazer under raw "top"
+    }
+
+    @Test func exportFailedMessageIsCustomerFacing() {
+        let msg = DiagnosticsExport.exportFailedMessage
+        #expect(msg.localizedCaseInsensitiveContains("couldn't export"))
+        #expect(msg.localizedCaseInsensitiveContains("diagnostics"))
+        #expect(msg.localizedCaseInsensitiveContains("try again"))
+        #expect(!msg.contains("NSError"))
+        #expect(!msg.contains("localizedDescription"))
+    }
+
+    /// Success chip: no char-count tech detail (parity with DataLifecycle exportReadyMessage).
+    @Test func exportReadyMessageIsHonestWithoutCharCount() {
+        let msg = DiagnosticsExport.exportReadyMessage
+        #expect(msg.localizedCaseInsensitiveContains("diagnostics ready"))
+        #expect(msg.localizedCaseInsensitiveContains("share"))
+        #expect(!msg.localizedCaseInsensitiveContains("chars"))
+        #expect(!msg.localizedCaseInsensitiveContains("bytes"))
+        #expect(!msg.contains("NSError"))
+    }
+
+    /// Me Export diagnostics button VO — support-only, not full closet dump.
+    @Test func exportButtonAccessibilityHintIsSupportScoped() {
+        let hint = DiagnosticsExport.exportButtonAccessibilityHint
+        #expect(hint.localizedCaseInsensitiveContains("share"))
+        #expect(hint.localizedCaseInsensitiveContains("diagnostics"))
+        #expect(hint.localizedCaseInsensitiveContains("not your full"))
+        #expect(!hint.localizedCaseInsensitiveContains("try-on"))
+        #expect(!hint.contains("NSError"))
+    }
 }

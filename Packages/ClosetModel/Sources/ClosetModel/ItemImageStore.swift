@@ -6,6 +6,18 @@ import ClosetCore
 public enum ItemImageStore {
     public static let folderName = "ItemImages"
 
+    /// Test hook: when enabled, `save` returns nil without writing (tests force
+    /// the disk-failure path). Mirrors ModelSave.forceFailure.
+    private static let forceFailureLock = NSLock()
+    nonisolated(unsafe) private static var forceFailureEnabled = false
+
+    /// Test hook: force all `save` calls to fail (returns nil, no write).
+    static func forceFailure(_ enabled: Bool = true) {
+        forceFailureLock.lock()
+        forceFailureEnabled = enabled
+        forceFailureLock.unlock()
+    }
+
     public static var rootDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -17,6 +29,13 @@ public enum ItemImageStore {
     /// 写入 PNG/JPEG 数据，返回相对路径（如 `ItemImages/{uuid}.jpg`）。
     @discardableResult
     public static func save(data: Data, for itemID: UUID, ext: String = "jpg") -> String? {
+        forceFailureLock.lock()
+        let forced = forceFailureEnabled
+        forceFailureLock.unlock()
+        if forced {
+            AppLog.error("item image save forced failure (test hook)", .data)
+            return nil
+        }
         let name = "\(itemID.uuidString).\(ext)"
         let url = rootDirectory.appendingPathComponent(name)
         do {

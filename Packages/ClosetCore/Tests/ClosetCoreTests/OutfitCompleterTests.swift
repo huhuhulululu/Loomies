@@ -74,4 +74,31 @@ struct OutfitCompleterTests {
         let out = OutfitCompleter.complete(anchors: [anchor], pool: pool, context: ctx, scoring: sctx, maxSuggestions: 2)
         #expect(out.count == 2)
     }
+
+    /// 大池冒烟：每槽位候选封顶 maxOptionsPerSlot，结果数有界且只取 id 升序前 N，
+    /// 不会全枚举 top×bottom×shoes×outer 爆炸。
+    @Test func largePoolBoundedEnumeration() {
+        let anchor = item("myTop", .top)
+        let cap = OutfitCompleter.maxOptionsPerSlot
+        // id 用 b100…b149 / s100…s149：字典序与数值序一致
+        let bottoms = (0..<50).map { item("b\(100 + $0)", .bottom) }
+        let shoes = (0..<50).map { item("s\(100 + $0)", .shoes) }
+        let out = OutfitCompleter.complete(anchors: [anchor], pool: bottoms + shoes,
+                                           context: ctx, scoring: sctx, maxSuggestions: 10_000)
+        #expect(!out.isEmpty)
+        #expect(out.count <= cap * cap)
+        let allowed = Set((0..<cap).map { "b\(100 + $0)" } + (0..<cap).map { "s\(100 + $0)" } + ["myTop"])
+        for s in out {
+            #expect(Set(s.outfit.itemIDs).isSubset(of: allowed))   // 前 N 之外的候选不得出现
+        }
+    }
+
+    @Test func anchorShoesCompletesWithPoolDress() {
+        // 锚定鞋、池里只有连衣裙：dress+shoes 语法合法，应能补全（连衣裙曾被漏枚举）。
+        let out = OutfitCompleter.complete(anchors: [item("sh", .shoes)], pool: [item("d", .dress)],
+                                           context: ctx, scoring: sctx, maxSuggestions: 3)
+        #expect(out.count == 1)
+        #expect(out[0].outfit.itemIDs == ["d", "sh"])
+        #expect(OutfitGrammar.isValid(out[0].outfit.items))
+    }
 }

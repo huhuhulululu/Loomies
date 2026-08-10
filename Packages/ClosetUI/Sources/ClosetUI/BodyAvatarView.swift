@@ -8,8 +8,10 @@ import UIKit
 import AppKit
 #endif
 
-/// 真人站姿 + **360° 切帧** + **连续 BodyMorph 分条变形**（类游戏滑杆塑形，非 SMPL / 非 VTON）。
-/// Croquis 为透明 PNG；`backdrop` 在底层叠场合场景；**景深视差**（效果优先，非 GIF）。
+/// 人体表达层：**真实写实真人照片** catalog basewear 底座（D64：♀ pasties+thong / ♂ thong）。
+/// 主路径：认证 photoreal + BodyMorph + 多角切帧；缺侧角时正面软转，不跳程序化栅格。
+/// `usesMannequin3D` 仅 interim 调试，**不得**当最终产品视觉。
+/// 见 `NudeBodyBaseSpec`。`backdrop` 在底层；可选景深。
 public struct BodyAvatarView: View {
     public var shape: PopularShape
     public var morph: BodyMorphParams
@@ -19,15 +21,23 @@ public struct BodyAvatarView: View {
     public var enablesOrbit: Bool
     /// Today 英雄区：只保留点阵 + 轻提示，隐藏 morph 调试字
     public var compactChrome: Bool
-    /// 保留参数以兼容调用方；实际走 `BodyMorphRaster` 像素行变形（非多层 mask）。
+    /// 保留参数以兼容调用方（旧分条 morph 路径）。
     public var morphStripCount: Int
     /// 场合/棚灰背景（UI 层，可换）
     public var backdrop: AvatarBackdrop
     /// 景深立体强度；`nil` = compactChrome → cinematic，否则 subtle
     public var depthIntensity: DepthParallaxIntensity?
+    /// 展示性别底座（男性可扩；默认女）
+    public var bodySex: AvatarBodySex
+    /// 多人种/表型
+    public var bodyPhenotype: AvatarBodyPhenotype
+    /// `true` = 3D 网格模拟（interim only）；**默认 false** — 真人人照片路径
+    public var usesMannequin3D: Bool
 
     @State private var yaw: BodyAvatarYaw = .deg0
-    @State private var dragOriginYaw: BodyAvatarYaw?
+    /// 连续偏航（度）；3D 真旋转 + 照片路径侧角叠衣淡出。离散 yaw 仅作切帧/chrome。
+    @State private var yawDegrees: Double = 0
+    @State private var dragOriginDegrees: Double?
     @StateObject private var depthMotion = DepthParallaxMotion()
     /// 拖拽附加的视差（与 360 水平切帧并存）
     @State private var dragParallax = DepthParallaxSample()
@@ -51,7 +61,11 @@ public struct BodyAvatarView: View {
         initialYaw: BodyAvatarYaw = .deg0,
         morphStripCount: Int = 96,
         backdrop: AvatarBackdrop = .studio,
-        depthIntensity: DepthParallaxIntensity? = nil
+        depthIntensity: DepthParallaxIntensity? = nil,
+        bodySex: AvatarBodySex = .female,
+        bodyPhenotype: AvatarBodyPhenotype = .eastAsian,
+        /// 默认 **false**：真人照片路径。true 仅 interim 网格模拟。
+        usesMannequin3D: Bool = false
     ) {
         self.shape = shape
         self.morph = morph
@@ -63,7 +77,14 @@ public struct BodyAvatarView: View {
         self.morphStripCount = max(32, morphStripCount)
         self.backdrop = backdrop
         self.depthIntensity = depthIntensity
+        self.bodySex = bodySex
+        self.bodyPhenotype = bodyPhenotype
+        // 死要求：最终不得以网格模拟为主；未认证写实前也默认照片路径
+        // （认证前用 FullNudeBodyRaster 占位，仍标 interim）
+        self.usesMannequin3D = usesMannequin3D
+            && NudeBodyBaseSpec.allowsMeshOrSimulationAsFinalVisual
         _yaw = State(initialValue: initialYaw)
+        _yawDegrees = State(initialValue: Double(initialYaw.rawValue))
     }
 
     /// 兼容旧 API：整体 scale → morph
@@ -95,7 +116,9 @@ public struct BodyAvatarView: View {
         slotAssets: [BodyAvatarSlot: String] = [:],
         fitCaption: String? = nil,
         enablesOrbit: Bool = true,
-        backdrop: AvatarBackdrop = .studio
+        backdrop: AvatarBackdrop = .studio,
+        bodySex: AvatarBodySex = .female,
+        bodyPhenotype: AvatarBodyPhenotype = .eastAsian
     ) -> BodyAvatarView {
         let resolvedShape = shape
             ?? BodyAvatarComposer.resolveShape(from: measurements)
@@ -109,7 +132,10 @@ public struct BodyAvatarView: View {
             layers: BodyAvatarComposer.layers(slots: slotAssets),
             fitCaption: fitCaption,
             enablesOrbit: enablesOrbit,
-            backdrop: backdrop)
+            backdrop: backdrop,
+            bodySex: bodySex,
+            bodyPhenotype: bodyPhenotype,
+            usesMannequin3D: false)
     }
 
     public var body: some View {
@@ -130,13 +156,20 @@ public struct BodyAvatarView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Body shape \(shape.rawValue), \(yaw.shortLabel) view")
+        .accessibilityLabel(
+            Self.heroAccessibilityLabel(
+                yawLabel: Self.orbitAccessibilityLabel(
+                    sexTitle: bodySex.displayTitle,
+                    shapeRaw: shape.rawValue,
+                    yawLabel: yaw.shortLabel,
+                    isSoftHold: isPhotorealSoftHold),
+                fitCaption: showsFitCaption ? fitCaption : nil))
         .onChange(of: shape) { _, _ in
-            yaw = .deg0
+            snapYaw(to: .deg0)
         }
-        // 换 look 时回正面（叠衣只在 yaw0）
+        // 换 look 时回正面（叠衣只在正面附近）
         .onChange(of: layers.map(\.id).joined(separator: ",")) { _, _ in
-            yaw = .deg0
+            snapYaw(to: .deg0)
         }
         .onAppear {
             // Cache key is versioned (v3); do NOT clear on every appear —
@@ -178,7 +211,7 @@ public struct BodyAvatarView: View {
                     // Mid：脚底影贴地（随 morph）+ 人体 + 叠衣
                     ZStack {
                         let shadowSize = AvatarContactShadowLayout.size(canvas: size, morph: morph)
-                        AvatarContactShadow()
+                        AvatarContactShadow(phenotype: bodyPhenotype)
                             .frame(width: shadowSize.width, height: shadowSize.height)
                             .offset(y: AvatarContactShadowLayout.offsetY(
                                 canvasHeight: size.height, morph: morph))
@@ -249,33 +282,145 @@ public struct BodyAvatarView: View {
 
     @ViewBuilder
     private func figureStack(canvas size: CGSize) -> some View {
-        ZStack {
-            if let name = croquisAssetName(for: yaw) {
-                BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
-            } else {
-                PlaceholderCroquis(shape: shape)
-                    .scaleEffect(
-                        x: morph.legacyScale.widthScale,
-                        y: morph.height,
-                        anchor: .center)
+        // 主路径 = 认证 catalog 真人照片；网格永不作最终态。
+        // 有专用 yaw 帧 → 真切帧；仅有正面 → 软转 hold；都无 → interim 栅格。
+        let exactFrame = certifiedPhotorealFrameName()
+        let frontHold = exactFrame == nil ? certifiedPhotorealFrontName() : nil
+        let photoName = exactFrame ?? frontHold
+        let simulatedYaw = frontHold != nil
+        let garmentFade = MannequinGarmentVisibility.opacity(yawDegrees: yawDegrees)
+        let bodyOpacity: Double = {
+            if exactFrame != nil { return 1 }
+            if simulatedYaw {
+                // 缺侧角时仍可读，略压暗表示「非真侧帧」
+                return max(0.72, 0.55 + 0.45 * garmentFade)
             }
-            // 叠衣仅正面有资产；用 opacity 软退（非硬切）+ look 切换淡入
-            ForEach(layers) { layer in
-                garmentLayer(layer, canvas: size)
-                    .opacity(garmentYawOpacity)
-                    .scaleEffect(garmentYawOpacity > 0.5 ? 1 : 0.985, anchor: .center)
-                    .allowsHitTesting(false)
+            return 1
+        }()
+        let holdWidth = simulatedYaw ? FullNudeBodyRaster.yawWidthFactor(yaw) : 1
+        let holdTurn = simulatedYaw && !reduceMotion
+            ? Self.photoHoldTurnDegrees(yawDegrees) : 0
+        ZStack {
+            if let name = photoName {
+                BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
+                    .colorMultiply(Self.photorealPhenotypeMultiply(
+                        assetName: name, phenotype: bodyPhenotype))
+                    .scaleEffect(x: holdWidth, y: 1, anchor: .center)
+                    .rotation3DEffect(
+                        .degrees(holdTurn),
+                        axis: (x: 0, y: 1, z: 0),
+                        anchor: .center,
+                        perspective: 0.72)
+                    .opacity(bodyOpacity)
+            } else {
+                // Interim only when catalog photoreal gate closed / assets missing
+                FullNudeBodyImageView(
+                    sex: bodySex,
+                    phenotype: bodyPhenotype,
+                    morph: morph,
+                    shape: shape,
+                    yaw: yaw,
+                    logicalWidth: size.width)
+                .frame(width: size.width, height: size.height)
+            }
+            // 叠衣仅正面附近；|yaw|≥55° 全隐时整组跳过（不付布局/阴影开销）。
+            if garmentYawOpacity > 0 {
+                ForEach(Self.onCanvasGarmentLayers(layers)) { layer in
+                    garmentLayer(layer, canvas: size)
+                        .opacity(garmentYawOpacity)
+                        .scaleEffect(garmentYawOpacity > 0.5 ? 1 : 0.985, anchor: .center)
+                        .allowsHitTesting(false)
+                }
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: yaw)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: yawDegrees)
         .animation(
             reduceMotion ? nil : .easeInOut(duration: 0.22),
             value: layers.map(\.id).joined(separator: ","))
     }
 
-    /// 正面全显；离开正面软隐（front-only garment assets）。
+    /// 认证 catalog 真人多角帧（phenotype×yaw → sex×yaw）；门控关闭或缺帧时 `nil`。
+    private func certifiedPhotorealFrameName() -> String? {
+        BodyAvatarAsset.resolvePhotorealFrameName(
+            sex: bodySex,
+            phenotype: bodyPhenotype,
+            yaw: yaw,
+            available: {
+                NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
+                    && Self.bundleResourceURL(named: $0) != nil
+            })
+    }
+
+    /// 认证 catalog 正面（deg0 解析）；用于缺侧角时的 soft hold。
+    private func certifiedPhotorealFrontName() -> String? {
+        BodyAvatarAsset.resolvePhotorealFrontName(
+            sex: bodySex,
+            phenotype: bodyPhenotype,
+            available: {
+                NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
+                    && Self.bundleResourceURL(named: $0) != nil
+            })
+    }
+
+    /// 缺专用 yaw 帧、正用本表型正面 soft-hold 时为 true（勿冒充真侧/背帧）。
+    private var isPhotorealSoftHold: Bool {
+        guard !usesMannequin3D else { return false }
+        return certifiedPhotorealFrameName() == nil && certifiedPhotorealFrontName() != nil
+    }
+
+    /// 缺专用 yaw 帧时，用 sin 驱动的卡片翻转感（±48°），不冒充真侧视像素。
+    private static func photoHoldTurnDegrees(_ yawDegrees: Double) -> Double {
+        var y = yawDegrees.truncatingRemainder(dividingBy: 360)
+        if y < 0 { y += 360 }
+        return sin(y * .pi / 180) * 48
+    }
+
+    /// 通用 sex 帧（front / yaw###，无 phenotype token）缺表型专用贴图时 soft-tint。
+    private static func photorealPhenotypeMultiply(
+        assetName: String,
+        phenotype: AvatarBodyPhenotype
+    ) -> Color {
+        let isGenericSexFrame =
+            AvatarBodyPhenotype.isGenericPhotorealFrontName(assetName)
+            || BodyAvatarYaw.allCases.contains {
+                assetName == BodyAvatarAsset.photorealFrameName(sex: .female, yaw: $0)
+                    || assetName == BodyAvatarAsset.photorealFrameName(sex: .male, yaw: $0)
+            }
+        guard isGenericSexFrame else { return Color.white }
+        let m = phenotype.skinTintMultiplier(relativeTo: .eastAsian)
+        return Color(red: min(1, m.r), green: min(1, m.g), blue: min(1, m.b))
+    }
+
+    /// 真人照片路径：正面附近叠衣；侧角软隐（无侧角衣物资产）。
     private var garmentYawOpacity: Double {
-        yaw == .deg0 ? 1 : 0
+        MannequinGarmentVisibility.opacity(yawDegrees: yawDegrees)
+    }
+
+    private func snapYaw(to discrete: BodyAvatarYaw) {
+        yaw = discrete
+        yawDegrees = Double(discrete.rawValue)
+    }
+
+    private func setYawDegrees(_ degrees: Double) {
+        var d = degrees.truncatingRemainder(dividingBy: 360)
+        if d < 0 { d += 360 }
+        yawDegrees = d
+        yaw = Self.nearestDiscreteYaw(d)
+    }
+
+    private static func nearestDiscreteYaw(_ degrees: Double) -> BodyAvatarYaw {
+        let all = BodyAvatarYaw.allCases
+        return all.min(by: {
+            angularDistance(Double($0.rawValue), degrees)
+                < angularDistance(Double($1.rawValue), degrees)
+        }) ?? .deg0
+    }
+
+    private static func angularDistance(_ a: Double, _ b: Double) -> Double {
+        var d = abs(a - b).truncatingRemainder(dividingBy: 360)
+        if d > 180 { d = 360 - d }
+        return d
     }
 
     private var orbitChrome: some View {
@@ -287,41 +432,53 @@ public struct BodyAvatarView: View {
                         .frame(width: a == yaw ? 7 : 5, height: a == yaw ? 7 : 5)
                         .onTapGesture {
                             withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                                yaw = a
+                                snapYaw(to: a)
                             }
                         }
                         .accessibilityLabel(a.shortLabel)
                 }
             }
             if compactChrome {
-                Text(yaw == .deg0 ? "Drag to turn · front shows layers" : "\(yaw.shortLabel) · layers on front only")
+                // hasRenderableVisual: path-only / failed-decode layers are not dressed.
+                // isSoftHold: missing dedicated yaw frame → front pixels, not a real side photo.
+                Text(Self.compactOrbitHint(
+                    hasLayers: layers.contains(where: Self.hasRenderableVisual),
+                    garmentYawOpacity: garmentYawOpacity,
+                    yawLabel: yaw.shortLabel,
+                    isSoftHold: isPhotorealSoftHold))
                     .font(.caption2)
                     .foregroundStyle(DS.muted)
             } else {
                 HStack {
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                            yaw = yaw.stepped(by: -1)
+                            snapYaw(to: yaw.stepped(by: -1))
                         }
                     } label: {
                         Image(systemName: "chevron.left.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(Self.orbitStepAccessibilityLabel(direction: .previous))
                     Spacer()
-                    Text("360° · \(yaw.shortLabel)")
+                    Text(Self.orbitAngleCaption(
+                        yawLabel: yaw.shortLabel,
+                        yawDegrees: yawDegrees,
+                        usesMannequin3D: usesMannequin3D,
+                        isSoftHold: isPhotorealSoftHold))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(DS.muted)
                     Spacer()
                     Button {
                         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
-                            yaw = yaw.stepped(by: 1)
+                            snapYaw(to: yaw.stepped(by: 1))
                         }
                     } label: {
                         Image(systemName: "chevron.right.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(Self.orbitStepAccessibilityLabel(direction: .next))
                 }
                 .padding(.horizontal, 4)
             }
@@ -342,9 +499,19 @@ public struct BodyAvatarView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(compactChrome ? 2 : 4)
             } else if !compactChrome {
-                Text("Continuous proportion guide — not a photo try-on.")
-                    .font(.caption2)
-                    .foregroundStyle(DS.muted)
+                if NudeBodyBaseSpec.isHardRequirementMet {
+                    Text(NudeBodyBaseSpec.basewearDescription(for: bodySex))
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text(NudeBodyBaseSpec.invariant)
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                    Text("Waiting for certified real-human catalog photos (♀ pasties+thong / ♂ thong).")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
     }
@@ -363,18 +530,23 @@ public struct BodyAvatarView: View {
         DragGesture(minimumDistance: enablesOrbit ? 8 : 4)
             .onChanged { value in
                 if enablesOrbit {
-                    if dragOriginYaw == nil { dragOriginYaw = yaw }
-                    let origin = dragOriginYaw ?? yaw
-                    let steps = Int((value.translation.width / 36).rounded())
-                    let next = origin.stepped(by: -steps)
-                    if next != yaw {
-                        // Transaction keeps drag steps snappy but still fades garments
-                        var t = Transaction()
-                        t.animation = reduceMotion ? nil : .easeOut(duration: 0.12)
-                        withTransaction(t) { yaw = next }
+                    if dragOriginDegrees == nil { dragOriginDegrees = yawDegrees }
+                    let origin = dragOriginDegrees ?? yawDegrees
+                    let next: Double
+                    if usesMannequin3D {
+                        // 连续旋转（写实 3D nude 底座）
+                        next = origin - Double(value.translation.width) * 0.45
+                    } else {
+                        // 照片路径：连续 degrees → 叠衣侧角淡出平滑；离散 yaw 仍 nearest 切帧
+                        // （旧逻辑每 36px/45° snapYaw，fade 阶梯跳变）
+                        next = Self.photoOrbitYawDegrees(
+                            originDegrees: origin,
+                            translationWidth: Double(value.translation.width))
                     }
+                    var t = Transaction()
+                    t.animation = nil
+                    withTransaction(t) { setYawDegrees(next) }
                 }
-                // 视差：垂直主导深度，水平微调
                 let sx: CGFloat = enablesOrbit ? 120 : 100
                 let sy: CGFloat = enablesOrbit ? 140 : 120
                 dragParallax = DepthParallaxSample(
@@ -382,11 +554,112 @@ public struct BodyAvatarView: View {
                     y: value.translation.height / sy)
             }
             .onEnded { _ in
-                dragOriginYaw = nil
+                dragOriginDegrees = nil
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
                     dragParallax = DepthParallaxSample()
+                    // Photo path: spring continuous degrees onto nearest catalog 45° so
+                    // chrome shortLabel and garment fade don't disagree mid-angle.
+                    if !usesMannequin3D {
+                        snapYaw(to: BodyAvatarYaw.nearest(degrees: yawDegrees))
+                    }
                 }
             }
+    }
+
+    /// Photo-path orbit: continuous degrees from drag (36px ≈ one 45° catalog step).
+    /// Frame snaps still via `nearestDiscreteYaw`; garment fade tracks mid-drag degrees.
+    static func photoOrbitYawDegrees(originDegrees: Double, translationWidth: Double) -> Double {
+        originDegrees - translationWidth * (45.0 / 36.0)
+    }
+
+    /// Photo drag end settle: map continuous residual degrees → catalog angle degrees.
+    /// Keeps chrome `shortLabel` and garment fade on the same post-drag angle.
+    /// Uses Core `BodyAvatarYaw.nearest` (single truth with snap / chrome labels).
+    static func photoOrbitSettledDegrees(_ continuousDegrees: Double) -> Double {
+        Double(BodyAvatarYaw.nearest(degrees: continuousDegrees).rawValue)
+    }
+
+    /// compactChrome orbit caption: never claim garments when undressed;
+    /// dressed copy says layered preview (not photo try-on).
+    /// When `isSoftHold`, never claim a real multi-angle photo for the body.
+    static func compactOrbitHint(
+        hasLayers: Bool,
+        garmentYawOpacity: Double,
+        yawLabel: String,
+        isSoftHold: Bool = false
+    ) -> String {
+        if isSoftHold {
+            // Front pixels held under a turn — say so; clothes still front-only.
+            if hasLayers {
+                return garmentYawOpacity > 0.5
+                    ? "Drag to turn · front hold · layered preview"
+                    : "\(yawLabel) · front hold · clothes on front only"
+            }
+            return garmentYawOpacity > 0.5
+                ? "Drag to turn · front hold"
+                : "\(yawLabel) · front hold"
+        }
+        if hasLayers {
+            return garmentYawOpacity > 0.5
+                ? "Drag to turn · front shows layered preview"
+                : "\(yawLabel) · layered preview on front only"
+        }
+        return garmentYawOpacity > 0.5
+            ? "Drag to turn"
+            : yawLabel
+    }
+
+    /// Full (non-compact) orbit center caption — no "360°" while soft-holding front pixels.
+    static func orbitAngleCaption(
+        yawLabel: String,
+        yawDegrees: Double,
+        usesMannequin3D: Bool,
+        isSoftHold: Bool
+    ) -> String {
+        if usesMannequin3D {
+            return String(format: "360° · %.0f°", yawDegrees)
+        }
+        if isSoftHold {
+            // Missing dedicated yaw frame: same front photo + soft turn, not a side/back capture.
+            if yawLabel == BodyAvatarYaw.deg0.shortLabel {
+                return "Front"
+            }
+            return "\(yawLabel) · front hold (no side photo)"
+        }
+        return "360° · \(yawLabel)"
+    }
+
+    /// VoiceOver for figure — soft-hold must not claim a real side/back photo.
+    static func orbitAccessibilityLabel(
+        sexTitle: String,
+        shapeRaw: String,
+        yawLabel: String,
+        isSoftHold: Bool
+    ) -> String {
+        if isSoftHold, yawLabel != BodyAvatarYaw.deg0.shortLabel {
+            return "\(sexTitle) body \(shapeRaw), front hold approximating \(yawLabel)"
+        }
+        return "\(sexTitle) body \(shapeRaw), \(yawLabel) view"
+    }
+
+    /// 显式 accessibilityLabel 会覆盖 `.combine` 合并出的子标签 —— 必须把
+    /// wear/fit caption 折进来，否则 VO 只念角度、吞掉 wearSummary（orbit 点阵
+    /// 标签与 yawLabel 本就同义，不重复追加）。
+    static func heroAccessibilityLabel(yawLabel: String, fitCaption: String?) -> String {
+        guard let fitCaption, !fitCaption.isEmpty else { return yawLabel }
+        return yawLabel + ", " + fitCaption
+    }
+
+    /// Full-chrome orbit chevrons (icon-only) — VoiceOver; not look carousel.
+    enum OrbitStepDirection: Sendable {
+        case previous, next
+    }
+
+    static func orbitStepAccessibilityLabel(direction: OrbitStepDirection) -> String {
+        switch direction {
+        case .previous: return "Previous angle"
+        case .next: return "Next angle"
+        }
     }
 
     private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
@@ -411,15 +684,19 @@ public struct BodyAvatarView: View {
 
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
-        // hasVisual：全身画布层（normalizer/demo）；无图：槽位占位
+        // Render truth = decode success, not path presence (failed load → slot placeholder).
+        let img = Self.layerImage(layer)
+        let showsVisual = img != nil
+        // Path/name present but unreadable still hasVisual=true; layout as placeholder frame.
+        let layoutLayer = showsVisual ? layer : Self.placeholderLayoutLayer(from: layer)
         let nr = BodyAvatarGarmentLayout.displayFrame(
-            layer: layer,
+            layer: layoutLayer,
             canvasWidth: Double(canvas.width),
             canvasHeight: Double(canvas.height),
             morph: morph)
         let rect = CGRect(x: nr.x, y: nr.y, width: nr.width, height: nr.height)
         Group {
-            if let img = Self.layerImage(layer) {
+            if let img {
                 img
                     .resizable()
                     .interpolation(.high)
@@ -434,11 +711,11 @@ public struct BodyAvatarView: View {
         .clipped()
         // 轻接触影：叠衣贴身、减「贴纸浮空」(HIG depth / paper-doll)
         .shadow(
-            color: Color.black.opacity(layer.hasVisual ? 0.12 : 0),
-            radius: layer.hasVisual ? 3 : 2.5, y: 1.5)
+            color: Color.black.opacity(showsVisual ? 0.12 : 0),
+            radius: showsVisual ? 3 : 2.5, y: 1.5)
         .position(x: rect.midX, y: rect.midY)
         .zIndex(Double(layer.zIndex))
-        .opacity(layer.hasVisual ? 0.98 : 0.72)
+        .opacity(showsVisual ? 0.98 : 0.72)
     }
 
     private func garmentAlignment(_ slot: BodyAvatarSlot) -> Alignment {
@@ -449,8 +726,51 @@ public struct BodyAvatarView: View {
         }
     }
 
+    /// Clears asset refs so `displayFrame` / `hasVisual` treat the layer as a slot placeholder.
+    private static func placeholderLayoutLayer(from layer: BodyAvatarLayer) -> BodyAvatarLayer {
+        BodyAvatarLayer(
+            id: layer.id,
+            slot: layer.slot,
+            frame: layer.frame,
+            zIndex: layer.zIndex,
+            fitScale: layer.fitScale,
+            fitOffsetY: layer.fitOffsetY)
+    }
+
+    /// True only when an image actually decodes — path/name presence alone is not enough.
+    /// Use for chrome, captions, and any copy that claims garments are on-canvas.
+    public static func hasRenderableVisual(_ layer: BodyAvatarLayer) -> Bool {
+        layerImage(layer) != nil
+    }
+
+    /// 任一 layer 解码成功 → 保留全部（失败槽仍渲染彩块占位，提示「此槽有单品」）；
+    /// 全失败 → 返回空，让「Undressed」capsule 独占空态 —— 彩块占位 + Undressed 自相矛盾。
+    /// for-loop（非 contains/closure）—— 本类型 MainActor 假定下闭包转换会在
+    /// 非 Main 调用方（测试/exporter）触发 checkIsolated 陷阱。
+    static func onCanvasGarmentLayers(_ layers: [BodyAvatarLayer]) -> [BodyAvatarLayer] {
+        for layer in layers where hasRenderableVisual(layer) { return layers }
+        return []
+    }
+
     /// 本地入库图优先，其次 bundle / UIImage named。
+    /// 结果按 path/name 备忘（含失败 nil）—— 30fps hero tick 不得每层重读盘重解码。
+    /// if-let（非 Optional.map）—— 同上，避免 MainActor 闭包转换陷阱。
     public static func layerImage(_ layer: BodyAvatarLayer) -> Image? {
+        let key: String
+        if let rel = layer.localRelativePath {
+            key = "local|\(rel)"
+        } else if let name = layer.imageAssetName {
+            key = "layer-asset|\(name)"
+        } else {
+            key = "empty|\(layer.id)"
+        }
+        if let cached = BodyAvatarImageCache.shared.cachedImage(forKey: key) { return cached }
+        let img = loadLayerImage(layer)
+        BodyAvatarImageCache.shared.storeImage(img, forKey: key)
+        return img
+    }
+
+    private static func loadLayerImage(_ layer: BodyAvatarLayer) -> Image? {
         if let rel = layer.localRelativePath,
            let data = ItemImageStore.loadData(relativePath: rel) {
             #if canImport(UIKit)
@@ -470,6 +790,11 @@ public struct BodyAvatarView: View {
         return nil
     }
 
+    /// Empty-layer placeholder VoiceOver: human title, never raw `slotRaw` / enum string.
+    public static func slotAccessibilityLabel(_ slot: BodyAvatarSlot) -> String {
+        GarmentSlot(rawValue: slot.rawValue)?.displayTitle ?? slot.rawValue.capitalized
+    }
+
     /// 无入库图时：软渐变色块 + SF Symbol（勿暴露 raw slot 字符串）。
     private func slotPlaceholder(_ slot: BodyAvatarSlot) -> some View {
         let c = slotColor(slot)
@@ -487,7 +812,7 @@ public struct BodyAvatarView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5))
-            .accessibilityLabel(slot.rawValue)
+            .accessibilityLabel(Self.slotAccessibilityLabel(slot))
     }
 
     private func slotSymbol(_ slot: BodyAvatarSlot) -> String {
@@ -510,12 +835,20 @@ public struct BodyAvatarView: View {
         }
     }
 
+    /// Probe 结果按名字备忘（含 miss）—— photoreal 帧解析每 tick 不再打 Bundle。
     public static func bundleResourceURL(named name: String) -> URL? {
-        Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar")
-            ?? Bundle.module.url(forResource: name, withExtension: "png")
+        BodyAvatarImageCache.shared.resourceURL(named: name)
     }
 
     public static func bundleImage(named name: String) -> Image? {
+        let key = "bundle|\(name)"
+        if let cached = BodyAvatarImageCache.shared.cachedImage(forKey: key) { return cached }
+        let img = loadBundleImage(named: name)
+        BodyAvatarImageCache.shared.storeImage(img, forKey: key)
+        return img
+    }
+
+    private static func loadBundleImage(named name: String) -> Image? {
         guard let url = bundleResourceURL(named: name),
               let data = try? Data(contentsOf: url) else { return nil }
         #if canImport(UIKit)
@@ -542,6 +875,50 @@ public struct BodyAvatarView: View {
         return NSImage(data: data)
     }
     #endif
+}
+
+// MARK: - Decode / probe memoization
+
+/// 简单内存缓存（仿 `BodyMorphImageCache`）：hero 30fps TimelineView 每 tick
+/// 重走 figureStack → layerImage / bundle probe，不能每帧读盘 + 解码。
+/// 键 = path/name；**失败（nil）也缓存**，否则缺失资产每 tick 照样打盘。
+/// 线程安全（NSLock）：`hasRenderableVisual` 也会被 exporter / 测试在非 Main 上下文调用。
+final class BodyAvatarImageCache: @unchecked Sendable {
+    static let shared = BodyAvatarImageCache()
+
+    private let lock = NSLock()
+    /// Bundle probe 结果（含 miss）；key = 资源名。
+    private var resourceURLs: [String: URL?] = [:]
+    /// 解码结果（含失败 nil）；key 见 `layerImage` / `bundleImage`。
+    private var images: [String: Image?] = [:]
+    private let maxEntries = 96
+
+    func resourceURL(named name: String) -> URL? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let hit = resourceURLs[name] { return hit }
+        let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "BodyAvatar")
+            ?? Bundle.module.url(forResource: name, withExtension: "png")
+        resourceURLs[name] = url
+        return url
+    }
+
+    /// `.some(nil)` = 已知失败；`nil` = 从未加载。
+    func cachedImage(forKey key: String) -> Image?? {
+        lock.lock()
+        defer { lock.unlock() }
+        return images[key]
+    }
+
+    func storeImage(_ image: Image?, forKey key: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if images.count >= maxEntries {
+            // 半清而非全清，保留热点（同 BodyMorphImageCache）
+            for k in images.keys.prefix(images.count / 2) { images.removeValue(forKey: k) }
+        }
+        images[key] = image
+    }
 }
 
 // MARK: - Legacy strip view (保留类型名，委托栅格)

@@ -85,4 +85,16 @@ struct BodyProfileServiceTests {
         #expect(r!.highHipInferred)
         #expect(r!.0.highHip > 28)
     }
+
+    @Test func presentationPhenotypeAndSexRoundTrip() {
+        #expect(BodyProfileService.presentationPhenotype(from: nil) == .eastAsian)
+        #expect(BodyProfileService.presentationSex(from: nil) == .female)
+        let p = PersonBodyProfile(personID: UUID())
+        p.presentationPhenotypeRaw = AvatarBodyPhenotype.african.rawValue
+        p.presentationSexRaw = AvatarBodySex.male.rawValue
+        #expect(BodyProfileService.presentationPhenotype(from: p) == .african)
+        #expect(BodyProfileService.presentationSex(from: p) == .male)
+        p.presentationPhenotypeRaw = "not-a-phenotype"
+        #expect(BodyProfileService.presentationPhenotype(from: p) == .eastAsian)
+    }
 }

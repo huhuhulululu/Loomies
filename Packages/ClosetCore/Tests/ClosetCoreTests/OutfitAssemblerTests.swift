@@ -41,6 +41,28 @@ struct OutfitAssemblerTests {
         #expect(OutfitAssembler.assemble(pool: pool, daytimeTempF: 75, maxOutfits: 2).count == 2)
     }
 
+    @Test func enumeratesShoesAndOuterwearVariety() {
+        // G4：鞋（及冷天外套）进入枚举叉积——2 双鞋都要出现在产出里。
+        let pool = [
+            top, bottom,
+            CandidateItem(id: "sh1", slot: .shoes),
+            CandidateItem(id: "sh2", slot: .shoes)]
+        let out = OutfitAssembler.assemble(pool: pool, daytimeTempF: 75, maxOutfits: 10)
+        let allIDs = Set(out.flatMap(\.itemIDs))
+        #expect(allIDs.contains("sh1"))
+        #expect(allIDs.contains("sh2"))
+
+        let coldPool = pool + [
+            CandidateItem(id: "o1", slot: .outerwear, subtype: "coat"),
+            CandidateItem(id: "o2", slot: .outerwear, subtype: "coat")]
+        let coldOut = OutfitAssembler.assemble(pool: coldPool, daytimeTempF: 50, maxOutfits: 20)
+        let coldIDs = Set(coldOut.flatMap(\.itemIDs))
+        #expect(coldIDs.contains("sh1"))
+        #expect(coldIDs.contains("sh2"))
+        #expect(coldIDs.contains("o1"))
+        #expect(coldIDs.contains("o2"))
+    }
+
     @Test func emptyWithoutShoes() {
         #expect(OutfitAssembler.assemble(pool: [top, bottom], daytimeTempF: 75, maxOutfits: 3).isEmpty)
     }

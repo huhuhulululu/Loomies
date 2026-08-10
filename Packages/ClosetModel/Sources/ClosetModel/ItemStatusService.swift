@@ -16,7 +16,14 @@ public enum ItemStatusService {
         let old = item.statusRaw
         item.statusRaw = statusRaw
         item.revision += 1
-        ModelSave.save(context, label: "itemStatus")
+        guard ModelSave.save(context, label: "itemStatus") else {
+            // rollback() 不清内存值只清脏标记 → 先手动还原字段（TransferService 同款），再 rollback
+            item.statusRaw = old
+            item.revision -= 1
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("status save failed \(item.name): \(old)→\(statusRaw)", .data)
+            return false
+        }
         AppLog.info("status \(item.name): \(old)→\(statusRaw)", .data)
         return true
     }
@@ -29,7 +36,8 @@ public enum ItemStatusService {
         case "lent": return "Lent out"
         case "idle": return "Idle"
         case "pending": return "Pending"
-        default: return statusRaw
+        // Never dump raw camelCase / corrupt storage into Closet chips or Search meta.
+        default: return "Unknown"
         }
     }
 }

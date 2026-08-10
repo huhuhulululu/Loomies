@@ -49,4 +49,33 @@ struct OutfitDraftServiceTests {
         let all = try ctx.fetch(FetchDescriptor<Outfit>())
         #expect(all.isEmpty)
     }
+
+    /// Today Save/Plan toast must use LocalizedError, never raw enum dump.
+    @Test func draftErrorsHaveCustomerFacingCopy() {
+        let empty = OutfitDraftError.emptySelection
+        let cross = OutfitDraftError.crossWardrobe
+        let mismatch = OutfitDraftError.wardrobeMismatch
+        let saveFail = OutfitDraftError.saveFailed
+        for err in [empty, cross, mismatch, saveFail] {
+            let desc = err.errorDescription ?? ""
+            #expect(!desc.isEmpty)
+            #expect(!desc.contains("OutfitDraftError"))
+            #expect(!desc.contains("error 0"))
+            #expect(desc.first?.isUppercase == true)
+        }
+        #expect(empty.errorDescription?.localizedCaseInsensitiveContains("closet") == true)
+        #expect(mismatch.errorDescription?.localizedCaseInsensitiveContains("closet") == true)
+        #expect(saveFail.errorDescription?.localizedCaseInsensitiveContains("try again") == true)
+    }
+
+    /// Happy-path create commits via ModelSave (no silent try?).
+    @Test func createPersistsOutfitViaModelSave() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let t = Item(name: "top"); t.wardrobe = w; ctx.insert(t)
+        try ctx.save()
+        let o = try OutfitDraftService.create(name: "look", items: [t], in: w, context: ctx)
+        let fetched = try ctx.fetch(FetchDescriptor<Outfit>())
+        #expect(fetched.contains { $0.id == o.id })
+    }
 }

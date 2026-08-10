@@ -35,6 +35,20 @@ struct WeatherProvidingTests {
         #expect(jul > jan)
     }
 
+    @Test func cityClimateBaseNoSubstringSwallow() {
+        // G1：2 字母键 "la" 不能再因子串匹配吞掉 Orlando/Glasgow；
+        // 顺序固定为精确 → 启发式 → 默认，跨进程确定。
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "la") == 72)
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Los Angeles") == 72)
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Portland") == 58) // 启发式可达
+        let orlando = CityClimateWeatherProvider.baseTempF(forCity: "Orlando")
+        let glasgow = CityClimateWeatherProvider.baseTempF(forCity: "Glasgow")
+        #expect(orlando == 68) // 默认值，不再被 "la" 抢成 72
+        #expect(glasgow == 68)
+        #expect(orlando != CityClimateWeatherProvider.baseTempF(forCity: "la"))
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Orlando") == orlando) // 确定
+    }
+
     @Test func personalColorSeasonParse() {
         #expect(PersonalColorSeason.parse("autumn") == .autumn)
         #expect(PersonalColorSeason.parse(nil) == .unknown)

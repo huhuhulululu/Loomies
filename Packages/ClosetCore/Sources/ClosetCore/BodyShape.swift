@@ -36,7 +36,20 @@ public enum PopularShape: String, CaseIterable, Sendable {
 public enum FFITClassifier {
 
     /// plus-size 2020 修正版，按顺序判定（首个满足者胜出）。阈值：1 / 3.6 / 9 / 10 / 2 / 7 / 1.193（英寸）。
+    /// 脏输入（非有限或 ≤0）显式回退最不具特异性的 `.rectangle`（文档化默认，非真实判定）；
+    /// 需要「脏数据 = 缺失」nil 语义的调用方请用 `classifyOrNil`。
     public static func classify(_ m: BodyMeasurements) -> BodyShape {
+        classifyOrNil(m) ?? .rectangle
+    }
+
+    /// 同 `classify`，但脏输入返回 nil（与 FitEngine 一致：脏数据视为缺失，不产出判定）。
+    /// 守卫原因：NaN 使全部比较为 false 会漏进兜底被当作真实判定；
+    /// waist==0 使 highHipWaistRatio=.infinity 会把脏输入误导进 .spoon。
+    public static func classifyOrNil(_ m: BodyMeasurements) -> BodyShape? {
+        guard m.bust.isFinite, m.bust > 0,
+              m.waist.isFinite, m.waist > 0,
+              m.hip.isFinite, m.hip > 0,
+              m.highHip.isFinite, m.highHip > 0 else { return nil }
         let bustHip = m.bust - m.hip
         let hipBust = m.hip - m.bust
         let bustWaist = m.bust - m.waist

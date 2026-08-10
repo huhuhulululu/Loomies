@@ -38,6 +38,10 @@ public final class PersonBodyProfile {
     public var fineWaist: Double = 1
     public var fineHip: Double = 1
     public var fineHeight: Double = 1
+    /// 展示用身体性别底座：`female` | `male`（AvatarBodySex.rawValue；默认女）。
+    public var presentationSexRaw: String?
+    /// 展示用人种/表型：`AvatarBodyPhenotype.rawValue`（多人种全 nude 底座）。
+    public var presentationPhenotypeRaw: String?
     public init(personID: UUID) { self.personID = personID }
 }
 
@@ -93,6 +97,7 @@ public final class Item {
     public var brand: String?
     public var sizeLabel: String?                // 原始尺码标签 "M"/"8"/"160/84A"
     public var sizeSystemRaw: String?            // SizeSystem rawValue（us/eu/...）
+    public var barcode: String?                  // 零售条码数字（UPC/EAN/GTIN，Open*Facts 查得；加法 schema）
     // 平铺实测（F2 实测层，optional；喂 FitEngine 最小合身标记）— 加法 schema，不破冻
     public var chestFlatWidthInches: Double?     // 上装胸宽
     public var waistFlatWidthInches: Double?     // 裤/裙腰宽

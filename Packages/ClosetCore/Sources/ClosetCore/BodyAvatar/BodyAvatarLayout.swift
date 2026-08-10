@@ -64,14 +64,21 @@ public enum BodyAvatarScaler {
     public static let refHip: Double = 38
 
     public static func scale(from m: BodyMeasurements) -> BodyAvatarScale {
-        let bustR = m.bust / refBust
-        let hipR = m.hip / refHip
+        // 无效围度（非有限 / ≤0）视为缺失 → 该字段中性 1.0（与 BodyMorphParams.from 一致），
+        // 而非默默钳到 scaleLo（极瘦变形）。
+        func ratio(_ value: Double, ref: Double) -> Double {
+            guard value.isFinite, value > 0 else { return 1 }
+            return value / ref
+        }
+        let bustR = ratio(m.bust, ref: refBust)
+        let hipR = ratio(m.hip, ref: refHip)
+        let waistR = ratio(m.waist, ref: refWaist)
         // 整体宽取 bust/hip 均值，避免单点畸变（腰用 waistScale 单独表达）
         let width = clamp((bustR + hipR) / 2, 0.88, 1.14)
         // 臀相对胸的富余 → hipScale
-        let hipExtra = clamp(m.hip / max(m.bust, 1) / (refHip / refBust), 0.95, 1.12)
+        let hipExtra = clamp(hipR / bustR, 0.95, 1.12)
         // 腰相对胸的收紧 → waistScale（越小越收腰）
-        let waistTight = clamp(m.waist / max(m.bust, 1) / (refWaist / refBust), 0.90, 1.05)
+        let waistTight = clamp(waistR / bustR, 0.90, 1.05)
         return BodyAvatarScale(widthScale: width, hipScale: hipExtra, waistScale: waistTight)
     }
 
@@ -124,6 +131,8 @@ public enum BodyAvatarYaw: Int, CaseIterable, Sendable, Comparable {
 
     /// 将任意角度（度）吸附到最近的 45° 档。
     public static func nearest(degrees: Double) -> BodyAvatarYaw {
+        // NaN/±inf 会穿过 truncatingRemainder 并在 Int() 处触发运行时 trap；非有限输入吸附到正面。
+        guard degrees.isFinite else { return .deg0 }
         var d = degrees.truncatingRemainder(dividingBy: 360)
         if d < 0 { d += 360 }
         let idx = Int((d / 45.0).rounded()) % allCases.count
@@ -131,7 +140,7 @@ public enum BodyAvatarYaw: Int, CaseIterable, Sendable, Comparable {
     }
 }
 
-/// croquis 资源名（无扩展名，对应 Bundle PNG）。
+/// croquis / 写实 nude 资源名（无扩展名，对应 Bundle PNG）。
 public enum BodyAvatarAsset {
     /// 兼容旧名：无 yaw 后缀 = 正面（yaw000）。
     public static func croquisName(for shape: PopularShape) -> String {
@@ -145,6 +154,136 @@ public enum BodyAvatarAsset {
     /// 旧正面资源名（无 yaw）；加载时作 fallback。
     public static func legacyFrontName(for shape: PopularShape) -> String {
         "croquis_\(shapeKey(shape))"
+    }
+
+    /// GPT/锁定写实 **全 nude** 正面（按性别；与 5 体型 croquis 解耦）。
+    /// 优先用 `NudeBodyBaseSpec.photorealFrontName(sex:phenotype:)` 多人种变体。
+    public static func photorealFrontName(sex: AvatarBodySex) -> String {
+        switch sex {
+        case .female: return "photoreal_female_front"
+        case .male: return "photoreal_male_front"
+        }
+    }
+
+    /// 真人全裸多角切帧（通用 sex）。`deg0` → `photoreal_{sex}_front`；其余 `photoreal_{sex}_yaw045` …
+    public static func photorealFrameName(sex: AvatarBodySex, yaw: BodyAvatarYaw) -> String {
+        if yaw == .deg0 { return photorealFrontName(sex: sex) }
+        return "photoreal_\(sex.rawValue)_\(yaw.assetSuffix)"
+    }
+
+    /// 真人全裸多角切帧（sex×phenotype）。`deg0` → `…_front`；其余 `photoreal_{sex}_{phenotype}_yaw###`。
+    public static func photorealFrameName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        yaw: BodyAvatarYaw
+    ) -> String {
+        if yaw == .deg0 {
+            return NudeBodyBaseSpec.photorealFrontName(sex: sex, phenotype: phenotype)
+        }
+        return "photoreal_\(sex.rawValue)_\(phenotype.rawValue)_\(yaw.assetSuffix)"
+    }
+
+    /// 显式 `yaw000` 别名（与 `_front` 等价；导入管线可任选其一）。
+    public static func photorealYaw000Alias(sex: AvatarBodySex) -> String {
+        "photoreal_\(sex.rawValue)_yaw000"
+    }
+
+    public static func photorealYaw000Alias(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype
+    ) -> String {
+        "photoreal_\(sex.rawValue)_\(phenotype.rawValue)_yaw000"
+    }
+
+    /// 解析可用写实正面：先 phenotype 专用，再通用 sex 正面。
+    public static func resolvePhotorealFrontName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        available: (String) -> Bool
+    ) -> String? {
+        resolvePhotorealFrameName(sex: sex, phenotype: phenotype, yaw: .deg0, available: available)
+    }
+
+    /// 解析可用 catalog 真人多角帧（认证门由 `available` 调用方叠加 `mayUsePhotorealFrontAsset`）。
+    /// - 正面：phenotype×front → phenotype×yaw000 → sex×front → sex×yaw000
+    /// - 非正面：phenotype×yaw 优先；**有表型专用正面时不回退 sex×yaw**（防换人，D69）
+    ///   仅 eastAsian / 无表型正面时才用通用 sex×yaw 轨道。
+    /// 非正面缺帧时返回 nil，UI soft-hold 本表型正面。
+    public static func resolvePhotorealFrameName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        yaw: BodyAvatarYaw,
+        available: (String) -> Bool
+    ) -> String? {
+        if yaw == .deg0 {
+            let candidates = [
+                NudeBodyBaseSpec.photorealFrontName(sex: sex, phenotype: phenotype),
+                photorealYaw000Alias(sex: sex, phenotype: phenotype),
+                photorealFrontName(sex: sex),
+                photorealYaw000Alias(sex: sex),
+            ]
+            for name in candidates where available(name) {
+                return name
+            }
+            return nil
+        }
+
+        let phenotypeYaw = photorealFrameName(sex: sex, phenotype: phenotype, yaw: yaw)
+        if available(phenotypeYaw) { return phenotypeYaw }
+
+        // Identity guard (D69): non-default phenotype with its own front must not
+        // pick a generic multi-angle of a different person.
+        let phenotypeFront = NudeBodyBaseSpec.photorealFrontName(sex: sex, phenotype: phenotype)
+        let hasOwnFront = available(phenotypeFront)
+        let mayUseGenericOrbit = phenotype == .eastAsian || !hasOwnFront
+        if mayUseGenericOrbit {
+            let genericYaw = photorealFrameName(sex: sex, yaw: yaw)
+            if available(genericYaw) { return genericYaw }
+        }
+        return nil
+    }
+
+    /// 全 sex×phenotype×8yaw 资源名（导入清单 / 测试 inventory）。
+    public static var allPhotorealFrameNames: [String] {
+        AvatarBodySex.allCases.flatMap { sex in
+            AvatarBodyPhenotype.allCases.flatMap { phenotype in
+                BodyAvatarYaw.allCases.map {
+                    photorealFrameName(sex: sex, phenotype: phenotype, yaw: $0)
+                }
+            }
+        }
+    }
+
+    /// 写实脸贴图（仅头部，零躯体遮盖）— 从已批准 photoreal 正面裁切。
+    /// 命名：`face_{sex}_{phenotype}`；缺 phenotype 时回退 `face_{sex}_eastAsian`。
+    public static func facePlateName(sex: AvatarBodySex, phenotype: AvatarBodyPhenotype) -> String {
+        "face_\(sex.rawValue)_\(phenotype.rawValue)"
+    }
+
+    /// 当前入库的默认写实脸（东亚洲 F/M 参考脸）。
+    public static func facePlateFallbackName(sex: AvatarBodySex) -> String {
+        "face_\(sex.rawValue)_eastAsian"
+    }
+
+    /// 解析脸贴：phenotype 专用优先 → eastAsian 回退（仅脸；零躯体遮盖）。
+    /// 多人种专用脸入库后各表型用专用；缺省才回退东亚参考脸。
+    public static func resolveFacePlateName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        available: (String) -> Bool
+    ) -> String? {
+        let specific = facePlateName(sex: sex, phenotype: phenotype)
+        if available(specific) { return specific }
+        let fallback = facePlateFallbackName(sex: sex)
+        if available(fallback) { return fallback }
+        return nil
+    }
+
+    /// 全部 sex×phenotype 脸贴资源名（2×8）。
+    public static var allFacePlateNames: [String] {
+        AvatarBodySex.allCases.flatMap { sex in
+            AvatarBodyPhenotype.allCases.map { facePlateName(sex: sex, phenotype: $0) }
+        }
     }
 
     public static func shapeKey(_ shape: PopularShape) -> String {
@@ -326,19 +465,75 @@ public enum BodyAvatarComposer {
     }
 
     /// `GarmentSlot` / item.slotRaw → 叠衣槽（accessory 不叠）。
+    /// 兼容常见别名，避免入库/导入写错导致纸娃娃穿不上。
     public static func mapSlot(_ raw: String) -> BodyAvatarSlot? {
         switch raw.lowercased() {
-        case "outerwear", "outer": return .outerwear
-        case "top": return .top
-        case "dress": return .dress
-        case "bottom": return .bottom
-        case "shoes", "shoe": return .shoes
-        default: return nil
+        case "outerwear", "outer", "coat", "jacket", "blazer", "parka", "cardigan",
+             "bomber", "trench", "windbreaker", "puffer", "anorak", "vest", "gilet":
+            return .outerwear
+        case "top", "shirt", "tee", "tshirt", "blouse", "sweater", "knit",
+             "polo", "henley", "tank", "hoodie":
+            return .top
+        case "dress", "gown", "jumpsuit", "romper":
+            return .dress
+        case "bottom", "pants", "trousers", "jeans", "skirt", "shorts", "chino",
+             "leggings", "joggers", "cargo":
+            return .bottom
+        case "shoes", "shoe", "sneakers", "boots", "heels", "pumps", "loafers", "sandals",
+             "flats", "mules", "oxfords", "oxford", "chelsea", "derby":
+            return .shoes
+        default:
+            return nil
         }
+    }
+
+    /// 展示叠衣槽：在 mapSlot 基础上，用名称纠偏「西装写在 top」等历史/脏数据。
+    public static func displaySlot(slotRaw: String, itemName: String) -> BodyAvatarSlot? {
+        let base = mapSlot(slotRaw)
+        let n = itemName.lowercased()
+        // 名称强烈暗示外套，但槽位误标 top → 提到 outerwear 以便与 tee 同层
+        if base == .top,
+           n.contains("blazer") || n.contains("jacket") || n.contains("coat")
+            || n.contains("parka") || n.contains("overshirt") || n.contains("cardigan")
+            || n.contains("bomber") || n.contains("trench") || n.contains("windbreaker")
+            || n.contains("puffer") || n.contains("anorak") || n.contains("gilet")
+        {
+            return .outerwear
+        }
+        // 裤/裙误标 top（先于 dress：dress pants 是裤不是裙）
+        if base == .top,
+           n.contains("pants") || n.contains("trouser") || n.contains("jeans") || n.contains("chino")
+            || n.contains("skirt") || n.contains("shorts")
+            || n.contains("legging") || n.contains("jogger") || n.contains("cargo")
+        {
+            return .bottom
+        }
+        // 鞋误标（flats 复数，避免 flattering / flat-front 误伤）
+        // oxford 排除 cloth/shirt（牛津纺衬衫 ≠ 牛津鞋），否则 Search/Type 会错进 Shoes
+        if base == .top || base == .bottom {
+            let oxfordIsFootwear = n.contains("oxford")
+                && !n.contains("shirt") && !n.contains("cloth")
+                && !n.contains("blouse") && !n.contains("button")
+            let shoeHint = n.contains("shoe") || n.contains("sneaker") || n.contains("boot") || n.contains("heel")
+                || n.contains("loafer") || n.contains("pump") || n.contains("sandal")
+                || n.contains("flats") || n.contains("mule")
+                || n.contains("chelsea") || n.contains("derby")
+                || oxfordIsFootwear
+            if shoeHint { return .shoes }
+        }
+        // 连衣裙/连体误标 top（放在裤/鞋之后：dress pants/dress shoes 不算裙）
+        if base == .top,
+           n.contains("dress") || n.contains("gown")
+            || n.contains("jumpsuit") || n.contains("romper")
+        {
+            return .dress
+        }
+        return base
     }
 
     public static func resolveShape(from measurements: BodyMeasurements?) -> PopularShape {
         guard let m = measurements else { return .rectangle }
-        return FFITClassifier.classify(m).popularCategory
+        // 脏输入（非有限/≤0）= 缺失：与 nil 测量同路，回退文档化默认 .rectangle。
+        return FFITClassifier.classifyOrNil(m)?.popularCategory ?? .rectangle
     }
 }

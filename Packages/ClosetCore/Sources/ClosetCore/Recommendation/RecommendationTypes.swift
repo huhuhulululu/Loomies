@@ -28,9 +28,16 @@ public enum GarmentSlot: String, Sendable, CaseIterable {
         }
     }
 
-    /// Map stored `Item.slotRaw`; unknown values fall back to `.top`.
-    public static func resolved(_ raw: String) -> GarmentSlot {
-        GarmentSlot(rawValue: raw) ?? .top
+    /// Map stored `Item.slotRaw` (+ optional name for dirty labels).
+    /// Aligns with paper-doll `displaySlot` so UI/rec/wear share one truth
+    /// (e.g. blazer-as-top → outerwear; alias `bomber` → outerwear).
+    /// Unknown / accessory-only raws: keep GarmentSlot raw, else fall back to `.top`.
+    public static func resolved(_ raw: String, name: String = "") -> GarmentSlot {
+        if let body = BodyAvatarComposer.displaySlot(slotRaw: raw, itemName: name),
+           let g = GarmentSlot(rawValue: body.rawValue) {
+            return g
+        }
+        return GarmentSlot(rawValue: raw) ?? .top
     }
 }
 
@@ -75,6 +82,8 @@ public struct CandidateItem: Sendable, Equatable, Identifiable {
 /// 温区→可接受保暖度映射（英制 °F）。gate #1 用日间时段温度查此表。
 public enum WeatherFit {
     public static func acceptableWarmth(daytimeTempF t: Double) -> ClosedRange<Warmth> {
+        // 垃圾输入（NaN/±inf）不得落入 default 深冬偏置：返回全温区 = 不做天气过滤
+        guard t.isFinite else { return .veryLight ... .veryWarm }
         switch t {
         case 80...:   return .veryLight ... .light
         case 65..<80: return .veryLight ... .medium

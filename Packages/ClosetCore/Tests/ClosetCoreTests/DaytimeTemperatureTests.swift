@@ -23,4 +23,12 @@ struct DaytimeTemperatureTests {
         let hourly: [(hour: Int, tempF: Double)] = [(2, 30), (23, 28)]
         #expect(DaytimeTemperature.representative(hourlyF: hourly) == nil)
     }
+
+    @Test func nonFiniteSamplesAreSkipped() {
+        // 单个 NaN/±inf 样本不得污染整日均值；全是脏样本 → nil。
+        let hourly: [(hour: Int, tempF: Double)] = [(8, 60), (12, .nan), (16, 80), (10, .infinity)]
+        #expect(DaytimeTemperature.representative(hourlyF: hourly) == 70) // (60+80)/2
+        let allDirty: [(hour: Int, tempF: Double)] = [(9, .nan), (12, -.infinity)]
+        #expect(DaytimeTemperature.representative(hourlyF: allDirty) == nil)
+    }
 }

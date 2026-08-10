@@ -15,12 +15,14 @@ public enum RecommendationService {
         bodyShape: BodyShape? = nil,
         maxSuggestions: Int = 3
     ) -> [ScoredOutfit] {
-        let anchorIDs = Set(anchors.map(\.id))
+        // 锚定项同样强制同柜：外来衣柜的锚定直接丢弃，绝不流入建议（跨柜硬约束）
+        let validAnchors = anchors.filter { $0.wardrobe?.id == wardrobe.id }
+        let anchorIDs = Set(validAnchors.map(\.id))
         // 候选池只从**本衣柜**取（跨柜硬约束在源头强制），排除锚定项
         let pool = (wardrobe.items ?? [])
             .filter { !anchorIDs.contains($0.id) }
             .map { $0.toCandidateItem() }
-        let anchorCandidates = anchors.map { $0.toCandidateItem() }
+        let anchorCandidates = validAnchors.map { $0.toCandidateItem() }
 
         return OutfitCompleter.complete(
             anchors: anchorCandidates,

@@ -12,6 +12,18 @@ public final class TransferViewModel {
     public private(set) var destinations: [Wardrobe] = []
     public var selectedDestinationID: UUID?
     public private(set) var message: String = ""
+    /// True after a successful Move — sheet should dismiss only then (no silent fail).
+    public private(set) var didTransfer = false
+
+    /// Customer chip when no destination selected (sheet stays open).
+    public static let pickDestinationMessage = "Pick a wardrobe."
+
+    /// Empty destination list — recovery is Me → Wardrobes (no silent Move enable).
+    public static let noOtherWardrobesMessage =
+        "No other wardrobes. Create one in Me."
+
+    /// Customer chip when ModelSave fails (sheet stays open; no silent “Moved”).
+    public static let saveFailedMessage = TransferService.saveFailedMessage
 
     public init(item: Item) { self.item = item }
 
@@ -21,16 +33,26 @@ public final class TransferViewModel {
             .filter { $0.id != item.wardrobe?.id }
             .sorted { $0.name < $1.name }
         selectedDestinationID = destinations.first?.id
+        didTransfer = false
     }
 
-    public func transfer(in context: ModelContext) {
+    /// Moves the piece. Returns `true` only when committed — UI dismisses on true only.
+    @discardableResult
+    public func transfer(in context: ModelContext) -> Bool {
         guard let id = selectedDestinationID,
               let dest = destinations.first(where: { $0.id == id }) else {
-            message = "Pick a wardrobe."
-            return
+            message = Self.pickDestinationMessage
+            didTransfer = false
+            return false
         }
-        TransferService.transfer(item, to: dest, in: context)
+        guard TransferService.transfer(item, to: dest, in: context) else {
+            message = Self.saveFailedMessage
+            didTransfer = false
+            return false
+        }
         message = "Moved to \(dest.name)."
+        didTransfer = true
         AppLog.notice("transfer \(item.name) → \(dest.name)", .data)
+        return true
     }
 }

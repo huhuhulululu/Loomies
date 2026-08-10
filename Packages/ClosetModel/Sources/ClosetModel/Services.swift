@@ -16,8 +16,17 @@ public enum WardrobeInvariant {
 /// 转回自动恢复。应用层强制（CloudKit 最终一致下不能靠 SwiftData delete rule 表达）。
 public enum TransferService {
 
-    public static func transfer(_ item: Item, to wardrobe: Wardrobe, in context: ModelContext) {
+    /// Customer toast when ModelSave fails on Move (sheet stays open).
+    public static let saveFailedMessage = "Couldn't move — try again"
+
+    /// Moves item. Returns `false` when ModelSave fails (in-memory wardrobe/missing rolled back).
+    @discardableResult
+    public static func transfer(_ item: Item, to wardrobe: Wardrobe, in context: ModelContext) -> Bool {
+        let previousWardrobe = item.wardrobe
+        let previousLocation = item.location
+        let previousRevision = item.revision
         item.wardrobe = wardrobe
+        item.location = nil   // 位置属源柜（同柜不变量），转移即脱离
         item.revision += 1
 
         // 重算所有引用该单品的搭配的缺件状态（marking + restore 都在此）
@@ -26,7 +35,19 @@ public enum TransferService {
             recomputeMissing(outfit)
             propagateToCalendarPlans(outfit, in: context)
         }
-        ModelSave.save(context, label: "transfer")
+        guard ModelSave.save(context, label: "transfer") else {
+            item.wardrobe = previousWardrobe
+            item.location = previousLocation
+            item.revision = previousRevision
+            for outfit in affected {
+                recomputeMissing(outfit)
+                propagateToCalendarPlans(outfit, in: context)
+            }
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("transfer save failed \(item.name)", .data)
+            return false
+        }
+        return true
     }
 
     /// 重算某搭配的缺件状态：有成员不在本搭配所属衣柜 → 缺件。
@@ -35,11 +56,9 @@ public enum TransferService {
         outfit.missing = (outfit.items ?? []).contains { $0.wardrobe?.id != ownerID }
     }
 
-    /// 引用该搭配的 CalendarPlan → needsAttention 跟随搭配缺件状态。
+    /// 引用该搭配的 CalendarPlan → needsAttention 与 plan/refresh 同公式（不落盘，
+    /// 由 transfer 结尾单次 save——中途 save 会提前提交 pending 变更）。
     private static func propagateToCalendarPlans(_ outfit: Outfit, in context: ModelContext) {
-        let plans = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        for plan in plans where plan.outfit?.id == outfit.id {
-            plan.needsAttention = outfit.missing
-        }
+        CalendarPlanService.recomputeAttention(for: outfit, in: context)
     }
 }

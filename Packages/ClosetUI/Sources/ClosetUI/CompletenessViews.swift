@@ -5,6 +5,26 @@ import ClosetCore
 
 // MARK: - Calendar (full)
 
+/// Empty calendar list — Attention vs all; points to Today/Favorites (no fake sync).
+public enum CalendarEmptyCopy {
+    public static func title(attentionOnly: Bool) -> String {
+        attentionOnly ? "No items need attention" : "No plans yet"
+    }
+
+    public static let description =
+        "Save a look from Today, or plan a favorite for a day."
+
+    /// Toolbar + (same wording as empty-state CTA).
+    public static let addPlanAccessibilityLabel = "Plan a favorite"
+
+    /// Plan row swipe-delete hint (parity with Favorites).
+    public static let planRowAccessibilityHint = "Swipe to remove"
+
+    /// Plan-day sheet when Favorites is empty — recovery path only (no sync / try-on).
+    public static let noFavoritesYet =
+        "No favorites yet. Heart a suggestion on Today."
+}
+
 /// 穿搭日历：列表 / 关注 / 从收藏排期 / 删除。
 public struct CalendarView: View {
     let wardrobe: Wardrobe
@@ -15,6 +35,7 @@ public struct CalendarView: View {
     @State private var planDate = Date()
     @State private var favorites: [ClosetModel.Outfit] = []
     @State private var message: String?
+    @State private var actions = OutfitActionsViewModel()
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
@@ -22,16 +43,18 @@ public struct CalendarView: View {
         NavigationStack {
             Group {
                 if filteredPlans.isEmpty {
+                    let title = CalendarEmptyCopy.title(attentionOnly: showAttentionOnly)
                     ContentUnavailableView {
-                        Label(
-                            showAttentionOnly ? "No items need attention" : "No plans yet",
-                            systemImage: "calendar")
+                        Label(title, systemImage: "calendar")
                     } description: {
-                        Text("Save a look from Today, or plan a favorite for a day.")
+                        Text(CalendarEmptyCopy.description)
                     } actions: {
                         Button("Plan a favorite") { reloadFavorites(); showPlanPicker = true }
                             .buttonStyle(.borderedProminent).tint(DS.accent)
+                            .accessibilityHint("Opens favorites to schedule a look")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(title). \(CalendarEmptyCopy.description)")
                 } else {
                     List {
                         ForEach(filteredPlans, id: \.id) { plan in
@@ -60,17 +83,15 @@ public struct CalendarView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel(CalendarEmptyCopy.addPlanAccessibilityLabel)
                 }
             }
             .onAppear { reload() }
             .sheet(isPresented: $showPlanPicker) { planSheet }
             .overlay(alignment: .bottom) {
                 if let message {
-                    Text(message)
-                        .font(.caption)
-                        .padding(8)
-                        .background(DS.surface)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    // Fail orange (parity Favorites / Today); Plan / swipe-delete VO via chip label.
+                    CustomerFlashStyle.overlayChip(message)
                         .padding()
                 }
             }
@@ -106,6 +127,7 @@ public struct CalendarView: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityHint(CalendarEmptyCopy.planRowAccessibilityHint)
     }
 
     private var planSheet: some View {
@@ -113,15 +135,23 @@ public struct CalendarView: View {
             Form {
                 DatePicker("Day", selection: $planDate, displayedComponents: .date)
                 if favorites.isEmpty {
-                    Text("No favorites yet. Heart a suggestion on Today.")
+                    Text(CalendarEmptyCopy.noFavoritesYet)
                         .font(.caption).foregroundStyle(DS.muted)
+                        .accessibilityLabel(CalendarEmptyCopy.noFavoritesYet)
                 } else {
                     ForEach(favorites, id: \.id) { outfit in
                         Button {
-                            _ = CalendarPlanService.plan(outfit: outfit, on: planDate, in: context)
-                            message = "Planned \(lookTitle(outfit))"
-                            showPlanPicker = false
-                            reload()
+                            // Same path as Favorites planFavorite — attention toast when missing pieces.
+                            let plan = actions.planFavorite(
+                                outfit, on: planDate, in: context,
+                                lookTitle: lookTitle(outfit))
+                            // Surface the honest flash either way; dismiss only on commit
+                            // (stay-open-on-fail parity with TransferSheet / ItemDetail delete).
+                            message = actions.message
+                            if plan != nil {
+                                showPlanPicker = false
+                                reload()
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 lookThumb(
@@ -131,7 +161,7 @@ public struct CalendarView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(lookTitle(outfit))
                                         .foregroundStyle(DS.ink)
-                                    Text("\((outfit.items ?? []).count) pieces · \(outfit.occasionRaw?.capitalized ?? "Any")")
+                                    Text(FavoritesView.lookMetaLine(outfit, emptyOccasion: "Any"))
                                         .font(.caption).foregroundStyle(DS.muted)
                                 }
                                 Spacer()
@@ -151,10 +181,10 @@ public struct CalendarView: View {
         }
     }
 
+    /// Same title truth as Favorites list / plan flash (trim blank → “Favorite look”).
     private func lookTitle(_ outfit: ClosetModel.Outfit?) -> String {
         guard let outfit else { return "Look" }
-        if outfit.name.isEmpty { return "Favorite look" }
-        return outfit.name
+        return FavoritesView.lookDisplayTitle(outfit)
     }
 
     @ViewBuilder
@@ -168,7 +198,10 @@ public struct CalendarView: View {
             showsFitCaption: false,
             enablesOrbit: false,
             backdrop: .resolved(from: occasion),
-            depthIntensity: .off)
+            depthIntensity: .off,
+            bodySex: BodyProfileService.presentationSex(from: ownerProfile),
+            bodyPhenotype: BodyProfileService.presentationPhenotype(from: ownerProfile),
+            usesMannequin3D: false)
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .allowsHitTesting(false)
@@ -214,20 +247,35 @@ public struct CalendarView: View {
     }
 
     private func delete(at offsets: IndexSet) {
+        var saveFailed = false
         for i in offsets {
-            CalendarPlanService.remove(filteredPlans[i], in: context)
+            if !CalendarPlanService.remove(filteredPlans[i], in: context) {
+                saveFailed = true
+            }
         }
         reload()
+        // After reload, failed rows reappear; flash so swipe is not silent success.
+        if saveFailed {
+            message = CalendarPlanService.removeSaveFailedMessage
+        }
     }
 }
 
 // MARK: - Storage locations
+
+/// Me → Storage empty list — recovery is the Add field above (no fake inventory / try-on).
+public enum StorageEmptyCopy {
+    public static let title = "No locations yet."
+    /// Row swipe-delete hint (parity Calendar / Favorites).
+    public static let rowSwipeAccessibilityHint = "Swipe to remove"
+}
 
 public struct StorageLocationsView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @State private var locations: [StorageLocation] = []
     @State private var newName = ""
+    @State private var message = ""
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
@@ -239,16 +287,30 @@ public struct StorageLocationsView: View {
                     Button("Add") {
                         let n = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !n.isEmpty else { return }
-                        _ = StorageLocationService.create(name: n, in: wardrobe, context: context)
-                        newName = ""
+                        if StorageLocationService.create(name: n, in: wardrobe, context: context) != nil {
+                            newName = ""
+                            message = ""
+                        } else {
+                            // Keep draft name for retry; do not claim success.
+                            message = StorageLocationService.createSaveFailedMessage
+                        }
                         reload()
                     }
                     .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
+                if !message.isEmpty {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(Color.orange)
+                        .accessibilityLabel(message)
+                }
             }
             Section("Locations") {
                 if locations.isEmpty {
-                    Text("No locations yet.").font(.caption).foregroundStyle(DS.muted)
+                    Text(StorageEmptyCopy.title)
+                        .font(.caption)
+                        .foregroundStyle(DS.muted)
+                        .accessibilityLabel(StorageEmptyCopy.title)
                 } else {
                     ForEach(locations, id: \.id) { loc in
                         HStack {
@@ -258,7 +320,10 @@ public struct StorageLocationsView: View {
                             Text("\((loc.items ?? []).count)")
                                 .font(.caption).foregroundStyle(DS.muted)
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityHint(StorageEmptyCopy.rowSwipeAccessibilityHint)
                     }
+                    .onDelete(perform: delete)
                 }
             }
         }
@@ -268,6 +333,20 @@ public struct StorageLocationsView: View {
 
     private func reload() {
         locations = StorageLocationService.list(in: wardrobe)
+    }
+
+    private func delete(at offsets: IndexSet) {
+        var saveFailed = false
+        for i in offsets {
+            if !DeleteService.deleteLocation(locations[i], in: context) {
+                saveFailed = true
+            }
+        }
+        reload()
+        // After reload, failed rows reappear; flash so swipe is not silent success.
+        if saveFailed {
+            message = StorageLocationService.removeSaveFailedMessage
+        }
     }
 }
 
@@ -295,7 +374,14 @@ public struct PersonalColorView: View {
                     .font(.caption2)
             }
             if !message.isEmpty {
-                Section { Text(message).foregroundStyle(DS.accent) }
+                Section {
+                    Text(message)
+                        .foregroundStyle(
+                            message.localizedCaseInsensitiveContains("couldn't")
+                                || message.localizedCaseInsensitiveContains("no person")
+                                ? Color.orange : DS.accent)
+                        .accessibilityLabel(message)
+                }
             }
             Section {
                 Button("Save") { save() }
@@ -315,11 +401,19 @@ public struct PersonalColorView: View {
     private func save() {
         let people = (try? context.fetch(FetchDescriptor<Person>())) ?? []
         guard let p = people.first(where: { $0.id == personID }) else {
-            message = "No person profile yet — finish Onboarding."
+            message = ProfileLabels.noPersonMessage
             return
         }
+        let oldSeasonRaw = p.personalColorSeasonRaw
         p.personalColorSeasonRaw = season == .unknown ? nil : season.rawValue
-        ModelSave.save(context, label: "personalColor")
+        guard ModelSave.save(context, label: "personalColor") else {
+            // rollback() 不清内存值只清脏标记 → 先还原字段（ItemStatusService 同款）
+            p.personalColorSeasonRaw = oldSeasonRaw
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            message = ProfileLabels.saveFailedMessage
+            AppLog.error("personalColor save failed", .data)
+            return
+        }
         message = "Saved \(season.displayName)."
     }
 }
@@ -331,26 +425,189 @@ public struct ClosetCityEditView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var city: String = ""
+    @State private var message = ""
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
         Form {
             TextField("City", text: $city)
-            Text("Used for offline climate estimate and future WeatherKit.")
+            Text("Used for Open-Meteo live weather (online) and offline climate fallback.")
                 .font(.caption).foregroundStyle(DS.muted)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+                    .accessibilityLabel(message)
+            }
         }
         .navigationTitle("City")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    let t = city.trimmingCharacters(in: .whitespacesAndNewlines)
-                    wardrobe.locationCity = t.isEmpty ? nil : t
-                    ModelSave.save(context, label: "closetCity")
-                    dismiss()
+                    // Stay open on ModelSave fail — no silent dismiss.
+                    let ok = ProfileLabels.applyCity(city, to: wardrobe, in: context)
+                    if let flash = ProfileLabels.editSaveFailureFlash(succeeded: ok) {
+                        message = flash
+                    } else {
+                        dismiss()
+                    }
                 }
             }
         }
         .onAppear { city = wardrobe.locationCity ?? "" }
+    }
+}
+
+// MARK: - Closet name edit
+
+/// Me → This closet name (onboarding defaults to "Main"; customer may rename).
+public struct ClosetNameEditView: View {
+    let wardrobe: Wardrobe
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var message = ""
+
+    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
+
+    public var body: some View {
+        Form {
+            TextField("Closet name", text: $name)
+                .textContentType(.organizationName)
+            Text("Shown on the Closet tab and in Me.")
+                .font(.caption).foregroundStyle(DS.muted)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+                    .accessibilityLabel(message)
+            }
+        }
+        .navigationTitle("Closet name")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    // Stay open on ModelSave fail — no silent dismiss (same bar as City).
+                    let ok = ProfileLabels.applyWardrobeName(name, to: wardrobe, in: context)
+                    if let flash = ProfileLabels.editSaveFailureFlash(succeeded: ok) {
+                        message = flash
+                    } else {
+                        dismiss()
+                    }
+                }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .onAppear { name = wardrobe.name }
+    }
+}
+
+// MARK: - Person display name (onboarding)
+
+/// Me → Profile name (cold-start display name; editable after onboarding).
+public struct PersonNameEditView: View {
+    let person: Person
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String = ""
+    @State private var message = ""
+
+    public init(person: Person) { self.person = person }
+
+    public var body: some View {
+        Form {
+            TextField("Your name", text: $name)
+                .textContentType(.name)
+            Text("From onboarding — only on this device.")
+                .font(.caption).foregroundStyle(DS.muted)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+                    .accessibilityLabel(message)
+            }
+        }
+        .navigationTitle("Name")
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    // Stay open on ModelSave fail — no silent dismiss (same bar as City).
+                    let ok = ProfileLabels.applyPersonName(name, to: person, in: context)
+                    if let flash = ProfileLabels.editSaveFailureFlash(succeeded: ok) {
+                        message = flash
+                    } else {
+                        dismiss()
+                    }
+                }
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .onAppear { name = person.name }
+    }
+}
+
+/// Pure Me-profile helpers (testable without SwiftUI). ModelSave false → return false (no silent OK).
+public enum ProfileLabels {
+    public static let saveFailedMessage = "Couldn't save — try again"
+    public static let noPersonMessage = "No person profile yet — finish Onboarding."
+
+    /// Me City / Closet name / Person name Save: stay open + flash; never silent dismiss on fail.
+    public static func editSaveFailureFlash(succeeded: Bool) -> String? {
+        succeeded ? nil : saveFailedMessage
+    }
+
+    @discardableResult
+    public static func applyPersonName(
+        _ raw: String, to person: Person, in context: ModelContext
+    ) -> Bool {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return false }
+        let old = person.name
+        person.name = t
+        guard ModelSave.save(context, label: "personName") else {
+            person.name = old
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("person rename save failed", .data)
+            return false
+        }
+        AppLog.notice("person renamed", .data)
+        return true
+    }
+
+    @discardableResult
+    public static func applyWardrobeName(
+        _ raw: String, to wardrobe: Wardrobe, in context: ModelContext
+    ) -> Bool {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return false }
+        let old = wardrobe.name
+        wardrobe.name = t
+        guard ModelSave.save(context, label: "closetName") else {
+            wardrobe.name = old
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("wardrobe rename save failed", .data)
+            return false
+        }
+        AppLog.notice("wardrobe renamed \(t)", .data)
+        return true
+    }
+
+    /// Me → City — empty clears city (valid); ModelSave failure returns false.
+    @discardableResult
+    public static func applyCity(
+        _ raw: String, to wardrobe: Wardrobe, in context: ModelContext
+    ) -> Bool {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let old = wardrobe.locationCity
+        wardrobe.locationCity = t.isEmpty ? nil : t
+        guard ModelSave.save(context, label: "closetCity") else {
+            wardrobe.locationCity = old
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("closet city save failed", .data)
+            return false
+        }
+        AppLog.notice("closet city=\(wardrobe.locationCity ?? "-")", .data)
+        return true
     }
 }

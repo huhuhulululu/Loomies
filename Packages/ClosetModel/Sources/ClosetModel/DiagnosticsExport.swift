@@ -45,14 +45,18 @@ public enum DiagnosticsExport {
             let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
 
             let bodyComplete: Bool? = {
-                guard let p = profiles.first else { return nil }
-                return BodyProfileService.isComplete(p)
+                guard !profiles.isEmpty else { return nil }
+                return profiles.allSatisfy { BodyProfileService.isComplete($0) }
             }()
 
             let summaries: [WardrobeSummary] = wardrobes.map { w in
                 let wItems = w.items ?? []
+                // Resolved slots match paper-doll / search / FitMark (dirty blazer-as-top → outerwear).
                 var slots: [String: Int] = [:]
-                for i in wItems { slots[i.slotRaw, default: 0] += 1 }
+                for i in wItems {
+                    let key = GarmentSlot.resolved(i.slotRaw, name: i.name).rawValue
+                    slots[key, default: 0] += 1
+                }
                 return WardrobeSummary(
                     id: w.id.uuidString,
                     name: w.name,
@@ -62,7 +66,7 @@ public enum DiagnosticsExport {
                     slots: slots
                 )
             }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——快照可复现
 
             let iso = ISO8601DateFormatter()
             iso.formatOptions = [.withInternetDateTime]
@@ -97,5 +101,20 @@ public enum DiagnosticsExport {
         let snap = snapshot(in: context, appVersion: appVersion, build: build, flags: flags)
         let data = try jsonData(snap)
         return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    /// Me → Export diagnostics success chip — no char count (parity with data export toast).
+    public static var exportReadyMessage: String {
+        "Diagnostics ready — share sheet."
+    }
+
+    /// Me → Export diagnostics button VoiceOver hint (share sheet; not full data export).
+    public static var exportButtonAccessibilityHint: String {
+        "Opens the share sheet with support diagnostics — not your full closet export."
+    }
+
+    /// Me → Export diagnostics failure chip — no raw NSError dump in UI.
+    public static var exportFailedMessage: String {
+        "Couldn't export diagnostics — try again"
     }
 }

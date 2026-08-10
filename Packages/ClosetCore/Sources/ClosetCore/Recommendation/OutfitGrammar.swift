@@ -40,7 +40,13 @@ public enum OutfitGrammar {
 
         var subtypeCounts: [String: Int] = [:]
         for o in outerwear {
-            if let st = o.subtype { subtypeCounts[st, default: 0] += 1 }
+            // 归一化（trim + 小写），与 CandidateFilter 场合归一化一致：写入端大小写不一致不能逃脱互斥。
+            if let st = o.subtype {
+                let key = st.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                // 纯空白 subtype 归一化为 ""：视为无 subtype，不参与互斥计数。
+                guard !key.isEmpty else { continue }
+                subtypeCounts[key, default: 0] += 1
+            }
         }
         for (st, count) in subtypeCounts where count > 1 {
             result.append(.duplicateSubtype(st))

@@ -4,6 +4,39 @@ import ClosetModel
 import ClosetCore
 import ClosetIntake
 
+// MARK: - Intake empty (VO parity with Calendar / Favorites / Search)
+
+/// Empty intake / Add-piece choose — honest cutout/tags copy; no fake Vision tag / try-on claims.
+public enum IntakeEmptyCopy {
+    /// IntakeView empty CTA title.
+    public static let title = "Add a photo"
+    /// AddPieceSheet choose nav title (sheet entry point).
+    public static let chooseTitle = "Add piece"
+    /// Same pipeline honesty as AddPieceSheet choose screen.
+    public static var description: String { IntakeServiceFactory.photoPipelineCaption }
+    public static var processingDescription: String { IntakeServiceFactory.photoProcessingCaption }
+
+    /// Combined VoiceOver label for IntakeView empty / processing states.
+    public static func accessibilityLabel(
+        isProcessing: Bool,
+        error: String? = nil
+    ) -> String {
+        if isProcessing {
+            return "\(title). \(processingDescription)"
+        }
+        var parts = [title, description]
+        if let err = error, !err.isEmpty { parts.append(err) }
+        return parts.joined(separator: ". ")
+    }
+
+    /// Caption-region VO for AddPieceSheet choose (buttons stay separate focus targets).
+    public static func chooseAccessibilityLabel(message: String = "") -> String {
+        var parts = [chooseTitle, description]
+        if !message.isEmpty { parts.append(message) }
+        return parts.joined(separator: ". ")
+    }
+}
+
 /// 入库单屏确认（DESIGN §F1 第 5 步）：AI 预填草稿 → 用户改 → 确认落库。
 /// 相机/PHPicker 采集是 iOS 设备侧（外部把 imageData 传给 vm.process）；本视图经 swift build 验证。
 public struct IntakeView: View {
@@ -39,9 +72,10 @@ public struct IntakeView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             if vm.isProcessing {
-                ProgressView("Cutting out & pre-filling…")
+                ProgressView(IntakeEmptyCopy.processingDescription)
             } else {
-                Text("Snap a photo of a piece. We'll cut it out and pre-fill the details.")
+                // Same honesty as AddPieceSheet: Vision cutout only; tags/OCR starter guesses.
+                Text(IntakeEmptyCopy.description)
                     .font(.subheadline).foregroundStyle(DS.muted)
                     .multilineTextAlignment(.center)
                 if let err = vm.lastError, !err.isEmpty {
@@ -59,13 +93,18 @@ public struct IntakeView: View {
                         }
                     }
                 } label: {
-                    Text("Add a photo")
+                    Text(IntakeEmptyCopy.title)
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
                         .background(DS.accent).foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                 }
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            IntakeEmptyCopy.accessibilityLabel(
+                isProcessing: vm.isProcessing,
+                error: vm.lastError))
     }
 
     private func confirmForm(_ draft: Binding<IntakeDraft>) -> some View {

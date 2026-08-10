@@ -24,8 +24,16 @@ public final class OnboardingViewModel {
     public private(set) var wardrobe: Wardrobe?
     public private(set) var bodyProfile: PersonBodyProfile?
     public private(set) var completed: Bool = false
+    /// Customer flash after finish (empty on success; save/validation failure is honest).
+    public private(set) var message: String = ""
 
     public init() {}
+
+    /// Validation toast when name/city empty (Get started still gated by canFinish in UI).
+    public static let needNameAndCityMessage = "Enter your name and city to continue."
+
+    /// Customer toast when ModelSave fails (rollback; no silent complete).
+    public static let saveFailedMessage = "Couldn't finish setup — try again"
 
     /// 名 + 城非空即可完成；身体全可选。
     public var canFinish: Bool {
@@ -34,9 +42,15 @@ public final class OnboardingViewModel {
     }
 
     /// 落库 Person + 主衣柜；若有任一身体字段则写 PersonBodyProfile。
+    /// Save failure rolls back inserts, leaves `completed == false` (no silent success).
     @discardableResult
     public func finish(in context: ModelContext) -> Bool {
-        guard canFinish else { return false }
+        // Idempotent: a double call (double-tap / re-entry) must not insert duplicates.
+        guard !completed else { return true }
+        guard canFinish else {
+            message = Self.needNameAndCityMessage
+            return false
+        }
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let cityTrim = city.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -62,11 +76,19 @@ public final class OnboardingViewModel {
             context.insert(p)
             profile = p
         }
-        try? context.save()
+        guard ModelSave.save(context, label: "onboarding") else {
+            if let profile { context.delete(profile) }
+            context.delete(wardrobe)
+            context.delete(person)
+            message = Self.saveFailedMessage
+            AppLog.error("onboarding save failed", .app)
+            return false
+        }
         self.person = person
         self.wardrobe = wardrobe
         self.bodyProfile = profile
         self.completed = true
+        message = ""
         return true
     }
 

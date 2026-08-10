@@ -29,6 +29,8 @@ public enum ColorHarmony {
 
     public static func relation(_ a: GarmentColor, _ b: GarmentColor) -> ColorRelation {
         if a.isNeutral || b.isNeutral { return .neutral }
+        // 非有限色相（NaN/±inf）无法判距离 → 按中性处理，不误报「色彩冲突」。
+        guard a.hueDegrees.isFinite, b.hueDegrees.isFinite else { return .neutral }
         let d = hueDistance(a.hueDegrees, b.hueDegrees)
         if d <= 30 { return .analogous }
         if abs(d - 180) <= 20 { return .complementary }
@@ -48,9 +50,10 @@ public enum ColorHarmony {
     }
 
     /// 60-30-10：非中性色相族 ≤ 3（主/辅/点缀）才算平衡。相距 ≤30° 视为同族。
+    /// 非有限色相（NaN/±inf）不计入族数（与 relation 的 nil 化一致：脏数据不产生误判）。
     public static func followsSixtyThirtyTen(_ colors: [GarmentColor]) -> Bool {
         var families: [Double] = []
-        for h in colors.filter({ !$0.isNeutral }).map(\.hueDegrees) {
+        for h in colors.filter({ !$0.isNeutral }).map(\.hueDegrees) where h.isFinite {
             if !families.contains(where: { hueDistance($0, h) <= 30 }) { families.append(h) }
         }
         return families.count <= 3

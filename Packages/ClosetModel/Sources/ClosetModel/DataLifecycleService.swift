@@ -63,6 +63,7 @@ public enum DataLifecycleService {
         public var waistFlatWidthInches: Double?
         public var hipFlatWidthInches: Double?
         public var localImageRelativePath: String?
+        public var barcode: String?
     }
 
     public struct OutfitDTO: Codable, Sendable, Equatable {
@@ -108,6 +109,8 @@ public enum DataLifecycleService {
         public var fineWaist: Double
         public var fineHip: Double
         public var fineHeight: Double
+        public var presentationSexRaw: String?
+        public var presentationPhenotypeRaw: String?
     }
 
     public static func exportSnapshot(
@@ -129,18 +132,18 @@ public enum DataLifecycleService {
         let personDTOs = persons
             .map { PersonDTO(id: $0.id.uuidString, name: $0.name, coldBias: $0.coldBias,
                              personalColorSeasonRaw: $0.personalColorSeasonRaw) }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let wardrobeDTOs = wardrobes
             .map { WardrobeDTO(id: $0.id.uuidString, name: $0.name, locationCity: $0.locationCity,
                                ownerID: $0.owner?.id.uuidString) }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let locationDTOs = locations
             .map { LocationDTO(id: $0.id.uuidString, name: $0.name,
                                wardrobeID: $0.wardrobe?.id.uuidString,
                                parentID: $0.parent?.id.uuidString) }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let itemDTOs = items
             .map {
@@ -153,10 +156,11 @@ public enum DataLifecycleService {
                     chestFlatWidthInches: $0.chestFlatWidthInches,
                     waistFlatWidthInches: $0.waistFlatWidthInches,
                     hipFlatWidthInches: $0.hipFlatWidthInches,
-                    localImageRelativePath: $0.localImageRelativePath
+                    localImageRelativePath: $0.localImageRelativePath,
+                    barcode: $0.barcode
                 )
             }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let outfitDTOs = outfits
             .map {
@@ -168,7 +172,7 @@ public enum DataLifecycleService {
                     sourceRaw: $0.sourceRaw, notes: $0.notes
                 )
             }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let wearDTOs = wears
             .map {
@@ -179,7 +183,7 @@ public enum DataLifecycleService {
                     wornItemIDs: $0.wornItemIDs, fitFeedback: $0.fitFeedback
                 )
             }
-            .sorted { $0.date < $1.date }
+            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }   // 同刻按 id 决胜——导出快照可复现
 
         let planDTOs = plans
             .map {
@@ -188,7 +192,7 @@ public enum DataLifecycleService {
                     outfitID: $0.outfit?.id.uuidString, needsAttention: $0.needsAttention
                 )
             }
-            .sorted { $0.date < $1.date }
+            .sorted { ($0.date, $0.id) < ($1.date, $1.id) }   // 同刻按 id 决胜——导出快照可复现
 
         var bodyDTOs: [BodyProfileDTO]? = nil
         if includeBodyDimensions {
@@ -201,7 +205,9 @@ public enum DataLifecycleService {
                     popularShapeOverrideRaw: $0.popularShapeOverrideRaw,
                     shapeSourceRaw: $0.shapeSourceRaw, highHipInferred: $0.highHipInferred,
                     fineChest: $0.fineChest, fineWaist: $0.fineWaist,
-                    fineHip: $0.fineHip, fineHeight: $0.fineHeight
+                    fineHip: $0.fineHip, fineHeight: $0.fineHeight,
+                    presentationSexRaw: $0.presentationSexRaw,
+                    presentationPhenotypeRaw: $0.presentationPhenotypeRaw
                 )
             }
             .sorted { $0.personID < $1.personID }
@@ -241,6 +247,34 @@ public enum DataLifecycleService {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
+    /// Customer toast after Export — states body inclusion honestly (matches the Me toggle).
+    public static func exportReadyMessage(includeBodyDimensions: Bool) -> String {
+        if includeBodyDimensions {
+            return "Export ready — includes body measurements."
+        }
+        return "Export ready — body measurements omitted."
+    }
+
+    /// Me → Export my data button VoiceOver hint (share sheet + body toggle honesty).
+    public static var exportButtonAccessibilityHint: String {
+        "Opens the share sheet. Body measurements follow the toggle above."
+    }
+
+    /// Me → Delete all data button VoiceOver hint (confirm first; permanent wipe).
+    public static var deleteAllButtonAccessibilityHint: String {
+        "Asks for confirmation, then permanently removes closets, pieces, looks, and body data from this device."
+    }
+
+    /// Customer toast after Export throws — never dump raw system errors in Me UI.
+    public static var exportFailedMessage: String {
+        "Couldn't export — try again"
+    }
+
+    /// Customer toast after Delete all throws — honest, non-technical.
+    public static var deleteAllFailedMessage: String {
+        "Couldn't delete data — try again"
+    }
+
     // MARK: - Delete all
 
     public struct DeleteReceipt: Codable, Sendable, Equatable {
@@ -255,8 +289,20 @@ public enum DataLifecycleService {
         public var deletedBodyProfiles: Int
         public var wipedItemImages: Bool
 
+        /// Customer toast after Delete all — must mention body profiles when wiped (matches confirm copy).
         public var summaryLine: String {
-            "Deleted \(deletedItems) items, \(deletedOutfits) looks, \(deletedWardrobes) closets."
+            var parts = [
+                "\(deletedItems) items",
+                "\(deletedOutfits) looks",
+                "\(deletedWardrobes) closets",
+            ]
+            if deletedBodyProfiles > 0 {
+                parts.append("\(deletedBodyProfiles) body profiles")
+            }
+            if deletedWearRecords > 0 {
+                parts.append("\(deletedWearRecords) wear records")
+            }
+            return "Deleted " + parts.joined(separator: ", ") + "."
         }
     }
 
@@ -289,7 +335,10 @@ public enum DataLifecycleService {
         let deletedPersons = try wipeAll(Person.self)
         let deletedBodyProfiles = try wipeAll(PersonBodyProfile.self)
 
-        try context.save()
+        guard ModelSave.save(context, label: "deleteAllUserData") else {
+            context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
+            throw DeleteError.saveFailed
+        }
 
         var wipedImages = false
         if wipeItemImages {

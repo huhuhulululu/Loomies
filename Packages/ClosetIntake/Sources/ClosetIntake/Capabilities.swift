@@ -18,7 +18,7 @@ public protocol OCRService: Sendable {
     func readLabel(_ imageData: Data) async throws -> LabelInfo
 }
 
-/// AI 预填标签（全部可编辑，material/color 弱置信见 §F1）。
+/// AI 预填标签（全部可编辑，color 弱置信见 §F1）。
 public struct ItemTags: Sendable, Equatable {
     public var slot: GarmentSlot
     public var color: GarmentColor?
@@ -30,13 +30,12 @@ public struct ItemTags: Sendable, Equatable {
     }
 }
 
-/// 洗标抽取结果。
+/// 洗标抽取结果（仅入库用到的字段；material 无人消费，已从契约中移除）。
 public struct LabelInfo: Sendable, Equatable {
     public var brand: String?
     public var size: String?
-    public var material: String?
-    public init(brand: String? = nil, size: String? = nil, material: String? = nil) {
-        self.brand = brand; self.size = size; self.material = material
+    public init(brand: String? = nil, size: String? = nil) {
+        self.brand = brand; self.size = size
     }
 }
 
@@ -49,6 +48,8 @@ public struct IntakeDraft: Sendable, Equatable {
     public var warmth: Warmth?
     public var brand: String?
     public var size: String?
+    /// Optional retail barcode (UPC/EAN/GTIN digits) for Open*Facts lookup.
+    public var barcode: String?
     /// Default name is empty so confirm UI can require an intentional label
     /// (process() usually prefills brand + slot display title).
     public init(name: String = "", slot: GarmentSlot = .top) {

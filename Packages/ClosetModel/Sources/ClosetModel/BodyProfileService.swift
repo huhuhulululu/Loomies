@@ -83,7 +83,7 @@ public enum BodyProfileService {
         return parsePopular(profile.popularShapeOverrideRaw)
     }
 
-    /// 驱动 360 croquis：手选覆盖优先，否则 FFIT 映射，否则 nil。
+    /// 驱动 360 / 3D 底座体型：手选覆盖优先，否则 FFIT 映射，否则 nil。
     public static func displayPopularShape(from profile: PersonBodyProfile) -> PopularShape? {
         if let o = parsePopular(profile.popularShapeOverrideRaw) { return o }
         if isComplete(profile), let m = measurements(from: profile) {
@@ -95,6 +95,24 @@ public enum BodyProfileService {
     public static func parsePopular(_ raw: String?) -> PopularShape? {
         guard let raw else { return nil }
         return PopularShape(rawValue: raw)
+    }
+
+    /// 展示用性别底座（全 nude 3D）；缺省 female。
+    public static func presentationSex(from profile: PersonBodyProfile?) -> AvatarBodySex {
+        guard let raw = profile?.presentationSexRaw,
+              let sex = AvatarBodySex(rawValue: raw) else {
+            return .female
+        }
+        return sex
+    }
+
+    /// 展示用人种/表型（多人种全 nude）；缺省 eastAsian（可改）。
+    public static func presentationPhenotype(from profile: PersonBodyProfile?) -> AvatarBodyPhenotype {
+        guard let raw = profile?.presentationPhenotypeRaw,
+              let p = AvatarBodyPhenotype(rawValue: raw) else {
+            return .eastAsian
+        }
+        return p
     }
 
     /// 大众 5 类 → FFIT 代表类（仅用于无四围时的轻量推荐加权）。
@@ -148,8 +166,9 @@ public enum BodyProfileService {
     public static func resolveSource(_ profile: PersonBodyProfile) -> BodyShapeSource {
         let hasOverride = parsePopular(profile.popularShapeOverrideRaw) != nil
         let complete = isComplete(profile)
-        if complete && hasOverride { return .mixed }
+        // 推断上臀优先于覆盖：3 实测 + 推断上臀 + 手选仍是 provisional（上臀只是估计）。
         if complete && profile.highHipInferred { return .provisional }
+        if complete && hasOverride { return .mixed }
         if complete { return .measured }
         if hasOverride { return .visualPick }
         return .none

@@ -68,6 +68,81 @@ struct DataLifecycleServiceTests {
         #expect(json.contains("bustInches"))
     }
 
+    /// M1: barcode must round-trip through ItemDTO (export must not silently drop it).
+    @Test func exportRoundTripsBarcode() throws {
+        let ctx = try makeContext()
+        let (_, _, item) = try seedCloset(in: ctx)
+        item.barcode = "012345678905"
+        try ctx.save()
+
+        let snap = try DataLifecycleService.exportSnapshot(in: ctx)
+        #expect(snap.items.count == 1)
+        #expect(snap.items[0].barcode == "012345678905")
+
+        // DTO Codable round-trip: barcode survives encode/decode too.
+        let data = try DataLifecycleService.exportJSONData(in: ctx)
+        let decoded = try JSONDecoder().decode(DataLifecycleService.ExportSnapshot.self, from: data)
+        #expect(decoded.items[0].barcode == "012345678905")
+
+        // Item without barcode exports as nil, not dropped key crash.
+        item.barcode = nil
+        try ctx.save()
+        let snap2 = try DataLifecycleService.exportSnapshot(in: ctx)
+        #expect(snap2.items[0].barcode == nil)
+    }
+
+    /// CM-3: avatar presentation preferences must round-trip through full export (not silently dropped).
+    @Test func exportRoundTripsPresentationFields() throws {
+        let ctx = try makeContext()
+        let (person, _, _) = try seedCloset(in: ctx)
+        let profile = try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).first
+        #expect(profile != nil)
+        profile?.presentationSexRaw = "male"
+        profile?.presentationPhenotypeRaw = "african"
+        try ctx.save()
+
+        let snap = try DataLifecycleService.exportSnapshot(in: ctx, includeBodyDimensions: true)
+        #expect(snap.bodyProfiles?.count == 1)
+        #expect(snap.bodyProfiles?[0].personID == person.id.uuidString)
+        #expect(snap.bodyProfiles?[0].presentationSexRaw == "male")
+        #expect(snap.bodyProfiles?[0].presentationPhenotypeRaw == "african")
+
+        // DTO Codable round-trip: fields survive encode/decode too.
+        let data = try DataLifecycleService.exportJSONData(in: ctx, includeBodyDimensions: true)
+        let decoded = try JSONDecoder().decode(DataLifecycleService.ExportSnapshot.self, from: data)
+        #expect(decoded.bodyProfiles?[0].presentationSexRaw == "male")
+        #expect(decoded.bodyProfiles?[0].presentationPhenotypeRaw == "african")
+
+        // Unset presentation fields export as nil, not dropped key crash.
+        profile?.presentationSexRaw = nil
+        profile?.presentationPhenotypeRaw = nil
+        try ctx.save()
+        let snap2 = try DataLifecycleService.exportSnapshot(in: ctx, includeBodyDimensions: true)
+        #expect(snap2.bodyProfiles?[0].presentationSexRaw == nil)
+        #expect(snap2.bodyProfiles?[0].presentationPhenotypeRaw == nil)
+    }
+
+    /// M2: deleteAllUserData routes through ModelSave — forced failure rolls back staged deletes and throws.
+    @Test func deleteAllForcedSaveFailureRollsBackAndThrows() throws {
+        let ctx = try makeContext()
+        _ = try seedCloset(in: ctx)
+        ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }
+
+        #expect(throws: DeleteError.saveFailed) {
+            try DataLifecycleService.deleteAllUserData(in: ctx, wipeItemImages: false)
+        }
+        // Staged cascade deletes must not linger: row counts unchanged after rollback.
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<Wardrobe>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<Item>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<Outfit>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<WearRecord>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<CalendarPlan>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).count == 1)
+        #expect(try ctx.fetch(FetchDescriptor<StorageLocation>()).count == 1)
+    }
+
     @Test func deleteAllWipesEntitiesAndReturnsReceipt() throws {
         let ctx = try makeContext()
         _ = try seedCloset(in: ctx)
@@ -88,6 +163,11 @@ struct DataLifecycleServiceTests {
         #expect(try ctx.fetch(FetchDescriptor<CalendarPlan>()).isEmpty)
         #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
         #expect(try ctx.fetch(FetchDescriptor<StorageLocation>()).isEmpty)
+        // Toast must not omit body/wear (confirm dialog promises both gone).
+        #expect(receipt.summaryLine.localizedCaseInsensitiveContains("body profiles"))
+        #expect(receipt.summaryLine.localizedCaseInsensitiveContains("wear records"))
+        #expect(receipt.summaryLine.hasPrefix("Deleted "))
+        #expect(!receipt.summaryLine.contains("error"))
     }
 
     @Test func deleteAllIsIdempotentOnEmptyStore() throws {
@@ -95,5 +175,63 @@ struct DataLifecycleServiceTests {
         let receipt = try DataLifecycleService.deleteAllUserData(in: ctx, wipeItemImages: false)
         #expect(receipt.deletedItems == 0)
         #expect(receipt.deletedPersons == 0)
+        // Empty store: no body/wear clauses (counts zero).
+        #expect(receipt.summaryLine == "Deleted 0 items, 0 looks, 0 closets.")
+        #expect(!receipt.summaryLine.localizedCaseInsensitiveContains("body"))
+    }
+
+    @Test func deleteReceiptSummaryLineMentionsBodyWhenPresent() {
+        let withBody = DataLifecycleService.DeleteReceipt(
+            deletedAt: "t",
+            deletedPersons: 1,
+            deletedWardrobes: 1,
+            deletedLocations: 0,
+            deletedItems: 2,
+            deletedOutfits: 1,
+            deletedWearRecords: 0,
+            deletedPlans: 0,
+            deletedBodyProfiles: 1,
+            wipedItemImages: true)
+        #expect(withBody.summaryLine.contains("2 items"))
+        #expect(withBody.summaryLine.contains("1 body profiles"))
+        #expect(!withBody.summaryLine.localizedCaseInsensitiveContains("wear records"))
+    }
+
+    @Test func exportReadyMessageStatesBodyInclusionHonestly() {
+        let withBody = DataLifecycleService.exportReadyMessage(includeBodyDimensions: true)
+        #expect(withBody.localizedCaseInsensitiveContains("includes body"))
+        #expect(!withBody.localizedCaseInsensitiveContains("omitted"))
+        #expect(!withBody.localizedCaseInsensitiveContains("chars"))
+
+        let without = DataLifecycleService.exportReadyMessage(includeBodyDimensions: false)
+        #expect(without.localizedCaseInsensitiveContains("omitted"))
+        #expect(!without.localizedCaseInsensitiveContains("includes body measurements."))
+        #expect(without.hasPrefix("Export ready"))
+
+        // Me Export button VO — share sheet + body toggle (not a silent “done”).
+        let hint = DataLifecycleService.exportButtonAccessibilityHint
+        #expect(hint.localizedCaseInsensitiveContains("share"))
+        #expect(hint.localizedCaseInsensitiveContains("body"))
+        #expect(hint.localizedCaseInsensitiveContains("toggle"))
+        #expect(!hint.localizedCaseInsensitiveContains("try-on"))
+        // Me Delete all VO — confirm + permanent wipe (parity with export hint).
+        let delHint = DataLifecycleService.deleteAllButtonAccessibilityHint
+        #expect(delHint.localizedCaseInsensitiveContains("confirm"))
+        #expect(delHint.localizedCaseInsensitiveContains("permanent"))
+        #expect(!delHint.localizedCaseInsensitiveContains("try-on"))
+        #expect(!delHint.localizedCaseInsensitiveContains("share sheet"))
+    }
+
+    /// Me export/delete failure chips stay human (no NSError / domain dump).
+    @Test func exportAndDeleteFailureMessagesAreCustomerFacing() {
+        let exp = DataLifecycleService.exportFailedMessage
+        #expect(exp.localizedCaseInsensitiveContains("couldn't export"))
+        #expect(exp.localizedCaseInsensitiveContains("try again"))
+        #expect(!exp.contains("NSError"))
+        #expect(!exp.contains("localizedDescription"))
+        let del = DataLifecycleService.deleteAllFailedMessage
+        #expect(del.localizedCaseInsensitiveContains("couldn't delete"))
+        #expect(del.localizedCaseInsensitiveContains("try again"))
+        #expect(!del.contains("error 0"))
     }
 }

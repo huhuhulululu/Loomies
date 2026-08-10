@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftData
 import ClosetModel
 import ClosetCore
 
@@ -11,6 +12,10 @@ public final class CopilotViewModel {
     public let wardrobe: Wardrobe
     public var occasion: String
     public var daytimeTempF: Double
+    /// User-facing weather source after last successful fetch (W1.3).
+    public private(set) var weatherSourceLabel: String = "—"
+    /// 0…100 when Open-Meteo provides it.
+    public private(set) var precipProbabilityPercent: Int?
     public var fullAuto: Bool = false
     public var wornWithin7DaysIDs: Set<String> = []
     public var bodyShape: BodyShape?
@@ -58,6 +63,26 @@ public final class CopilotViewModel {
         self.daytimeTempF = daytimeTempF
     }
 
+    /// Sync scorer bodyShape from Me → Body profile (FFIT or quick-pick).
+    /// Returns `true` when the effective shape changed (caller may re-refresh looks).
+    @discardableResult
+    public func applyBodyProfile(_ profile: PersonBodyProfile?) -> Bool {
+        let next = profile.flatMap { BodyProfileService.bodyShape(from: $0) }
+        let changed = next != bodyShape
+        bodyShape = next
+        return changed
+    }
+
+    /// Load owner profile from context and apply (bootstrap / tab return / pre-refresh).
+    @discardableResult
+    public func loadBodyShape(in context: ModelContext) -> Bool {
+        guard let pid = wardrobe.owner?.id else {
+            return applyBodyProfile(nil)
+        }
+        let all = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
+        return applyBodyProfile(all.first { $0.personID == pid })
+    }
+
     public var availableItems: [Item] {
         (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.sorted { $0.name < $1.name }
     }
@@ -81,12 +106,47 @@ public final class CopilotViewModel {
 
     public func applyWeather(_ provider: any WeatherProviding) async {
         do {
-            daytimeTempF = try await provider.daytimeTemperatureF(
-                forCity: wardrobe.locationCity, on: Date())
-            AppLog.info("weather \(daytimeTempF)°F city=\(wardrobe.locationCity ?? "-")", .weather)
+            let snap: WeatherDaySnapshot
+            if let rich = provider as? any WeatherSnapshotProviding {
+                snap = try await rich.daySnapshot(forCity: wardrobe.locationCity, on: Date())
+            } else {
+                let t = try await provider.daytimeTemperatureF(
+                    forCity: wardrobe.locationCity, on: Date())
+                snap = WeatherDaySnapshot(daytimeTempF: t, sourceLabel: "Weather")
+            }
+            daytimeTempF = snap.daytimeTempF
+            weatherSourceLabel = snap.sourceLabel
+            precipProbabilityPercent = snap.precipProbabilityPercent
+            AppLog.info(
+                "weather \(daytimeTempF)°F src=\(weatherSourceLabel) precip=\(precipProbabilityPercent.map(String.init) ?? "-") city=\(wardrobe.locationCity ?? "-")",
+                .weather)
         } catch {
+            // Honest source chip — do not leave "—" or stale Open-Meteo after a hard fail.
+            // Keep last daytimeTempF for scoring continuity; clear rain cue (unknown).
+            weatherSourceLabel = Self.weatherUnavailableSourceLabel
+            precipProbabilityPercent = nil
             AppLog.error("weather failed: \(error)", .weather)
         }
+    }
+
+    /// Shown on Today temp pill when every provider throws (Composite rarely; tests / bad DI).
+    public static let weatherUnavailableSourceLabel = "Unavailable"
+
+    /// Short dress cue under temp pill (rain/cool → outerwear), not a hard filter.
+    /// Suppressed when weather hard-failed (`Unavailable`) so stale °F cannot claim rain/cool.
+    public var weatherDressCue: String? {
+        // Source honesty: hard fail clears precip, but keeps last temp for scoring —
+        // do not surface dress cues from that retained number while the pill says Unavailable.
+        if weatherSourceLabel == Self.weatherUnavailableSourceLabel {
+            return nil
+        }
+        if let p = precipProbabilityPercent, p >= 50 {
+            return "Rain likely (\(p)%) · consider a layer"
+        }
+        if daytimeTempF < 60 {
+            return "Cool day · outerwear may help"
+        }
+        return nil
     }
 
     public func refresh() {
@@ -97,7 +157,8 @@ public final class CopilotViewModel {
         let forceAnchor = isColdStart || !fullAuto
         let anchors: [Item]
         if forceAnchor {
-            anchors = (wardrobe.items ?? []).filter { anchorIDs.contains($0.id) }
+            anchors = (wardrobe.items ?? [])
+                .filter { anchorIDs.contains($0.id) && $0.statusRaw == "available" }
             if isColdStart && anchors.isEmpty {
                 suggestions = []
                 selectedSuggestionIndex = 0
@@ -127,8 +188,13 @@ public final class CopilotViewModel {
 
         selectedSuggestionIndex = 0
         if suggestions.isEmpty {
+            // wornWithin7DaysIDs is a global WearRecord fetch — intersect with THIS
+            // closet's available pieces so another wardrobe's wears can't trigger
+            // the "All pieces worn in last 7 days" message here.
+            let availableIDs = Set(availableItems.map { $0.id.uuidString })
+            let wornHere = worn.intersection(availableIDs)
             statusMessage = emptyReason(
-                anchors: anchors, wornCount: worn.count, available: availableItems.count)
+                anchors: anchors, wornCount: wornHere.count, available: availableItems.count)
         } else {
             statusMessage = "Look \(selectedSuggestionIndex + 1) of \(suggestions.count)"
         }

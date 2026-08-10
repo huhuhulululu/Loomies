@@ -323,14 +323,24 @@ enum AvatarContactShadowLayout {
 }
 
 /// 脚底接触阴影（随画布缩放，避免硬椭圆贴纸感）。
+/// `phenotype` 可选：深肤略暖阴影，减少「浮在灰雾上」的塑料感。
 struct AvatarContactShadow: View {
+    var phenotype: AvatarBodyPhenotype = .eastAsian
+
     var body: some View {
+        let warm = phenotype.skinLuminance < 0.45
+        let core = warm
+            ? Color(red: 0.12, green: 0.07, blue: 0.05).opacity(0.55)
+            : Color.black.opacity(0.50)
+        let mid = warm
+            ? Color(red: 0.10, green: 0.06, blue: 0.04).opacity(0.22)
+            : Color.black.opacity(0.18)
         Ellipse()
             .fill(
                 RadialGradient(
                     colors: [
-                        Color.black.opacity(0.50),
-                        Color.black.opacity(0.18),
+                        core,
+                        mid,
                         Color.black.opacity(0.04),
                         .clear
                     ],

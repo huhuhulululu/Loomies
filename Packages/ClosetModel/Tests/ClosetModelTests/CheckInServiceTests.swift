@@ -31,9 +31,33 @@ struct CheckInServiceTests {
         let top = mk(ctx, w, "top", "top")
         try ctx.save()
         let rec = CheckInService.recordWear(items: [top], on: today, in: w, fitFeedback: "fit", in: ctx)
-        #expect(rec.wornItemIDs == [top.id.uuidString])
-        #expect(rec.wardrobeSnapshotID == w.id)
-        #expect(rec.fitFeedback == "fit")
+        #expect(rec != nil)
+        #expect(rec!.wornItemIDs == [top.id.uuidString])
+        #expect(rec!.wardrobeSnapshotID == w.id)
+        #expect(rec!.fitFeedback == "fit")
+        let fetched = try ctx.fetch(FetchDescriptor<WearRecord>())
+        #expect(fetched.contains { $0.id == rec!.id })
+    }
+
+    /// M4: empty selection must not insert a zero-item WearRecord polluting history.
+    @Test func recordWearWithEmptyItemsReturnsNilAndInsertsNothing() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        try ctx.save()
+
+        let rec = CheckInService.recordWear(items: [], on: today, in: w, in: ctx)
+        #expect(rec == nil)
+        #expect(try ctx.fetch(FetchDescriptor<WearRecord>()).isEmpty)
+        // History stays clean — no phantom zero-item record in the window.
+        #expect(WearHistory.recentlyWornItemIDs(within: 7, asOf: today, in: ctx).isEmpty)
+    }
+
+    /// Save-fail toast must not look like success (caller keeps selection for retry).
+    @Test func saveFailedMessageIsHonest() {
+        #expect(CheckInService.saveFailedMessage.localizedCaseInsensitiveContains("couldn't save"))
+        #expect(CheckInService.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
+        #expect(!CheckInService.saveFailedMessage.localizedCaseInsensitiveContains("checked in"))
+        #expect(!CheckInService.saveFailedMessage.localizedCaseInsensitiveContains("de-prioritized"))
     }
 
     @Test func recentlyWornWithinWindow() throws {

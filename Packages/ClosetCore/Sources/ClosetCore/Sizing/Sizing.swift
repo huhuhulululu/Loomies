@@ -46,17 +46,21 @@ public struct FlatMeasurements: Sendable {
     public var values: [MeasurementField: Double]   // 英寸
     public init(values: [MeasurementField: Double] = [:]) { self.values = values }
 
-    /// 由平铺宽推周长（周长 = 2 × 平铺宽）。字段未填返回 nil。
+    /// 由平铺宽推周长（周长 = 2 × 平铺宽）。字段未填，或值非有限/非正（脏数据），返回 nil。
     public func circumference(_ field: MeasurementField) -> Double? {
-        guard let flat = values[field] else { return nil }
+        guard let flat = values[field], flat.isFinite, flat > 0 else { return nil }
         return 2 * flat
     }
 
     /// 相对某品类必填字段集的完成度（0...1），供渐进补全 UX 与合身置信度。
+    /// 只计有限且 >0 的值——NaN/0/负数的脏填值不算已测。
     public func completeness(for category: SizingCategory) -> Double {
         let required = MeasurementSchema.fields(for: category)
         guard !required.isEmpty else { return 1 }
-        let filled = required.filter { values[$0] != nil }.count
+        let filled = required.filter { field in
+            guard let v = values[field] else { return false }
+            return v.isFinite && v > 0
+        }.count
         return Double(filled) / Double(required.count)
     }
 }

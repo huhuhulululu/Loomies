@@ -79,6 +79,19 @@ struct BodyMorphParamsTests {
         #expect(m.hip <= BodyMorphParams.scaleHi)
     }
 
+    /// C2: 无效围度（0 / 负 / 非有限）视为缺失 → 中性，而非钳到 scaleLo 极瘦。
+    @Test func invalidMeasurementsFallBackToNeutralNotScaleLo() {
+        let zero = BodyMeasurements(bust: 0, waist: 0, hip: 0, highHip: 0)
+        #expect(BodyMorphParams.from(measurements: zero) == .neutral)
+        let junk = BodyMeasurements(bust: .nan, waist: -5, hip: .infinity, highHip: 0)
+        #expect(BodyMorphParams.from(measurements: junk) == .neutral)
+        // 部分缺失：仅该字段回中性，其余仍按测量驱动
+        let partial = BodyMeasurements(bust: 40, waist: 0, hip: 40, highHip: 34)
+        let m = BodyMorphParams.from(measurements: partial)
+        #expect(m.waist == 1)
+        #expect(m.chest > 1)
+    }
+
     @Test func fineTuneMultipliesBase() {
         let base = BodyMorphParams.preset(for: .rectangle)
         let tune = BodyMorphParams(chest: 1.05, waist: 0.95, hip: 1.05, shoulder: 1, height: 1)

@@ -4,6 +4,19 @@ import ClosetCore
 /// 按平台选择抠图/打标实现：真机优先 Vision；模拟器/mac 回退 mock。
 public enum IntakeServiceFactory {
 
+    /// Add-piece choose screen: cutout is device-aware; tags/OCR are always starter guesses.
+    /// Must not claim Vision fills type/brand (those stay mock until VLM/OCR wire-up).
+    public static let photoPipelineCaption =
+        "Cutout uses Vision on a real iPhone (mock in Simulator). Type, brand, and size are starter guesses — edit before saving."
+
+    /// In-flight ProgressView while matting/tagging run — must not imply real OCR/VLM pre-fill.
+    public static let photoProcessingCaption =
+        "Cutting out the piece… type, brand, and size stay starter guesses — edit before saving."
+
+    /// Barcode field: digits only for now (no DataScanner). Apparel Open*Facts hit rate is thin.
+    public static let barcodeEntryCaption =
+        "Type or paste UPC/EAN digits from the hang tag. Camera scan is not available yet."
+
     @MainActor
     public static func makeViewModel() -> IntakeViewModel {
         IntakeViewModel(
@@ -35,6 +48,7 @@ public enum IntakeServiceFactory {
     public static func makeOCR(
         defaultInfo: LabelInfo = LabelInfo()
     ) -> any OCRService {
+        // Document OCR not wired — always mock empty/defaults.
         MockOCRService(info: defaultInfo)
     }
 

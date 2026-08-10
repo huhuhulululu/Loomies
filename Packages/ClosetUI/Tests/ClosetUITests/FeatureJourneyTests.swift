@@ -1,6 +1,8 @@
 import Testing
 import SwiftData
 import Foundation
+import CoreGraphics
+import ImageIO
 @testable import ClosetUI
 import ClosetModel
 import ClosetCore
@@ -26,7 +28,7 @@ struct FeatureJourneyTests {
         let w = Wardrobe(name: "Home", locationCity: "New York")
         w.owner = person
         ctx.insert(w)
-        let n = DemoSeedService.seed(w, in: ctx)
+        let n = DemoSeedService.seed(w, in: ctx).committedCount
         #expect(n >= 8)  // ≥ coldStartThreshold so full-auto works without anchors
         try ctx.save()
         // 刷新关系：availableItems 读 wardrobe.items
@@ -87,6 +89,68 @@ struct FeatureJourneyTests {
         #expect(search.results.isEmpty)
     }
 
+    /// Today Save → Favorites list (toolbar entry + flash hint; not Me-only dead end).
+    @Test func journeyTodaySaveOpensFavoritesPath() throws {
+        let (ctx, _, w) = try seededCloset()
+        let copilot = CopilotViewModel(wardrobe: w, occasion: "casual", daytimeTempF: 72)
+        copilot.fullAuto = true
+        copilot.refresh()
+        #expect(!copilot.suggestions.isEmpty)
+        let actions = OutfitActionsViewModel()
+        actions.saveFavorite(
+            scored: copilot.suggestions[0], occasion: "casual", in: w, context: ctx)
+        #expect(actions.message == OutfitActionsViewModel.savedToFavoritesMessage)
+        #expect(actions.message.localizedCaseInsensitiveContains("Today"))
+        let favs = OutfitFavoriteService.favorites(in: w)
+        #expect(favs.count >= 1)
+        // Same destination as Today toolbar NavigationLink → FavoritesView.
+        #expect(CopilotView.favoritesToolbarAccessibilityLabel == "Favorites")
+        // Empty-state copy (before save would show this) stays honest for VoiceOver.
+        #expect(FavoritesEmptyCopy.title == "No favorites")
+        #expect(FavoritesEmptyCopy.description.localizedCaseInsensitiveContains("Today"))
+        #expect(!FavoritesEmptyCopy.description.localizedCaseInsensitiveContains("try-on"))
+        #expect(!FavoritesEmptyCopy.description.localizedCaseInsensitiveContains("sync"))
+        // Favorites / Today share fail-flash paint rule (unfavorite / plan fail ≠ success chrome).
+        #expect(CustomerFlashStyle.isFailure(OutfitFavoriteService.toggleSaveFailedMessage))
+        #expect(CustomerFlashStyle.isFailure(CalendarPlanService.saveFailedMessage))
+        #expect(!CustomerFlashStyle.isFailure(
+            OutfitActionsViewModel.savedToFavoritesMessage))
+        #expect(!CustomerFlashStyle.isFailure(
+            OutfitActionsViewModel.planScheduledMessage(lookTitle: "Work", needsAttention: false)))
+        let plan = actions.planFavorite(favs[0], in: ctx)
+        #expect(plan != nil)
+        #expect(plan!.outfit?.id == favs[0].id)
+    }
+
+    /// Me: person + closet names + city editable after onboarding (ModelSave-gated, no silent OK).
+    @Test func journeyMeRenamesPersonAndCloset() throws {
+        let (ctx, person, w) = try seededCloset()
+        #expect(person.name == "Test")
+        #expect(w.name == "Home")
+        #expect(ProfileLabels.applyPersonName("  ", to: person, in: ctx) == false)
+        #expect(person.name == "Test")
+        #expect(ProfileLabels.applyPersonName(" Ada ", to: person, in: ctx) == true)
+        #expect(person.name == "Ada")
+        #expect(ProfileLabels.applyWardrobeName("", to: w, in: ctx) == false)
+        #expect(ProfileLabels.applyWardrobeName(" Weekend bag ", to: w, in: ctx) == true)
+        #expect(w.name == "Weekend bag")
+        // City: empty clears; non-empty sets; fail toast copy is honest.
+        #expect(ProfileLabels.applyCity("  Chicago  ", to: w, in: ctx) == true)
+        #expect(w.locationCity == "Chicago")
+        #expect(ProfileLabels.applyCity("", to: w, in: ctx) == true)
+        #expect(w.locationCity == nil)
+        #expect(ProfileLabels.saveFailedMessage.localizedCaseInsensitiveContains("couldn't save"))
+        #expect(ProfileLabels.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
+        #expect(ProfileLabels.noPersonMessage.localizedCaseInsensitiveContains("onboarding"))
+        // ClosetName / PersonName / City stay open + flash this on apply false (no silent dismiss).
+        #expect(ProfileLabels.editSaveFailureFlash(succeeded: true) == nil)
+        #expect(ProfileLabels.editSaveFailureFlash(succeeded: false)
+            == ProfileLabels.saveFailedMessage)
+        let rejectName = ProfileLabels.applyPersonName("  ", to: person, in: ctx)
+        #expect(ProfileLabels.editSaveFailureFlash(succeeded: rejectName)
+            == ProfileLabels.saveFailedMessage)
+    }
+
     @Test func journeyBodyMorphAndDataLifecycle() throws {
         let (ctx, person, w) = try seededCloset()
         let body = BodyProfileViewModel(personID: person.id)
@@ -106,6 +170,14 @@ struct FeatureJourneyTests {
         #expect(json.contains("wardrobes"))
         #expect(json.contains("Home"))
         #expect(json.contains("bodyProfiles") || json.contains("bustInches"))
+
+        // Me Data/Support chips: fail copy paints orange; ready copy stays muted.
+        #expect(CustomerFlashStyle.isFailure(DataLifecycleService.exportFailedMessage))
+        #expect(CustomerFlashStyle.isFailure(DataLifecycleService.deleteAllFailedMessage))
+        #expect(CustomerFlashStyle.isFailure(DiagnosticsExport.exportFailedMessage))
+        #expect(!CustomerFlashStyle.isFailure(
+            DataLifecycleService.exportReadyMessage(includeBodyDimensions: true)))
+        #expect(!CustomerFlashStyle.isFailure(DiagnosticsExport.exportReadyMessage))
 
         let receipt = try DataLifecycleService.deleteAllUserData(in: ctx)
         #expect(receipt.deletedItems >= 5)
@@ -139,7 +211,7 @@ struct FeatureJourneyTests {
     @Test func journeyIntakeConfirmSavesImage() async throws {
         let (ctx, _, w) = try seededCloset()
         let vm = IntakeServiceFactory.makeViewModel()
-        await vm.process(Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A]))  // fake png header-ish
+        await vm.process(try tinyPNG())  // 真实可解码 PNG，走 normalize 成功路径
         vm.draft?.name = "Photo blouse"
         vm.draft?.slot = .top
         let item = vm.confirm(into: w, context: ctx)
@@ -147,6 +219,25 @@ struct FeatureJourneyTests {
         #expect(item?.localImageRelativePath != nil)
         #expect(ItemImageStore.loadData(relativePath: item?.localImageRelativePath) != nil)
         ItemImageStore.delete(relativePath: item?.localImageRelativePath)
+    }
+
+    /// 4×4 不透明 PNG（CoreGraphics/ImageIO，macOS 可跑）。
+    func tinyPNG() throws -> Data {
+        let cs = CGColorSpaceCreateDeviceRGB()
+        let ctx = try #require(CGContext(
+            data: nil, width: 4, height: 4,
+            bitsPerComponent: 8, bytesPerRow: 16,
+            space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        ctx.setFillColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        let img = try #require(ctx.makeImage())
+        let data = NSMutableData()
+        let dest = try #require(CGImageDestinationCreateWithData(
+            data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, img, nil)
+        let finalized = CGImageDestinationFinalize(dest)
+        try #require(finalized)
+        return data as Data
     }
 
     @Test func journeyWeatherAndCityClimate() async throws {

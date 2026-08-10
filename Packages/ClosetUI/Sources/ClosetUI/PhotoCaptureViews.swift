@@ -100,7 +100,7 @@ public struct ItemThumbnailView: View {
                     .scaledToFill()
             } else {
                 // Soft gradient + SF Symbol + human label (no raw slotRaw leak).
-                let slot = GarmentSlot.resolved(item.slotRaw)
+                let slot = GarmentSlot.resolved(item.slotRaw, name: item.name)
                 ZStack {
                     LinearGradient(
                         colors: [
@@ -156,6 +156,10 @@ public struct ItemThumbnailView: View {
 /// Closet「+」：相册 / 相机 / 手填。
 public struct AddPieceSheet: View {
     let wardrobe: Wardrobe
+    /// Post-save honesty flash handoff: the sheet dismisses on confirm() success,
+    /// so a "Added, but the photo won't appear in try-on"-style statusMessage set
+    /// by confirm would never render inside the sheet — the parent flashes it.
+    let onConfirmFlash: ((String) -> Void)?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var mode: Mode = .choose
@@ -169,7 +173,19 @@ public struct AddPieceSheet: View {
 
     enum Mode { case choose, manual, intake }
 
-    public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
+    public init(wardrobe: Wardrobe, onConfirmFlash: ((String) -> Void)? = nil) {
+        self.wardrobe = wardrobe
+        self.onConfirmFlash = onConfirmFlash
+    }
+
+    /// What to flash on the parent after a successful confirm: confirm() clears
+    /// statusMessage at entry, so any non-empty status right after success is a
+    /// post-save honesty message (matting / layer normalize / image save failed)
+    /// that must not die with the sheet. nil/empty → nothing to flash.
+    public static func postConfirmFlash(statusMessage: String?) -> String? {
+        guard let statusMessage, !statusMessage.isEmpty else { return nil }
+        return statusMessage
+    }
 
     public var body: some View {
         NavigationStack {
@@ -214,7 +230,7 @@ public struct AddPieceSheet: View {
 
     private var title: String {
         switch mode {
-        case .choose: return "Add piece"
+        case .choose: return IntakeEmptyCopy.chooseTitle
         case .manual: return "Manual add"
         case .intake: return "Confirm item"
         }
@@ -222,9 +238,17 @@ public struct AddPieceSheet: View {
 
     private var chooseBody: some View {
         VStack(spacing: 14) {
-            Text("Photo goes through cutout + prefill (mock tags on simulator; Vision on device).")
-                .font(.subheadline).foregroundStyle(DS.muted)
-                .multilineTextAlignment(.center)
+            // Caption + error only: combined VO; CTAs stay separate focus targets.
+            VStack(spacing: 8) {
+                Text(IntakeEmptyCopy.description)
+                    .font(.subheadline).foregroundStyle(DS.muted)
+                    .multilineTextAlignment(.center)
+                if !message.isEmpty {
+                    Text(message).font(.caption).foregroundStyle(.orange)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(IntakeEmptyCopy.chooseAccessibilityLabel(message: message))
             #if os(iOS)
             Button {
                 showLibrary = true
@@ -244,9 +268,6 @@ public struct AddPieceSheet: View {
             } label: {
                 secondaryLabel("Enter manually", systemImage: "keyboard")
             }
-            if !message.isEmpty {
-                Text(message).font(.caption).foregroundStyle(.orange)
-            }
             Spacer()
         }
         .padding(20)
@@ -256,8 +277,9 @@ public struct AddPieceSheet: View {
         Form {
             TextField("Name", text: $name)
             Picker("Type", selection: $slot) {
-                ForEach(["top", "bottom", "dress", "outerwear", "shoes", "accessory"], id: \.self) {
-                    Text($0.capitalized).tag($0)
+                // Same GarmentSlot set as Closet search / detail (incl. accessory + displayTitle).
+                ForEach(GarmentSlot.allCases, id: \.rawValue) { s in
+                    Text(s.displayTitle).tag(s.rawValue)
                 }
             }
             Picker("Occasion", selection: $occasion) {
@@ -265,17 +287,32 @@ public struct AddPieceSheet: View {
                     Text($0.capitalized).tag($0)
                 }
             }
+            if !message.isEmpty {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(Color.orange)
+                    .accessibilityLabel(message)
+            }
             Button("Save") {
-                let item = Item(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
-                item.slotRaw = slot
-                item.occasionsRaw = [occasion, "casual"]
+                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                let item = Item(name: trimmed)
+                // Same persistSlot truth as photo confirm (blazer name → outerwear).
+                let draftSlot = GarmentSlot(rawValue: slot) ?? .top
+                item.slotRaw = IntakeViewModel.persistSlot(draftSlot: draftSlot, name: trimmed).rawValue
+                // Picker occasion may already be "casual" — dedup at write (parity QuickAddSheet).
+                item.occasionsRaw = QuickAddSheet.dedupOccasions([occasion, "casual"])
                 item.warmthRaw = Warmth.light.rawValue
                 item.statusRaw = "available"
                 item.colorIsNeutral = true
                 item.wardrobe = wardrobe
                 context.insert(item)
-                ModelSave.save(context, label: "quickAdd")
-                AppLog.info("manualAdd \(item.name)", .intake)
+                guard ModelSave.save(context, label: "quickAdd") else {
+                    context.delete(item)
+                    message = IntakeViewModel.confirmSaveFailedMessage
+                    AppLog.error("manualAdd save failed \(trimmed)", .intake)
+                    return
+                }
+                AppLog.info("manualAdd \(item.name) slot=\(item.slotRaw)", .intake)
                 dismiss()
             }
             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -285,8 +322,10 @@ public struct AddPieceSheet: View {
     private var intakeConfirmBody: some View {
         Group {
             if intakeVM.isProcessing {
-                ProgressView("Cutting out & pre-filling…")
+                ProgressView(IntakeEmptyCopy.processingDescription)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel(
+                        IntakeEmptyCopy.accessibilityLabel(isProcessing: true))
             } else if let draft = Binding($intakeVM.draft) {
                 Form {
                     if let data = intakeVM.mattedImage {
@@ -310,18 +349,53 @@ public struct AddPieceSheet: View {
                                 Text($0.displayTitle).tag($0)
                             }
                         }
+                        // Same occasion set as manual add — empty tags still get a Today-matchable default.
+                        Picker("Occasion", selection: occasionBinding(draft)) {
+                            ForEach(["work", "casual", "date", "gala"], id: \.self) {
+                                Text($0.capitalized).tag($0)
+                            }
+                        }
                         TextField("Brand", text: brandBinding(draft))
                         TextField("Size", text: sizeBinding(draft))
+                        if let sizeHint = PublicSizeReference.displayHint(
+                            forLabel: draft.wrappedValue.size ?? ""),
+                           !(draft.wrappedValue.size ?? "").isEmpty {
+                            Text(sizeHint)
+                                .font(.caption2)
+                                .foregroundStyle(DS.muted)
+                        }
+                        TextField("Barcode (UPC/EAN)", text: barcodeBinding(draft))
+                        Button("Lookup product (Open Facts)") {
+                            let code = draft.wrappedValue.barcode ?? ""
+                            Task { await intakeVM.enrichFromPublicBarcode(code) }
+                        }
+                        .disabled((draft.wrappedValue.barcode ?? "").filter(\.isNumber).count < 8)
+                        Text(IntakeServiceFactory.barcodeEntryCaption)
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
                     }
                     if let err = intakeVM.lastError, !err.isEmpty {
                         Section {
                             Text(err).font(.caption).foregroundStyle(.orange)
+                                .accessibilityLabel(err)
+                        }
+                    } else if let status = intakeVM.statusMessage, !status.isEmpty {
+                        // Barcode hit flash — muted success (not orange fail chrome).
+                        Section {
+                            Text(status).font(.caption).foregroundStyle(DS.muted)
+                                .accessibilityLabel(status)
                         }
                     }
                     Section {
                         Button("Add to closet") {
                             if let item = intakeVM.confirm(into: wardrobe, context: context) {
                                 AppLog.info("intake confirmed \(item.name)", .intake)
+                                // Sheet dismisses now — hand any post-save honesty flash
+                                // (matting/layer/image save failed) to the parent first.
+                                if let flash = Self.postConfirmFlash(
+                                    statusMessage: intakeVM.statusMessage) {
+                                    onConfirmFlash?(flash)
+                                }
                                 dismiss()
                             }
                         }
@@ -329,6 +403,8 @@ public struct AddPieceSheet: View {
                     } footer: {
                         if !intakeVM.canConfirm {
                             Text("Name this piece so it shows up clearly in your closet.")
+                        } else {
+                            Text("Barcode lookup uses Open Product/Beauty/Food Facts (public, no key). Apparel coverage is thin — miss is normal.")
                         }
                     }
                 }
@@ -339,7 +415,7 @@ public struct AddPieceSheet: View {
                         systemImage: "exclamationmark.triangle")
                 } description: {
                     Text(intakeVM.lastError
-                         ?? "Pick a photo to cut out and pre-fill, or enter details by hand.")
+                         ?? "Pick a photo to cut out, or enter details by hand. Type and brand stay starter guesses.")
                 } actions: {
                     Button("Choose another photo") {
                         intakeVM.reset()
@@ -365,10 +441,8 @@ public struct AddPieceSheet: View {
         mode = .intake
         Task {
             await intakeVM.process(data)
-            if intakeVM.draft == nil {
-                // Stay on intake so recovery empty-state is visible.
-                message = intakeVM.lastError ?? "Could not process image."
-            }
+            // No local `message` mirror: it only renders in choose/manual modes,
+            // and the intake empty state already reads intakeVM.lastError.
         }
     }
 
@@ -378,10 +452,33 @@ public struct AddPieceSheet: View {
             set: { draft.wrappedValue.brand = $0.isEmpty ? nil : $0 })
     }
 
+    private func barcodeBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
+        Binding(
+            get: { draft.wrappedValue.barcode ?? "" },
+            set: { draft.wrappedValue.barcode = $0.isEmpty ? nil : $0 })
+    }
+
     private func sizeBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
         Binding(
             get: { draft.wrappedValue.size ?? "" },
             set: { draft.wrappedValue.size = $0.isEmpty ? nil : $0 })
+    }
+
+    /// Primary occasion for photo confirm (manual add parity). Prefer existing tag/user pick.
+    private func occasionBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
+        let known = ["work", "casual", "date", "gala"]
+        return Binding(
+            get: {
+                let set = draft.wrappedValue.occasions
+                if let hit = known.first(where: { set.contains($0) }) { return hit }
+                return set.sorted().first ?? "casual"
+            },
+            set: { primary in
+                var next = draft.wrappedValue.occasions.filter { !known.contains($0) }
+                next.insert(primary)
+                if primary != "casual" { next.insert("casual") }
+                draft.wrappedValue.occasions = next
+            })
     }
 
     private func primaryLabel(_ title: String, systemImage: String) -> some View {

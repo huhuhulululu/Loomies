@@ -1,0 +1,13 @@
+Drop certified FULL NUDE photoreal body meshes here:
+
+  nude_body_female.usdz / nude_body_male.usdz
+  or phenotype: nude_body_{sex}_{phenotype}.usdz
+
+Requirements (NudeBodyBaseSpec):
+- Zero covering (no pastie/thong/brief/bra/underwear)
+- Photoreal real human (not plastic dummy)
+- Commercial license OK (no unlicensed SMPL)
+- Optional segment node names: see MannequinMeshCatalog.segmentNodeNames
+
+After drop-in + visual QA, set:
+  NudeBodyBaseSpec.photoreal3DMeshCertifiedFullNude = true

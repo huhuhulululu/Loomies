@@ -46,11 +46,21 @@ public struct MeView: View {
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
+    /// Profile links (body measurements / personal color) are shown only for a
+    /// wardrobe with a real owner — never keyed to a random fallback UUID.
+    static func profileOwner(of wardrobe: Wardrobe) -> Person? {
+        wardrobe.owner
+    }
+
     public var body: some View {
         NavigationStack {
             List {
                 Section("This closet") {
-                    LabeledContent("Name", value: wardrobe.name.isEmpty ? "—" : wardrobe.name)
+                    NavigationLink {
+                        ClosetNameEditView(wardrobe: wardrobe)
+                    } label: {
+                        LabeledContent("Name", value: wardrobe.name.isEmpty ? "—" : wardrobe.name)
+                    }
                     NavigationLink {
                         ClosetCityEditView(wardrobe: wardrobe)
                     } label: {
@@ -64,11 +74,18 @@ public struct MeView: View {
                 }
                 Section("Demo") {
                     Button("Load sample pieces") {
-                        let n = DemoSeedService.seed(wardrobe, in: context)
-                        seedMessage = n == 0 ? "Already seeded." : "Added \(n) sample pieces."
+                        let outcome = DemoSeedService.seed(wardrobe, in: context)
+                        seedMessage = outcome.meDemoFlashMessage
                     }
+                    .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
                     if let seedMessage {
-                        Text(seedMessage).font(.caption).foregroundStyle(DS.muted)
+                        // Me Demo Outcome — fail orange (not muted success chrome).
+                        Text(seedMessage)
+                            .font(.caption)
+                            .foregroundStyle(
+                                CustomerFlashStyle.isFailure(seedMessage)
+                                    ? Color.orange : DS.muted)
+                            .accessibilityLabel(seedMessage)
                     }
                 }
                 Section("Wardrobes") {
@@ -82,15 +99,27 @@ public struct MeView: View {
                     }
                 }
                 Section("Profile") {
-                    NavigationLink {
-                        BodyProfileView(personID: wardrobe.owner?.id ?? UUID())
-                    } label: {
-                        Label("Body measurements", systemImage: "figure.stand")
+                    if let person = wardrobe.owner {
+                        NavigationLink {
+                            PersonNameEditView(person: person)
+                        } label: {
+                            LabeledContent("Name", value: person.name.isEmpty ? "—" : person.name)
+                        }
                     }
-                    NavigationLink {
-                        PersonalColorView(personID: wardrobe.owner?.id ?? UUID())
-                    } label: {
-                        Label("Personal color", systemImage: "paintpalette")
+                    // Body / Personal-color need a real owner id — an ownerless
+                    // wardrobe must not persist an orphan PersonBodyProfile keyed
+                    // to a random UUID (parity with the gated PersonNameEditView).
+                    if let person = MeView.profileOwner(of: wardrobe) {
+                        NavigationLink {
+                            BodyProfileView(personID: person.id)
+                        } label: {
+                            Label("Body measurements", systemImage: "figure.stand")
+                        }
+                        NavigationLink {
+                            PersonalColorView(personID: person.id)
+                        } label: {
+                            Label("Personal color", systemImage: "paintpalette")
+                        }
                     }
                 }
                 Section("Data") {
@@ -101,24 +130,36 @@ public struct MeView: View {
                                 in: context, includeBodyDimensions: includeBodyInExport)
                             #if os(iOS)
                             sharePayload = json
-                            dataMessage = "Export ready (\(json.count) chars)."
-                            #else
-                            dataMessage = String(json.prefix(400)) + (json.count > 400 ? "…" : "")
                             #endif
+                            // Honest "ready" toast only when the payload was actually
+                            // handed off (share sheet); otherwise inline preview —
+                            // parity with diagnostics below.
+                            dataMessage = DataExportFeedback.message(
+                                payloadHandedOff: DataExportFeedback.payloadHandoffAvailable,
+                                json: json,
+                                includeBodyDimensions: includeBodyInExport)
                             AppLog.notice("data export ready body=\(includeBodyInExport)", .data)
                         } catch {
-                            dataMessage = "Export failed: \(error.localizedDescription)"
+                            dataMessage = DataLifecycleService.exportFailedMessage
                             AppLog.error("data export failed: \(error)", .data)
                         }
                     }
+                    .accessibilityHint(DataLifecycleService.exportButtonAccessibilityHint)
                     Button("Delete all data…", role: .destructive) {
                         confirmDeleteAll = true
                     }
+                    .accessibilityHint(DataLifecycleService.deleteAllButtonAccessibilityHint)
                     Text("Uninstalling the app does not erase iCloud-synced data. Use Delete all data to exercise your deletion rights.")
                         .font(.caption2)
                         .foregroundStyle(DS.muted)
                     if let dataMessage {
-                        Text(dataMessage).font(.caption).foregroundStyle(DS.muted)
+                        // Export ready vs couldn't export/delete — fail orange (parity Demo seed).
+                        Text(dataMessage)
+                            .font(.caption)
+                            .foregroundStyle(
+                                CustomerFlashStyle.isFailure(dataMessage)
+                                    ? Color.orange : DS.muted)
+                            .accessibilityLabel(dataMessage)
                     }
                 }
                 Section("About") {
@@ -134,18 +175,26 @@ public struct MeView: View {
                                 flags: debug.flagsForDiagnostics)
                             #if os(iOS)
                             sharePayload = json
-                            diagText = "Diagnostics ready (\(json.count) chars) — share sheet."
+                            // Honest status (no char count) — same bar as data exportReadyMessage.
+                            diagText = DiagnosticsExport.exportReadyMessage
                             #else
                             diagText = String(json.prefix(500)) + (json.count > 500 ? "…" : "")
                             #endif
                             AppLog.notice("diagnostics exported", .diagnostics)
                         } catch {
-                            diagText = "Export failed: \(error.localizedDescription)"
+                            diagText = DiagnosticsExport.exportFailedMessage
                             AppLog.error("diagnostics export failed: \(error)", .diagnostics)
                         }
                     }
+                    .accessibilityHint(DiagnosticsExport.exportButtonAccessibilityHint)
                     if let diagText {
-                        Text(diagText).font(.caption).foregroundStyle(DS.muted)
+                        // Diagnostics ready vs couldn't export — fail orange (parity data export).
+                        Text(diagText)
+                            .font(.caption)
+                            .foregroundStyle(
+                                CustomerFlashStyle.isFailure(diagText)
+                                    ? Color.orange : DS.muted)
+                            .accessibilityLabel(diagText)
                     }
                 }
                 if debug.panelEnabled {
@@ -171,7 +220,7 @@ public struct MeView: View {
                         dataMessage = receipt.summaryLine
                         // RootView @Query 空柜 → 自动回 Onboarding。
                     } catch {
-                        dataMessage = "Delete failed: \(error.localizedDescription)"
+                        dataMessage = DataLifecycleService.deleteAllFailedMessage
                         AppLog.error("deleteAll failed: \(error)", .data)
                     }
                 }
@@ -233,7 +282,7 @@ struct ActivityView: UIViewControllerRepresentable {
 }
 #endif
 
-/// 衣柜浏览网格 + 状态过滤 / 合身标记 / 入库 / 搜索。
+/// 衣柜浏览网格 + 状态/类型过滤 / 合身标记 / 入库 / 搜索。
 public struct ClosetGridView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
@@ -241,17 +290,34 @@ public struct ClosetGridView: View {
     @State private var showSearch = false
     @State private var searchVM = SearchViewModel()
     @State private var statusFilter: String = "all"
-    @State private var bodyProfile: PersonBodyProfile?
+    /// nil = all types; chips use GarmentSlot + displaySlot name correction.
+    @State private var slotFilter: String? = nil
+    /// Bottom flash chip: Load samples Outcome + intake post-save honesty (no silent fail).
+    @State private var seedFlash: String?
+    /// Live query so Me → Body edits refresh FitMark badges without tab remount.
+    @Query private var bodyProfiles: [PersonBodyProfile]
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
+
+    /// Owner body profile for FitMark (same person as wardrobe.owner).
+    private var ownerBodyProfile: PersonBodyProfile? {
+        guard let pid = wardrobe.owner?.id else { return nil }
+        return bodyProfiles.first { $0.personID == pid }
+    }
 
     private var allItems: [Item] {
         (wardrobe.items ?? []).sorted { $0.name < $1.name }
     }
 
     private var items: [Item] {
-        if statusFilter == "all" { return allItems }
-        return allItems.filter { $0.statusRaw == statusFilter }
+        SearchService.filterItems(
+            allItems,
+            statusRaw: statusFilter == "all" ? nil : statusFilter,
+            slotRaw: slotFilter)
+    }
+
+    private var isFacetFiltering: Bool {
+        statusFilter != "all" || slotFilter != nil
     }
 
     public var body: some View {
@@ -262,6 +328,7 @@ public struct ClosetGridView: View {
                 } else {
                     VStack(spacing: 0) {
                         statusFilterBar
+                        typeFilterBar
                         grid
                     }
                 }
@@ -273,39 +340,89 @@ public struct ClosetGridView: View {
                     Button {
                         showSearch.toggle()
                         if showSearch {
+                            // Carry grid status/type facets into search so laundry/status filters stick.
                             searchVM.wardrobeID = wardrobe.id
+                            searchVM.statusRaw = statusFilter == "all" ? nil : statusFilter
+                            searchVM.slotRaw = slotFilter
                             searchVM.run(in: context)
                         }
                     } label: {
                         Image(systemName: showSearch ? "xmark" : "magnifyingglass")
                     }
+                    .accessibilityLabel(
+                        ClosetGridEmptyCopy.searchToggleAccessibilityLabel(isSearchOpen: showSearch))
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showIntake = true } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel(ClosetGridEmptyCopy.addPieceAccessibilityLabel)
                 }
             }
             .sheet(isPresented: $showIntake) {
-                AddPieceSheet(wardrobe: wardrobe)
+                AddPieceSheet(wardrobe: wardrobe) { flash in
+                    // Post-save honesty flash (photo failed processing but item saved)
+                    // surfaces here — the sheet that owned statusMessage is already gone.
+                    flashSeedChip(flash)
+                }
             }
-            .onAppear { loadBodyProfile() }
+            .overlay(alignment: .bottom) {
+                if let seedFlash {
+                    // Load samples Outcome — fail orange (parity Favorites / Calendar).
+                    CustomerFlashStyle.overlayChip(seedFlash)
+                        .padding()
+                        .transition(.opacity)
+                }
+            }
+        }
+    }
+
+    /// Empty-grid Load samples — same Outcome flash as Today cold-start (no silent fail).
+    private func loadSamplesFromEmptyGrid() {
+        let outcome = DemoSeedService.seedIfEmpty(wardrobe, in: context)
+        flashSeedChip(outcome.flashMessage)
+    }
+
+    /// Bottom overlay chip with 3s auto-clear (Load samples Outcome / intake post-save honesty).
+    private func flashSeedChip(_ message: String?) {
+        seedFlash = message
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if seedFlash == message { seedFlash = nil }
         }
     }
 
     private var statusFilterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
+                // Full ItemStatusService.allowed set (displayName), plus All.
                 filterChip("all", title: "All")
-                filterChip("available", title: "Available")
-                filterChip("inWash", title: "In wash")
-                filterChip("dryCleaning", title: "Dry clean")
-                filterChip("idle", title: "Idle")
-                filterChip("lent", title: "Lent")
+                ForEach(
+                    Array(ItemStatusService.allowed).sorted(by: { ItemStatusService.displayName($0) < ItemStatusService.displayName($1) }),
+                    id: \.self
+                ) { key in
+                    filterChip(key, title: ItemStatusService.displayName(key))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
+        .accessibilityLabel("Filter by status")
+    }
+
+    /// Type chips share GarmentSlot.allCases + displayTitle with search/detail Type.
+    private var typeFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                typeChip(nil, title: "All types")
+                ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
+                    typeChip(slot.rawValue, title: slot.displayTitle)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+        .accessibilityLabel("Filter by type")
     }
 
     private func filterChip(_ key: String, title: String) -> some View {
@@ -322,6 +439,24 @@ public struct ClosetGridView: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func typeChip(_ slot: String?, title: String) -> some View {
+        let on = slotFilter == slot
+        return Button {
+            slotFilter = slot
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(on ? DS.accent.opacity(0.9) : DS.surface)
+                .foregroundStyle(on ? Color.white : DS.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private var grid: some View {
@@ -329,7 +464,7 @@ public struct ClosetGridView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
                 ForEach(items, id: \.id) { item in
                     NavigationLink {
-                        ItemDetailView(item: item, bodyProfile: bodyProfile)
+                        ItemDetailView(item: item, bodyProfile: ownerBodyProfile)
                     } label: {
                         VStack(spacing: 6) {
                             ZStack(alignment: .bottomTrailing) {
@@ -357,7 +492,20 @@ public struct ClosetGridView: View {
                                 .padding(6)
                             }
                             Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
+                            // Location when set (Me Storage / detail assign) — same meta as Search.
+                            let meta = ClosetItemRowCopy.metaLine(for: item)
+                            if item.location != nil {
+                                Text(meta)
+                                    .font(.caption2)
+                                    .foregroundStyle(DS.muted)
+                                    .lineLimit(1)
+                            }
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(
+                            item.location == nil
+                                ? item.name
+                                : "\(item.name). \(ClosetItemRowCopy.metaLine(for: item))")
                     }
                     .buttonStyle(.plain)
                 }
@@ -366,38 +514,49 @@ public struct ClosetGridView: View {
         }
         .overlay {
             if items.isEmpty {
+                let title = ClosetGridEmptyCopy.title(isFacetFiltering: isFacetFiltering)
+                let description = emptyGridDescription
                 ContentUnavailableView {
-                    Label("Empty closet", systemImage: "square.grid.2x2")
+                    Label(title, systemImage: "square.grid.2x2")
                 } description: {
-                    Text(statusFilter == "all"
-                         ? "Add a piece or load samples to try copilot."
-                         : "No pieces in this status.")
+                    Text(description)
                 } actions: {
-                    if statusFilter == "all" {
-                        Button("Load samples") {
-                            _ = DemoSeedService.seedIfEmpty(wardrobe, in: context)
+                    if isFacetFiltering {
+                        Button("Clear filters") {
+                            statusFilter = "all"
+                            slotFilter = nil
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(DS.accent)
-                        Button("Add piece") { showIntake = true }
+                        .accessibilityHint("Resets status and type filters")
                     } else {
-                        Button("Show all") { statusFilter = "all" }
+                        Button("Load samples") {
+                            loadSamplesFromEmptyGrid()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(DS.accent)
+                        // Same demo-not-photos VO as Me → Demo Load sample pieces.
+                        .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
+                        Button("Add piece") { showIntake = true }
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(title). \(description)")
             }
         }
     }
 
-    private func fitBadge(for item: Item) -> String? {
-        guard let bodyProfile,
-              let v = FitMarkService.mark(item: item, profile: bodyProfile) else { return nil }
-        return FitMarkCopy.label(v)
+    private var emptyGridDescription: String {
+        ClosetGridEmptyCopy.description(
+            isFacetFiltering: isFacetFiltering,
+            hasSlotFilter: slotFilter != nil,
+            hasStatusFilter: statusFilter != "all")
     }
 
-    private func loadBodyProfile() {
-        guard let pid = wardrobe.owner?.id else { bodyProfile = nil; return }
-        let all = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-        bodyProfile = all.first { $0.personID == pid }
+    private func fitBadge(for item: Item) -> String? {
+        guard let profile = ownerBodyProfile,
+              let v = FitMarkService.mark(item: item, profile: profile) else { return nil }
+        return FitMarkCopy.label(v)
     }
 
     private var searchResults: some View {
@@ -411,34 +570,67 @@ public struct ClosetGridView: View {
                     searchVM.wardrobeID = wardrobe.id
                     searchVM.run(in: context)
                 }
-            // 槽位快捷过滤
+            // 槽位快捷过滤 — full GarmentSlot set (incl. accessory) + displayTitle, never raw dump.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     searchSlotChip(nil, title: "All types")
-                    ForEach(["top", "bottom", "dress", "outerwear", "shoes"], id: \.self) { s in
-                        searchSlotChip(s, title: s.capitalized)
+                    ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
+                        searchSlotChip(slot.rawValue, title: slot.displayTitle)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
+            .accessibilityLabel("Filter search by type")
+            // Status facets (same allowed set as grid) — SearchService already filters statusRaw.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    searchStatusChip(nil, title: "Any status")
+                    ForEach(
+                        Array(ItemStatusService.allowed).sorted(by: {
+                            ItemStatusService.displayName($0) < ItemStatusService.displayName($1)
+                        }),
+                        id: \.self
+                    ) { key in
+                        searchStatusChip(key, title: ItemStatusService.displayName(key))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+            .accessibilityLabel("Filter search by status")
+            // Occasion facets — same work/casual/date/gala set as QuickAdd / Today occasion.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    searchOccasionChip(nil, title: "Any occasion")
+                    ForEach(Self.searchOccasionKeys, id: \.self) { key in
+                        searchOccasionChip(key, title: key.capitalized)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+            .accessibilityLabel("Filter search by occasion")
             if searchVM.results.isEmpty {
                 searchEmptyState
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(searchVM.results, id: \.id) { item in
                     NavigationLink {
-                        ItemDetailView(item: item, bodyProfile: bodyProfile)
+                        ItemDetailView(item: item, bodyProfile: ownerBodyProfile)
                     } label: {
                         HStack(spacing: 12) {
                             ItemThumbnailView(item: item, height: 48)
                                 .frame(width: 48)
                             VStack(alignment: .leading) {
                                 Text(item.name).font(.headline)
-                                Text("\(GarmentSlot.resolved(item.slotRaw).displayTitle) · \(ItemStatusService.displayName(item.statusRaw))")
+                                Text(ClosetItemRowCopy.metaLine(for: item))
                                     .font(.caption).foregroundStyle(DS.muted)
                             }
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(
+                            "\(item.name). \(ClosetItemRowCopy.metaLine(for: item))")
                     }
                 }
                 .listStyle(.plain)
@@ -449,12 +641,10 @@ public struct ClosetGridView: View {
     private var searchEmptyState: some View {
         ContentUnavailableView {
             Label(
-                searchVM.isFiltering ? "No matches" : "No pieces here",
+                searchVM.emptyStateTitle,
                 systemImage: searchVM.isFiltering ? "magnifyingglass" : "square.grid.2x2")
         } description: {
-            Text(searchVM.isFiltering
-                 ? "Try another name, brand, or type filter."
-                 : "Add a piece or load samples, then search.")
+            Text(searchVM.emptyStateDescription)
         } actions: {
             if searchVM.isFiltering {
                 Button("Clear search") {
@@ -463,12 +653,15 @@ public struct ClosetGridView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(DS.accent)
+                .accessibilityHint("Clears name and filters, keeps this closet")
             } else {
                 Button("Add piece") { showIntake = true }
                     .buttonStyle(.borderedProminent)
                     .tint(DS.accent)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(searchVM.emptyStateTitle). \(searchVM.emptyStateDescription)")
     }
 
     private func searchSlotChip(_ slot: String?, title: String) -> some View {
@@ -487,6 +680,48 @@ public struct ClosetGridView: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func searchStatusChip(_ status: String?, title: String) -> some View {
+        let on = searchVM.statusRaw == status
+        return Button {
+            searchVM.statusRaw = status
+            searchVM.wardrobeID = wardrobe.id
+            searchVM.run(in: context)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(on ? DS.accent.opacity(0.9) : DS.surface)
+                .foregroundStyle(on ? Color.white : DS.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Matches QuickAdd / Today occasion picker keys (SearchService contains match).
+    private static let searchOccasionKeys = ["work", "casual", "date", "gala"]
+
+    private func searchOccasionChip(_ occasion: String?, title: String) -> some View {
+        let on = searchVM.occasion == occasion
+        return Button {
+            searchVM.occasion = occasion
+            searchVM.wardrobeID = wardrobe.id
+            searchVM.run(in: context)
+        } label: {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(on ? DS.accent.opacity(0.85) : DS.surface)
+                .foregroundStyle(on ? Color.white : DS.ink)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -496,22 +731,39 @@ struct QuickAddSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
-    @State private var slot = "top"
+    @State private var slot = GarmentSlot.top.rawValue
     @State private var occasion = "work"
+    @State private var message = ""
 
-    private let slots = ["top", "bottom", "dress", "outerwear", "shoes", "accessory"]
+    /// Customer toast when ModelSave fails — same bar as manual Add (no silent stay).
+    static let saveFailedMessage = IntakeViewModel.confirmSaveFailedMessage
+
+    /// Order-preserving dedup — the picker occasion may already be "casual".
+    /// nonisolated: pure helper, callable off the View's MainActor isolation.
+    nonisolated static func dedupOccasions(_ raw: [String]) -> [String] {
+        var seen = Set<String>()
+        return raw.filter { seen.insert($0).inserted }
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("Name", text: $name)
                 Picker("Type", selection: $slot) {
-                    ForEach(slots, id: \.self) { Text($0.capitalized).tag($0) }
+                    ForEach(GarmentSlot.allCases, id: \.rawValue) { s in
+                        Text(s.displayTitle).tag(s.rawValue)
+                    }
                 }
                 Picker("Occasion", selection: $occasion) {
                     ForEach(["work", "casual", "date", "gala"], id: \.self) {
                         Text($0.capitalized).tag($0)
                     }
+                }
+                if !message.isEmpty {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(Color.orange)
+                        .accessibilityLabel(message)
                 }
             }
             .navigationTitle("Add piece")
@@ -521,21 +773,58 @@ struct QuickAddSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let item = Item(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
-                        item.slotRaw = slot
-                        item.occasionsRaw = [occasion, "casual"]
+                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let item = Item(name: trimmed)
+                        let draftSlot = GarmentSlot(rawValue: slot) ?? .top
+                        item.slotRaw = IntakeViewModel.persistSlot(
+                            draftSlot: draftSlot, name: trimmed).rawValue
+                        item.occasionsRaw = Self.dedupOccasions([occasion, "casual"])
                         item.warmthRaw = Warmth.light.rawValue
                         item.statusRaw = "available"
                         item.colorIsNeutral = true
                         item.wardrobe = wardrobe
                         context.insert(item)
-                        ModelSave.save(context, label: "quickAdd")
-                        AppLog.info("quickAdd \(item.name)", .intake)
+                        guard ModelSave.save(context, label: "quickAdd") else {
+                            context.delete(item)
+                            message = Self.saveFailedMessage
+                            AppLog.error("quickAdd save failed \(trimmed)", .intake)
+                            // Stay on form with toast (no silent dismiss); next Save retries.
+                            return
+                        }
+                        AppLog.info("quickAdd \(item.name) slot=\(item.slotRaw)", .intake)
                         dismiss()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
+    }
+}
+
+/// Export feedback decision: "ready" toast only when the JSON actually left the
+/// app (share-sheet handoff); otherwise an inline preview — parity with
+/// diagnostics (macOS has no share payload).
+enum DataExportFeedback {
+    /// iOS hands the JSON to the share sheet; other platforms have no handoff.
+    static var payloadHandoffAvailable: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    static func message(
+        payloadHandedOff: Bool,
+        json: String,
+        includeBodyDimensions: Bool,
+        previewLimit: Int = 500
+    ) -> String {
+        if payloadHandedOff {
+            // Honest body-inclusion toast (not char count); matches toggle state.
+            return DataLifecycleService.exportReadyMessage(
+                includeBodyDimensions: includeBodyDimensions)
+        }
+        return String(json.prefix(previewLimit)) + (json.count > previewLimit ? "…" : "")
     }
 }

@@ -35,6 +35,36 @@ struct AdapterTests {
         #expect(c.id == it.id.uuidString)
     }
 
+    @Test func adapterAlignsDirtyOuterwearWithDisplaySlot() throws {
+        // 推荐槽必须与叠衣 displaySlot / GarmentSlot.resolved 一致
+        let ctx = try makeContext()
+        let blazer = Item(name: "Navy blazer")
+        blazer.slotRaw = "top" // 脏数据
+        ctx.insert(blazer)
+        #expect(blazer.toCandidateItem().slot == .outerwear)
+        #expect(GarmentSlot.resolved(blazer.slotRaw, name: blazer.name) == .outerwear)
+
+        let bomber = Item(name: "Black bomber")
+        bomber.slotRaw = "top"
+        ctx.insert(bomber)
+        #expect(bomber.toCandidateItem().slot == .outerwear)
+
+        let alias = Item(name: "Vintage piece")
+        alias.slotRaw = "bomber"
+        ctx.insert(alias)
+        #expect(alias.toCandidateItem().slot == .outerwear)
+
+        let tee = Item(name: "White tee")
+        tee.slotRaw = "top"
+        ctx.insert(tee)
+        #expect(tee.toCandidateItem().slot == .top)
+
+        let accessory = Item(name: "Belt")
+        accessory.slotRaw = "accessory"
+        ctx.insert(accessory)
+        #expect(accessory.toCandidateItem().slot == .accessory)
+    }
+
     /// 端到端集成：SwiftData 单品 → 适配器 → copilot 补全器 → 合规打分候选。
     @Test func completerRunsOnRealSwiftDataItems() throws {
         let ctx = try makeContext()

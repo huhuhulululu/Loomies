@@ -20,6 +20,10 @@ public final class BodyProfileViewModel {
     /// 手选大众体型
     public var selectedPopular: PopularShape?
     public var showMeasureTips: Bool = false
+    /// 展示用 catalog 底座性别（女/男）
+    public var bodySex: AvatarBodySex = .female
+    /// 展示用表型（catalog 模特外观 / 肤色族）
+    public var bodyPhenotype: AvatarBodyPhenotype = .eastAsian
     /// 精调乘数 0.90…1.10（1 = 不偏置）；与测量/预设合成连续 morph
     public var fineChest: Double = 1
     public var fineWaist: Double = 1
@@ -96,6 +100,8 @@ public final class BodyProfileViewModel {
             highHipInches = p.highHipInches
             highHipInferred = p.highHipInferred
             selectedPopular = BodyProfileService.parsePopular(p.popularShapeOverrideRaw)
+            bodySex = BodyProfileService.presentationSex(from: p)
+            bodyPhenotype = BodyProfileService.presentationPhenotype(from: p)
             fineChest = Self.clampFine(p.fineChest)
             fineWaist = Self.clampFine(p.fineWaist)
             fineHip = Self.clampFine(p.fineHip)
@@ -104,37 +110,97 @@ public final class BodyProfileViewModel {
         recompute()
     }
 
+    /// Customer toast when any body profile ModelSave fails.
+    public static let saveFailedMessage = "Couldn't save body profile — try again"
+
     public func save(in context: ModelContext) {
+        let wasNew = profile == nil
         let p = ensureProfile(in: context)
+        let old = ProfileSnapshot(of: p)
         applyForm(to: p)
         BodyProfileService.refreshSource(on: p)
-        ModelSave.save(context, label: "bodyProfile")
         recompute()
+        guard ModelSave.save(context, label: "bodyProfile") else {
+            rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
+            message = Self.saveFailedMessage
+            AppLog.error("body save failed", .data)
+            return
+        }
         message = saveMessage
         AppLog.info("body save complete=\(isComplete) conf=\(confidence.rawValue)", .data)
     }
 
     /// 精调即时落库（滑杆松手或 onChange 后调用）。
     public func saveFineTune(in context: ModelContext) {
+        let wasNew = profile == nil
         let p = ensureProfile(in: context)
+        let old = ProfileSnapshot(of: p)
         p.fineChest = Self.clampFine(fineChest)
         p.fineWaist = Self.clampFine(fineWaist)
         p.fineHip = Self.clampFine(fineHip)
         p.fineHeight = Self.clampFine(fineHeight)
-        ModelSave.save(context, label: "bodyFineTune")
         recompute()
+        guard ModelSave.save(context, label: "bodyFineTune") else {
+            rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
+            message = Self.saveFailedMessage
+            AppLog.error("body fineTune save failed", .data)
+            return
+        }
     }
 
     /// 快选体型并立即落库。
     public func selectPopularShape(_ shape: PopularShape, in context: ModelContext) {
         selectedPopular = shape
+        let wasNew = profile == nil
         let p = ensureProfile(in: context)
+        let old = ProfileSnapshot(of: p)
         p.popularShapeOverrideRaw = shape.rawValue
         BodyProfileService.refreshSource(on: p)
-        ModelSave.save(context, label: "bodyShapePick")
         recompute()
+        guard ModelSave.save(context, label: "bodyShapePick") else {
+            rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
+            message = Self.saveFailedMessage
+            AppLog.error("body visualPick save failed", .data)
+            return
+        }
         message = "Saved \(displayTitle(shape)). Refine with measurements for better fit tips."
         AppLog.info("body visualPick=\(shape.rawValue)", .data)
+    }
+
+    /// 切换 catalog 底座性别并落库。
+    public func selectBodySex(_ sex: AvatarBodySex, in context: ModelContext) {
+        bodySex = sex
+        let wasNew = profile == nil
+        let p = ensureProfile(in: context)
+        let old = ProfileSnapshot(of: p)
+        p.presentationSexRaw = sex.rawValue
+        recompute()
+        guard ModelSave.save(context, label: "bodySex") else {
+            rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
+            message = Self.saveFailedMessage
+            AppLog.error("body sex save failed", .data)
+            return
+        }
+        message = "Model: \(sex.displayTitle)."
+        AppLog.info("body sex=\(sex.rawValue)", .data)
+    }
+
+    /// 切换 catalog 表型（外观/肤色族）并落库。
+    public func selectBodyPhenotype(_ phenotype: AvatarBodyPhenotype, in context: ModelContext) {
+        bodyPhenotype = phenotype
+        let wasNew = profile == nil
+        let p = ensureProfile(in: context)
+        let old = ProfileSnapshot(of: p)
+        p.presentationPhenotypeRaw = phenotype.rawValue
+        recompute()
+        guard ModelSave.save(context, label: "bodyPhenotype") else {
+            rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
+            message = Self.saveFailedMessage
+            AppLog.error("body phenotype save failed", .data)
+            return
+        }
+        message = "Look: \(phenotype.displayTitle)."
+        AppLog.info("body phenotype=\(phenotype.rawValue)", .data)
     }
 
     /// 用腰臀推断上臀并标记 provisional。
@@ -166,6 +232,68 @@ public final class BodyProfileViewModel {
         return np
     }
 
+    /// 失败还原快照（rollback() 只清脏标记不清内存值 → 先手动还原字段；ItemStatusService 同款）。
+    private struct ProfileSnapshot {
+        var bustInches: Double?
+        var waistInches: Double?
+        var hipInches: Double?
+        var highHipInches: Double?
+        var highHipInferred: Bool
+        var popularShapeOverrideRaw: String?
+        var shapeSourceRaw: String?
+        var presentationSexRaw: String?
+        var presentationPhenotypeRaw: String?
+        var fineChest: Double
+        var fineWaist: Double
+        var fineHip: Double
+        var fineHeight: Double
+
+        init(of p: PersonBodyProfile) {
+            bustInches = p.bustInches
+            waistInches = p.waistInches
+            hipInches = p.hipInches
+            highHipInches = p.highHipInches
+            highHipInferred = p.highHipInferred
+            popularShapeOverrideRaw = p.popularShapeOverrideRaw
+            shapeSourceRaw = p.shapeSourceRaw
+            presentationSexRaw = p.presentationSexRaw
+            presentationPhenotypeRaw = p.presentationPhenotypeRaw
+            fineChest = p.fineChest
+            fineWaist = p.fineWaist
+            fineHip = p.fineHip
+            fineHeight = p.fineHeight
+        }
+
+        func restore(to p: PersonBodyProfile) {
+            p.bustInches = bustInches
+            p.waistInches = waistInches
+            p.hipInches = hipInches
+            p.highHipInches = highHipInches
+            p.highHipInferred = highHipInferred
+            p.popularShapeOverrideRaw = popularShapeOverrideRaw
+            p.shapeSourceRaw = shapeSourceRaw
+            p.presentationSexRaw = presentationSexRaw
+            p.presentationPhenotypeRaw = presentationPhenotypeRaw
+            p.fineChest = fineChest
+            p.fineWaist = fineWaist
+            p.fineHip = fineHip
+            p.fineHeight = fineHeight
+        }
+    }
+
+    /// ModelSave 失败：还原字段 + rollback；新插入的 profile 丢弃引用（rollback 撤销 insert）。
+    private func rollbackFailedSave(
+        _ old: ProfileSnapshot, wasNew: Bool,
+        of p: PersonBodyProfile, in context: ModelContext
+    ) {
+        if wasNew {
+            profile = nil
+        } else {
+            old.restore(to: p)
+        }
+        context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+    }
+
     private func applyForm(to p: PersonBodyProfile) {
         p.bustInches = bustInches
         p.waistInches = waistInches
@@ -173,6 +301,8 @@ public final class BodyProfileViewModel {
         p.highHipInches = highHipInches
         p.highHipInferred = highHipInferred && highHipInches != nil
         p.popularShapeOverrideRaw = selectedPopular?.rawValue
+        p.presentationSexRaw = bodySex.rawValue
+        p.presentationPhenotypeRaw = bodyPhenotype.rawValue
         p.fineChest = Self.clampFine(fineChest)
         p.fineWaist = Self.clampFine(fineWaist)
         p.fineHip = Self.clampFine(fineHip)

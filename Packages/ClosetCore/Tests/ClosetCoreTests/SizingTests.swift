@@ -59,4 +59,17 @@ struct SizingTests {
         #expect(ease == 4)
         #expect(FitEngine.verdict(ease: ease, band: EaseBand(minEase: 2, maxEase: 6)) == .fitted)
     }
+
+    @Test func circumferenceNilForNonPositiveOrNonFiniteFlat() {
+        // 0/负/NaN 平铺宽为脏填值 → 视同未填
+        #expect(FlatMeasurements(values: [.chestFlat: 0]).circumference(.chestFlat) == nil)
+        #expect(FlatMeasurements(values: [.chestFlat: -3]).circumference(.chestFlat) == nil)
+        #expect(FlatMeasurements(values: [.chestFlat: .nan]).circumference(.chestFlat) == nil)
+    }
+
+    @Test func completenessIgnoresNonPositiveDirtyValues() {
+        // top 4 字段：1 个有效 + 3 个脏值（0/负/NaN）→ 0.25，而非把脏填值当已测得 1.0
+        let m = FlatMeasurements(values: [.chestFlat: 19, .garmentLength: 0, .shoulder: -2, .sleeve: .nan])
+        #expect(m.completeness(for: .top) == 0.25)
+    }
 }

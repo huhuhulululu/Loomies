@@ -27,12 +27,18 @@ public struct ItemDetailView: View {
             Section("Details") {
                 TextField("Name", text: $vm.name)
                 Picker("Type", selection: $vm.slotRaw) {
-                    ForEach(["top", "bottom", "dress", "outerwear", "shoes", "accessory"], id: \.self) {
-                        Text($0.capitalized).tag($0)
+                    ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
+                        Text(slot.displayTitle).tag(slot.rawValue)
                     }
                 }
                 TextField("Brand", text: $vm.brand)
                 TextField("Size", text: $vm.sizeLabel)
+                if let sizeHint = PublicSizeReference.displayHint(forLabel: vm.sizeLabel),
+                   !vm.sizeLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(sizeHint)
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                }
                 TextField("Occasions (comma)", text: $vm.occasionsText)
             }
             Section("Status") {
@@ -42,11 +48,32 @@ public struct ItemDetailView: View {
                     }
                 }
             }
+            Section("Storage") {
+                if vm.storageLocations.isEmpty {
+                    Text(ItemDetailViewModel.noStorageLocationsCaption)
+                        .font(.caption)
+                        .foregroundStyle(DS.muted)
+                        .accessibilityLabel(ItemDetailViewModel.noStorageLocationsCaption)
+                } else {
+                    Picker("Location", selection: $vm.locationID) {
+                        Text("None").tag(Optional<UUID>.none)
+                        ForEach(vm.storageLocations, id: \.id) { loc in
+                            Text(loc.name).tag(Optional(loc.id))
+                        }
+                    }
+                    .accessibilityLabel("Storage location")
+                }
+            }
             Section("Fit measures (inches, flat)") {
                 TextField("Chest flat width", text: $vm.chestFlat)
                 TextField("Waist flat width", text: $vm.waistFlat)
                 if let fit = vm.fitLabel {
                     LabeledContent("Fit mark", value: fit)
+                    if let detail = vm.fitDetail {
+                        Text(detail)
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
+                    }
                 } else {
                     Text("Enter body profile + flat widths for fit mark.")
                         .font(.caption).foregroundStyle(DS.muted)
@@ -61,7 +88,13 @@ public struct ItemDetailView: View {
                     .foregroundStyle(DS.muted)
             }
             if let msg = Optional(vm.message), !msg.isEmpty {
-                Section { Text(msg).foregroundStyle(DS.accent) }
+                Section {
+                    Text(msg)
+                        .foregroundStyle(
+                            msg.localizedCaseInsensitiveContains("couldn't")
+                                ? Color.orange : DS.accent)
+                        .accessibilityLabel(msg)
+                }
             }
         }
         .navigationTitle(vm.item.name.isEmpty ? "Item" : vm.item.name)
@@ -83,13 +116,19 @@ public struct ItemDetailView: View {
         ) {
             Button("Delete", role: .destructive) {
                 vm.delete(in: context)
-                dismiss()
+                // Only leave the screen when save committed (honest failure stays on form).
+                if vm.didDelete { dismiss() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This cannot be undone. Favorite looks keep a missing-piece flag.")
         }
         .onAppear { vm.refreshFit(profile: bodyProfile) }
+        // Live FitMark as the customer types flat widths / changes type (before Save).
+        .onChange(of: vm.chestFlat) { _, _ in vm.refreshFit(profile: bodyProfile) }
+        .onChange(of: vm.waistFlat) { _, _ in vm.refreshFit(profile: bodyProfile) }
+        .onChange(of: vm.slotRaw) { _, _ in vm.refreshFit(profile: bodyProfile) }
+        .onChange(of: vm.name) { _, _ in vm.refreshFit(profile: bodyProfile) }
         .sheet(item: Binding(
             get: { transferVM.map { TransferBox(vm: $0) } },
             set: { transferVM = $0?.vm }
@@ -113,7 +152,8 @@ struct TransferSheet: View {
         NavigationStack {
             Form {
                 if vm.destinations.isEmpty {
-                    Text("No other wardrobes. Create one in Me.")
+                    Text(TransferViewModel.noOtherWardrobesMessage)
+                        .accessibilityLabel(TransferViewModel.noOtherWardrobesMessage)
                 } else {
                     Picker("Move to", selection: $vm.selectedDestinationID) {
                         ForEach(vm.destinations, id: \.id) { w in
@@ -122,7 +162,9 @@ struct TransferSheet: View {
                     }
                 }
                 if !vm.message.isEmpty {
-                    Text(vm.message).foregroundStyle(DS.accent)
+                    Text(vm.message)
+                        .foregroundStyle(vm.didTransfer ? DS.accent : Color.orange)
+                        .accessibilityLabel(vm.message)
                 }
             }
             .navigationTitle("Transfer")
@@ -132,8 +174,8 @@ struct TransferSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Move") {
-                        vm.transfer(in: context)
-                        dismiss()
+                        // Stay open on fail so "Pick a wardrobe" is visible (no silent dismiss).
+                        if vm.transfer(in: context) { dismiss() }
                     }
                     .disabled(vm.destinations.isEmpty)
                 }
@@ -159,14 +201,85 @@ public struct BodyProfileView: View {
                 BodyAvatarView(
                     shape: vm.popularShape,
                     morph: vm.morph,
-                    fitCaption: previewCaption)
+                    fitCaption: previewCaption,
+                    bodySex: vm.bodySex,
+                    bodyPhenotype: vm.bodyPhenotype,
+                    usesMannequin3D: false)
                 .frame(maxWidth: .infinity)
                 .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 .listRowBackground(Color.clear)
+                if !NudeBodyBaseSpec.isHardRequirementMet {
+                    Label {
+                        Text(NudeBodyBaseSpec.certificationGaps.first
+                            ?? "Need certified real-human photos (♀ pasties+thong / ♂ thong).")
+                            .font(.caption2)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .listRowBackground(Color.orange.opacity(0.08))
+                } else {
+                    Label {
+                        Text("Catalog basewear: \(NudeBodyBaseSpec.basewearDescription(for: vm.bodySex))")
+                            .font(.caption2)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    .listRowBackground(Color.green.opacity(0.06))
+                }
             } header: {
-                Text("Body reference")
+                Text("Your body reference")
             } footer: {
-                Text("360° + continuous morph (chest/waist/hip). Pasties + thong base for lingerie layering.")
+                Text("Catalog model + your proportions. Drag to turn · clothes layer on top. Measurements stay on device.")
+                    .font(.caption2)
+            }
+
+            Section {
+                Picker("Sex", selection: Binding(
+                    get: { vm.bodySex },
+                    set: { vm.selectBodySex($0, in: context) }
+                )) {
+                    ForEach(AvatarBodySex.allCases, id: \.rawValue) { sex in
+                        Text(sex.displayTitle).tag(sex)
+                    }
+                }
+                .pickerStyle(.segmented)
+                // 肤色圆点：表型 catalog 模特即时预览
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 72), spacing: 8)],
+                    spacing: 10
+                ) {
+                    ForEach(AvatarBodyPhenotype.allCases, id: \.rawValue) { p in
+                        Button {
+                            vm.selectBodyPhenotype(p, in: context)
+                        } label: {
+                            VStack(spacing: 6) {
+                                Circle()
+                                    .fill(Self.phenotypeSwatch(p))
+                                    .frame(width: 28, height: 28)
+                                    .overlay(
+                                        Circle().strokeBorder(
+                                            vm.bodyPhenotype == p ? DS.accent : Color.primary.opacity(0.12),
+                                            lineWidth: vm.bodyPhenotype == p ? 2.5 : 1))
+                                Text(p.displayTitle)
+                                    .font(.caption2)
+                                    .foregroundStyle(vm.bodyPhenotype == p ? DS.ink : DS.muted)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(p.displayTitle) phenotype")
+                        .accessibilityAddTraits(vm.bodyPhenotype == p ? .isSelected : [])
+                    }
+                }
+            } header: {
+                Text("Model look · sex & skin tone")
+            } footer: {
+                Text("Presentation only — not a medical category. Clothes layer on the model; this is not a selfie try-on.")
                     .font(.caption2)
             }
 
@@ -270,7 +383,13 @@ public struct BodyProfileView: View {
             }
 
             if !vm.message.isEmpty {
-                Section { Text(vm.message).foregroundStyle(DS.accent) }
+                Section {
+                    Text(vm.message)
+                        .foregroundStyle(
+                            vm.message.localizedCaseInsensitiveContains("couldn't")
+                                ? Color.orange : DS.accent)
+                        .accessibilityLabel(vm.message)
+                }
             }
 
             Section {
@@ -293,6 +412,12 @@ public struct BodyProfileView: View {
         return String(format: "C%.2f W%.2f H%.2f", m.chest, m.waist, m.hip)
     }
 
+    /// 表型肤色 swatch（与程序化 3D `skinRGB` 同源，Me 选人种即时对照）。
+    private static func phenotypeSwatch(_ p: AvatarBodyPhenotype) -> Color {
+        let s = p.skinRGB
+        return Color(red: s.r, green: s.g, blue: s.b)
+    }
+
     private func morphSlider(_ title: String, value: Binding<Double>) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
@@ -302,10 +427,28 @@ public struct BodyProfileView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(DS.muted)
             }
+            // Visual chrome only — VoiceOver uses the Slider’s label/value/hint.
+            .accessibilityHidden(true)
             Slider(value: value, in: 0.90...1.10, step: 0.01)
                 .tint(DS.accent)
+                .accessibilityLabel(Self.morphSliderAccessibilityLabel(title: title))
+                .accessibilityValue(Self.morphSliderAccessibilityValue(value.wrappedValue))
+                .accessibilityHint(Self.morphSliderAccessibilityHint)
         }
     }
+
+    /// Fine-tune slider VoiceOver — names the axis (not bare “slider”).
+    static func morphSliderAccessibilityLabel(title: String) -> String {
+        "\(title) fine-tune"
+    }
+
+    /// Multiplier spoken as “times” so VO doesn’t skip the × glyph.
+    static func morphSliderAccessibilityValue(_ multiplier: Double) -> String {
+        String(format: "%.2f times", multiplier)
+    }
+
+    static let morphSliderAccessibilityHint =
+        "Multiplier from 0.90 to 1.10 on top of measures or preset"
 
     @ViewBuilder
     private func shapePickCard(_ shape: PopularShape) -> some View {
@@ -314,15 +457,15 @@ public struct BodyProfileView: View {
             vm.selectPopularShape(shape, in: context)
         } label: {
             VStack(spacing: 6) {
-                Group {
-                    if let img = BodyAvatarView.bundleImage(
-                        named: BodyAvatarAsset.croquisName(for: shape, yaw: .deg0))
-                        ?? BodyAvatarView.bundleImage(named: BodyAvatarAsset.legacyFrontName(for: shape)) {
-                        img.resizable().aspectRatio(contentMode: .fit)
-                    } else {
-                        PlaceholderCroquis(shape: shape)
-                    }
-                }
+                // 全 nude 多人种栅格（不用 pastie/thong croquis）
+                FullNudeBodyImageView(
+                    sex: vm.bodySex,
+                    phenotype: vm.bodyPhenotype,
+                    morph: BodyMorphParams.resolve(
+                        measurements: nil, shape: shape, fineTune: .neutral),
+                    shape: shape,
+                    yaw: .deg0,
+                    logicalWidth: 72)
                 .frame(height: 88)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 Text(vm.displayTitle(shape))
@@ -361,17 +504,35 @@ public struct BodyProfileView: View {
                 Image(systemName: "minus.circle.fill").foregroundStyle(DS.accent)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Self.measureStepAccessibilityLabel(title: title, direction: .decrease))
             Text(vm.displayValue(inches: value))
                 .font(.body.monospacedDigit().weight(.medium))
                 .frame(minWidth: 48)
+                .accessibilityLabel("\(title) \(vm.displayValue(inches: value)) \(vm.unitLabel)")
             Button { step(vm.usesMetric ? 1 : 0.5) } label: {
                 Image(systemName: "plus.circle.fill").foregroundStyle(DS.accent)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Self.measureStepAccessibilityLabel(title: title, direction: .increase))
             Text(vm.unitLabel)
                 .font(.caption)
                 .foregroundStyle(DS.muted)
                 .frame(width: 24, alignment: .leading)
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Icon-only measure steppers — VoiceOver names the field (not bare “minus/plus”).
+    enum MeasureStepDirection: Sendable {
+        case decrease, increase
+    }
+
+    static func measureStepAccessibilityLabel(
+        title: String, direction: MeasureStepDirection
+    ) -> String {
+        switch direction {
+        case .decrease: return "Decrease \(title)"
+        case .increase: return "Increase \(title)"
         }
     }
 }
@@ -392,7 +553,7 @@ public struct AboutView: View {
             Section("Credits") {
                 Text("Design tokens inspired by warm neutrals + single accent (DESIGN §10).")
                 Text("FFIT body-shape classification (research literature).")
-                Text("Weather attribution: WeatherKit when enabled.")
+                Text("Weather: Open-Meteo (open data) when online; offline city climate fallback. Optional WeatherKit later.")
             }
             Section("Privacy") {
                 Text("Body measurements stay on-device (not CloudKit). Images never leave for analytics. Telemetry is opt-in anonymous aggregate when enabled.")
@@ -405,22 +566,48 @@ public struct AboutView: View {
 
 // MARK: - Favorites list
 
+/// Empty Favorites list — points to Today Save; no fake “sync” / try-on claims.
+public enum FavoritesEmptyCopy {
+    public static let title = "No favorites"
+    public static let description =
+        "Save a look from Today. Swipe to plan a day or remove it."
+    /// Row swipe VO (parity Calendar plan rows).
+    public static let rowSwipeAccessibilityHint =
+        "Swipe right to plan today, swipe left to remove"
+}
+
 public struct FavoritesView: View {
     @Environment(\.modelContext) private var context
     let wardrobe: Wardrobe
     @State private var outfits: [ClosetModel.Outfit] = []
+    @State private var actions = OutfitActionsViewModel()
+    @State private var flashMessage: String?
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
         Group {
             if outfits.isEmpty {
-                ContentUnavailableView("No favorites", systemImage: "heart",
-                    description: Text("Save a look from Today. Swipe a saved look to remove it."))
+                ContentUnavailableView {
+                    Label(FavoritesEmptyCopy.title, systemImage: "heart")
+                } description: {
+                    Text(FavoritesEmptyCopy.description)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "\(FavoritesEmptyCopy.title). \(FavoritesEmptyCopy.description)")
             } else {
                 List {
                     ForEach(outfits, id: \.id) { o in
                         favoriteRow(o)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    planToday(o)
+                                } label: {
+                                    Label("Plan today", systemImage: "calendar.badge.plus")
+                                }
+                                .tint(DS.accent)
+                            }
                     }
                     .onDelete(perform: unfavorite)
                 }
@@ -429,6 +616,13 @@ public struct FavoritesView: View {
         }
         .navigationTitle("Favorites")
         .onAppear { reload() }
+        .overlay(alignment: .bottom) {
+            if let flashMessage {
+                CustomerFlashStyle.overlayChip(flashMessage)
+                    .padding()
+                    .transition(.opacity)
+            }
+        }
     }
 
     private func favoriteRow(_ o: ClosetModel.Outfit) -> some View {
@@ -441,12 +635,15 @@ public struct FavoritesView: View {
                 showsFitCaption: false,
                 enablesOrbit: false,
                 backdrop: .resolved(from: o.occasionRaw),
-                depthIntensity: .off)
+                depthIntensity: .off,
+                bodySex: BodyProfileService.presentationSex(from: ownerProfile),
+                bodyPhenotype: BodyProfileService.presentationPhenotype(from: ownerProfile),
+                usesMannequin3D: false)
             .frame(width: 72, height: 108)
             .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 4) {
-                Text(o.name.isEmpty ? "Favorite look" : o.name).font(.headline)
-                Text("\((o.items ?? []).count) pieces · \(o.occasionRaw ?? "—")")
+                Text(Self.lookDisplayTitle(o)).font(.headline)
+                Text(Self.lookMetaLine(o))
                     .font(.caption).foregroundStyle(DS.muted)
                 if o.missing || o.permanentlyMissing {
                     Text("Missing pieces").font(.caption2).foregroundStyle(.orange)
@@ -454,7 +651,48 @@ public struct FavoritesView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Swipe to remove from favorites")
+        .accessibilityHint(FavoritesEmptyCopy.rowSwipeAccessibilityHint)
+        .contextMenu {
+            Button {
+                planToday(o)
+            } label: {
+                Label("Plan for today", systemImage: "calendar.badge.plus")
+            }
+        }
+    }
+
+    private func planToday(_ outfit: ClosetModel.Outfit) {
+        // Parity Calendar plan picker: titled flash + attention when pieces missing.
+        _ = actions.planFavorite(
+            outfit, in: context,
+            lookTitle: Self.lookDisplayTitle(outfit))
+        flash(actions.message)
+    }
+
+    /// Favorites row title for flash / VO (empty storage → “Favorite look”).
+    public static func lookDisplayTitle(_ outfit: ClosetModel.Outfit) -> String {
+        let t = outfit.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? "Favorite look" : t
+    }
+
+    /// Secondary line: piece count · human occasion (capitalized; not raw `work`).
+    /// `emptyOccasion` is “—” on Favorites list, “Any” on Calendar plan picker.
+    public static func lookMetaLine(
+        _ outfit: ClosetModel.Outfit,
+        emptyOccasion: String = "—"
+    ) -> String {
+        let count = (outfit.items ?? []).count
+        let raw = outfit.occasionRaw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let occ = raw.isEmpty ? emptyOccasion : raw.capitalized
+        return "\(count) pieces · \(occ)"
+    }
+
+    private func flash(_ message: String) {
+        flashMessage = message
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            if flashMessage == message { flashMessage = nil }
+        }
     }
 
     private func reload() {
@@ -462,10 +700,17 @@ public struct FavoritesView: View {
     }
 
     private func unfavorite(at offsets: IndexSet) {
+        var saveFailed = false
         for i in offsets {
-            OutfitFavoriteService.setFavorite(outfits[i], false, in: context)
+            if !OutfitFavoriteService.setFavorite(outfits[i], false, in: context) {
+                saveFailed = true
+            }
         }
         reload()
+        // After reload, failed rows reappear; flash so swipe is not silent success.
+        if saveFailed {
+            flash(OutfitFavoriteService.toggleSaveFailedMessage)
+        }
     }
 
     private var ownerProfile: PersonBodyProfile? {

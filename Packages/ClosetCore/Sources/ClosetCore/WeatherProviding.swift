@@ -1,10 +1,59 @@
 import Foundation
 
 /// 日间温度源（DESIGN §F4 正确性 #1：天气只按日间时段）。
-/// 真机接 WeatherKit；测试/离线用 Fixed。协议层隔离，UI 与引擎不绑 SDK。
+/// 生产：`CompositeWeatherProvider` = Open-Meteo（公开 API，免 key）→ `CityClimateWeatherProvider` 离线表。
+/// 可选 WeatherKit 可再实现本协议。UI/引擎只依赖协议，不绑 SDK。
 public protocol WeatherProviding: Sendable {
     /// 日间代表温度（°F），供候选温区过滤。
     func daytimeTemperatureF(forCity city: String?, on date: Date) async throws -> Double
+}
+
+/// Richer day snapshot for UI honesty + light dress hints (rain → outerwear).
+public struct WeatherDaySnapshot: Equatable, Sendable {
+    public var daytimeTempF: Double
+    /// Short user-facing source, e.g. "Open-Meteo" / "Offline estimate".
+    public var sourceLabel: String
+    /// 0…100 max precipitation probability for the day when known.
+    public var precipProbabilityPercent: Int?
+    public init(
+        daytimeTempF: Double,
+        sourceLabel: String,
+        precipProbabilityPercent: Int? = nil
+    ) {
+        self.daytimeTempF = daytimeTempF
+        self.sourceLabel = sourceLabel
+        self.precipProbabilityPercent = precipProbabilityPercent
+    }
+
+    /// Prefer outerwear hint when cool or likely wet (practical dress cue, not a hard filter).
+    public var suggestsOuterwearCue: Bool {
+        if daytimeTempF < 60 { return true }
+        if let p = precipProbabilityPercent, p >= 50 { return true }
+        return false
+    }
+}
+
+/// Optional richer fetch; default synthesizes snapshot from temperature only.
+public protocol WeatherSnapshotProviding: WeatherProviding {
+    func daySnapshot(forCity city: String?, on date: Date) async throws -> WeatherDaySnapshot
+}
+
+extension FixedWeatherProvider: WeatherSnapshotProviding {
+    public func daySnapshot(forCity city: String?, on date: Date) async throws -> WeatherDaySnapshot {
+        WeatherDaySnapshot(
+            daytimeTempF: try await daytimeTemperatureF(forCity: city, on: date),
+            sourceLabel: "Fixed",
+            precipProbabilityPercent: nil)
+    }
+}
+
+extension CityClimateWeatherProvider: WeatherSnapshotProviding {
+    public func daySnapshot(forCity city: String?, on date: Date) async throws -> WeatherDaySnapshot {
+        WeatherDaySnapshot(
+            daytimeTempF: try await daytimeTemperatureF(forCity: city, on: date),
+            sourceLabel: "Offline estimate",
+            precipProbabilityPercent: nil)
+    }
 }
 
 /// 固定温度（测试 / 无网 / 用户手动覆盖）。
@@ -17,8 +66,8 @@ public struct FixedWeatherProvider: WeatherProviding {
     }
 }
 
-/// 城市气候表 + 月份偏置（离线可用；真机后续可换 WeatherKit 实现同一协议）。
-/// 非气象预报——仅给 copilot 温区过滤一个合理日间代表温。
+/// 城市气候表 + 月份偏置（离线 / Open-Meteo 失败回退）。
+/// 非实时预报——粗日间代表温；实时路径见 `OpenMeteoWeatherProvider`。
 public struct CityClimateWeatherProvider: WeatherProviding, Sendable {
     public init() {}
 
@@ -45,7 +94,9 @@ public struct CityClimateWeatherProvider: WeatherProviding, Sendable {
             "singapore": 86, "bangkok": 88, "sydney": 70,
         ]
         if let exact = table[key] { return exact }
-        for (k, v) in table where key.contains(k) || k.contains(key) { return v }
+        // 无子串循环：2 字母键（"la"/"sf"）会吞掉 Orlando/Glasgow 等无关城市，
+        // 且多命中时随 Dictionary 迭代序（每进程 hash seed）抖动。
+        // 顺序固定为：精确匹配 → 关键字启发式 → 默认。
         // 关键字启发式
         if key.contains("miami") || key.contains("tropic") || key.contains("hawaii") { return 82 }
         if key.contains("seattle") || key.contains("portland") { return 58 }

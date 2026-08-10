@@ -139,9 +139,15 @@ public struct BodyMorphParams: Equatable, Sendable {
 
     /// 由四围推导连续塑形（主路径）。
     public static func from(measurements m: BodyMeasurements) -> BodyMorphParams {
-        let chest = clamp(m.bust / refBust, scaleLo, scaleHi)
-        let waist = clamp(m.waist / refWaist, scaleLo, scaleHi)
-        let hip = clamp(m.hip / refHip, scaleLo, scaleHi)
+        // 无效围度（非有限 / ≤0）视为缺失 → 该字段中性 1.0，
+        // 而非默默钳到 scaleLo（极瘦变形）。
+        func scale(_ value: Double, ref: Double) -> Double {
+            guard value.isFinite, value > 0 else { return 1 }
+            return clamp(value / ref, scaleLo, scaleHi)
+        }
+        let chest = scale(m.bust, ref: refBust)
+        let waist = scale(m.waist, ref: refWaist)
+        let hip = scale(m.hip, ref: refHip)
         // 肩随胸略弱联动，避免头肩比例崩
         let shoulder = clamp((chest - 1) * 0.55 + 1, scaleLo, scaleHi)
         return BodyMorphParams(chest: chest, waist: waist, hip: hip, shoulder: shoulder, height: 1)

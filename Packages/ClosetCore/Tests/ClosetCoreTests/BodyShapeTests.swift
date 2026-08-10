@@ -54,4 +54,22 @@ struct BodyShapeTests {
         #expect(BodyShape.oval.popularCategory == .apple)
         #expect(BodyShape.topHourglass.popularCategory == .hourglass)
     }
+
+    @Test func dirtyInputsYieldNoClassification() {
+        // NaN：所有比较为 false，旧实现会漏进兜底被当作真实判定 → 现在 nil
+        #expect(FFITClassifier.classifyOrNil(.init(bust: .nan, waist: 27, hip: 38, highHip: 33)) == nil)
+        #expect(FFITClassifier.classifyOrNil(.init(bust: 38, waist: 27, hip: 38, highHip: .nan)) == nil)
+        // waist==0：旧实现 highHipWaistRatio=.infinity 会把脏输入误导进 .spoon → 现在 nil
+        #expect(FFITClassifier.classifyOrNil(.init(bust: 36, waist: 0, hip: 40, highHip: 34)) == nil)
+        // 负值 / ±inf 同为脏输入
+        #expect(FFITClassifier.classifyOrNil(.init(bust: 36, waist: -27, hip: 38, highHip: 33)) == nil)
+        #expect(FFITClassifier.classifyOrNil(.init(bust: 36, waist: .infinity, hip: 38, highHip: 33)) == nil)
+    }
+
+    @Test func classifyFallsBackToExplicitRectangleOnDirtyInput() {
+        // 非可选 classify 保持签名兼容（ClosetModel 调用方），脏输入显式回退文档化默认 .rectangle。
+        #expect(FFITClassifier.classify(.init(bust: .nan, waist: 0, hip: .nan, highHip: 33)) == .rectangle)
+        // 干净输入不受影响
+        #expect(FFITClassifier.classify(.init(bust: 38, waist: 27, hip: 38.5, highHip: 33)) == .hourglass)
+    }
 }

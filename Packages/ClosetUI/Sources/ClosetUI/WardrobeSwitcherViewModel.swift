@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 import ClosetModel
+import ClosetCore
 
 /// 衣柜切换器（DESIGN §F7：全局一级导航）。
 /// 列当前 Person 名下衣柜、选中 active、新建。
@@ -12,6 +13,8 @@ public final class WardrobeSwitcherViewModel {
     public private(set) var active: Wardrobe?
     public var newName: String = ""
     public var newCity: String = ""
+    /// Customer flash after create (empty on success; save/validation failure is honest).
+    public private(set) var message: String = ""
 
     public init(person: Person, active: Wardrobe? = nil) {
         self.person = person
@@ -28,19 +31,29 @@ public final class WardrobeSwitcherViewModel {
         active = wardrobe
     }
 
-    /// 新建衣柜并设为 active。名非空。
+    /// 新建衣柜并设为 active。名非空。Save failure rolls back insert (no silent success).
+    /// Copy shares `WardrobeManageActions` (Me → Wardrobes list create path).
     @discardableResult
     public func createWardrobe(in context: ModelContext) -> Wardrobe? {
         let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return nil }
+        guard !name.isEmpty else {
+            message = WardrobeManageActions.needNameMessage
+            return nil
+        }
         let city = newCity.trimmingCharacters(in: .whitespacesAndNewlines)
         let w = Wardrobe(name: name, locationCity: city.isEmpty ? nil : city)
         w.owner = person
         context.insert(w)
-        try? context.save()
+        guard ModelSave.save(context, label: "wardrobeCreate") else {
+            context.delete(w)
+            message = WardrobeManageActions.createFailedMessage
+            AppLog.error("wardrobe create save failed", .app)
+            return nil
+        }
         active = w
         newName = ""
         newCity = ""
+        message = ""
         return w
     }
 }

@@ -44,4 +44,25 @@ struct OutfitGrammarTests {
             CandidateItem(id: "o2", slot: .outerwear, subtype: "blazer")])
         #expect(v.contains(.duplicateSubtype("blazer")))
     }
+
+    @Test func mixedCaseBlazersAreDuplicateSubtype() {
+        // subtype 大小写/空白不一致不得逃脱互斥（与 CandidateFilter 场合归一化一致）。
+        let v = OutfitGrammar.violations([
+            CandidateItem(id: "t", slot: .top),
+            CandidateItem(id: "b", slot: .bottom), shoes,
+            CandidateItem(id: "o1", slot: .outerwear, subtype: "Blazer"),
+            CandidateItem(id: "o2", slot: .outerwear, subtype: " blazer ")])
+        #expect(v.contains(.duplicateSubtype("blazer")))
+    }
+
+    @Test func whitespaceOnlySubtypeIsNotDuplicate() {
+        // 纯空白 subtype 归一化为 ""：视为无 subtype，两件空 subtype 外套不算重复。
+        let v = OutfitGrammar.violations([
+            CandidateItem(id: "t", slot: .top),
+            CandidateItem(id: "b", slot: .bottom), shoes,
+            CandidateItem(id: "o1", slot: .outerwear, subtype: "   "),
+            CandidateItem(id: "o2", slot: .outerwear, subtype: "\t\n")])
+        #expect(!v.contains(.duplicateSubtype("")))
+        #expect(v.isEmpty)
+    }
 }

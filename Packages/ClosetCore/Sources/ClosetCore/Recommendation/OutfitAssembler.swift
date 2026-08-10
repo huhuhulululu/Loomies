@@ -10,7 +10,7 @@ public struct Outfit: Sendable, Equatable {
 
 /// 组套器：从已过滤候选池产出 grammar-valid 搭配（DESIGN §F4）。
 /// 冷天（日间代表温度 < 60°F）且有外套则加层。确定性顺序，取前 maxOutfits。
-/// 注：当前为 O(tops×bottoms) 朴素枚举，适配百件级衣橱；大池的 beam search 优化留 v1.x。
+/// 注：当前为 O(基底×shoes×outerwear) 朴素枚举，适配百件级衣橱；大池的 beam search 优化留 v1.x。
 public enum OutfitAssembler {
 
     static let coldThresholdF = 60.0
@@ -32,10 +32,19 @@ public enum OutfitAssembler {
 
         var outfits: [Outfit] = []
         for base in bases {
-            var items = base
-            items.append(firstShoes)
-            if addOuter, let coat = outerwear.first { items.append(coat) }
-            if OutfitGrammar.isValid(items) { outfits.append(Outfit(items: items)) }
+            for s in shoes {
+                var items = base
+                items.append(s)
+                if addOuter {
+                    for coat in outerwear {
+                        var withCoat = items
+                        withCoat.append(coat)
+                        if OutfitGrammar.isValid(withCoat) { outfits.append(Outfit(items: withCoat)) }
+                    }
+                } else if OutfitGrammar.isValid(items) {
+                    outfits.append(Outfit(items: items))
+                }
+            }
         }
         outfits.sort { $0.itemIDs.joined(separator: ",") < $1.itemIDs.joined(separator: ",") }
         return Array(outfits.prefix(max(0, maxOutfits)))

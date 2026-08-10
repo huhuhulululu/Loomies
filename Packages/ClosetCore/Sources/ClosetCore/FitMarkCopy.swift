@@ -11,11 +11,15 @@ public enum FitMarkCopy {
         }
     }
 
+    /// Measurement/ease guide only — not photo try-on or “how it looks on you.”
     public static func detail(_ verdict: FitVerdict) -> String {
         switch verdict {
-        case .tight:  return "Based on your measurements, this piece may feel snug."
-        case .fitted: return "Based on your measurements, this should fit as intended."
-        case .loose:  return "Based on your measurements, this piece may feel roomy."
+        case .tight:
+            return "From your measures vs flat widths, ease may feel snug (proportion guide)."
+        case .fitted:
+            return "From your measures vs flat widths, ease looks balanced (proportion guide)."
+        case .loose:
+            return "From your measures vs flat widths, ease may feel roomy (proportion guide)."
         }
     }
 }

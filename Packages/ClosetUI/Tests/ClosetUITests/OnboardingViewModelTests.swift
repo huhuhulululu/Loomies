@@ -33,11 +33,34 @@ struct OnboardingViewModelTests {
         vm.city = "New York"
         #expect(vm.finish(in: ctx))
         #expect(vm.completed)
+        #expect(vm.message.isEmpty) // success: no error flash
         #expect(vm.person?.name == "Alex")
         #expect(vm.wardrobe?.locationCity == "New York")
         #expect(vm.wardrobe?.owner?.id == vm.person?.id)
         #expect(vm.bodyProfile == nil)
         #expect(!vm.bodyShapeReady)
+        // ModelSave commit: fetch proves not silent try?
+        let people = try ctx.fetch(FetchDescriptor<Person>())
+        #expect(people.contains { $0.name == "Alex" })
+    }
+
+    @Test func finishWithoutNameAndCitySurfacesHonestMessage() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        #expect(!vm.finish(in: ctx))
+        #expect(!vm.completed)
+        #expect(vm.message == OnboardingViewModel.needNameAndCityMessage)
+        #expect(vm.message.localizedCaseInsensitiveContains("name"))
+        #expect(vm.message.localizedCaseInsensitiveContains("city"))
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
+        // Save-fail toast is customer-facing + paints as failure (Welcome screen orange).
+        #expect(OnboardingViewModel.saveFailedMessage
+            .localizedCaseInsensitiveContains("couldn't finish"))
+        #expect(OnboardingViewModel.saveFailedMessage
+            .localizedCaseInsensitiveContains("try again"))
+        #expect(CustomerFlashStyle.isFailure(OnboardingViewModel.saveFailedMessage))
+        #expect(!CustomerFlashStyle.isFailure(OnboardingViewModel.needNameAndCityMessage))
+        #expect(OnboardingViewModel.saveFailedMessage != OnboardingViewModel.needNameAndCityMessage)
     }
 
     @Test func finishWithPartialBodyStillNoFFIT() throws {
@@ -49,6 +72,22 @@ struct OnboardingViewModelTests {
         #expect(vm.bodyProfile != nil)
         #expect(!vm.bodyShapeReady)
         #expect(vm.bodyShape == nil)
+    }
+
+    /// U3: double finish (double-tap / re-entry) must not duplicate Person/Wardrobe.
+    @Test func finishTwiceIsIdempotent() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "Alex"; vm.city = "New York"
+        #expect(vm.finish(in: ctx))
+        #expect(vm.finish(in: ctx))  // second call: early return true, no inserts
+        #expect(vm.completed)
+        #expect(vm.message.isEmpty)
+        let people = try ctx.fetch(FetchDescriptor<Person>())
+        #expect(people.count == 1)
+        #expect(people.first?.name == "Alex")
+        let wardrobes = try ctx.fetch(FetchDescriptor<Wardrobe>())
+        #expect(wardrobes.count == 1)
     }
 
     @Test func finishWithFullBodyActivatesFFIT() throws {
