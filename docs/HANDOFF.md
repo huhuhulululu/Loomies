@@ -1,6 +1,6 @@
 # 交接文档（HANDOFF）
 
-> 2026-08-10。CLI **580 tests** 全绿（D80 打磨波收敛）+ **TestFlight build 28 已上传**（D79）。
+> 2026-08-10。CLI **584 tests** 全绿（D80 打磨波收敛 + D81 后续波）+ **TestFlight build 28 已上传**（D79）。
 
 ## 一句话状态
 
@@ -12,7 +12,7 @@
 |----|------|------|
 | `Packages/ClosetCore` | FFIT / ease / F4 / copilot 补全 / WeatherProviding / **FitMarkCopy** / **TelemetryEvents** / BodyAvatarLayout / BodyMorph / OutfitAvatarComposer | **206 tests** |
 | `Packages/ClosetModel` | 7 实体 + §2.3 + 推荐/打卡 + Search/BodyProfile/FitMark/CalendarPlan + **OutfitDraft** + DataLifecycle（导出/删除全部） | **149 tests** |
-| `Packages/ClosetUI` | DesignSystem + Copilot（冷启动门）+ Onboarding/CheckIn/**Search/WardrobeSwitcher** + Calendar/Me 完整 View + Today 纸娃娃英雄区 | **187 tests** + build |
+| `Packages/ClosetUI` | DesignSystem + Copilot（冷启动门）+ Onboarding/CheckIn/**Search/WardrobeSwitcher** + Calendar/Me 完整 View + Today 纸娃娃英雄区 | **191 tests** + build |
 | `Packages/ClosetIntake` | F1 capability seam + VisionMattingService + **PHPicker/相机入库流水线**（AddPieceSheet，D39） | **38 tests** + Vision build |
 
 一键回归：

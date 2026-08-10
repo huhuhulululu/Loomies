@@ -499,3 +499,11 @@ body-first 打磨：胶囊假人仍是最大 fidelity gap。
 - **竞态收敛**：异步管线 generation counter，last-call-wins（Intake、hero 渲染、天气刷新）。
 - 同时固化：displaySlot hint 排序 / composer 确定性 / zIndex 钉死；删除级联与 deleteAll 走 `ModelSave`；导出 id tie-break 确定性；跨柜不变量所有入口强制。
 - 后续 waves 若需破例，须新增 ADR 说明，不得静默回退。
+
+## D81 [2026-08-10] 打磨波续：a11y / 测试隔离 / 文案统一 / 工具链
+D80 收敛后 4 波增量打磨（commit 粒度），不新增产品功能，仅抬升质量底线：
+- **文案统一（80081fb）**：失败 toast 标点统一、空态标题、「Load samples」文案、共享 stale-check-in 常量。
+- **a11y（b9d6ae1）**：入库拍摄 VO 可达（combine 手势不吞主按钮）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44`。
+- **测试质量（cf98879）**：`ITEM_IMAGE_ROOT` per-process 临时目录隔离；异步测试 rendezvous 替代 wall-clock sleep。
+- **工具链（bd8ca35）**：脚本可移植化、ASC 凭据走 env（`.env.asc`）、xcodegen 前置 guard。
+- 测试数 **580 → 584**（Core 206 / Model 149 / UI 191 / Intake 38；UI +4 来自 a11y 波）。

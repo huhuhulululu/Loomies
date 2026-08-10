@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨 loop 收敛，四包 **580 tests**（Core 206 / Model 149 / UI 187 / Intake 38）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），四包 **584 tests**（Core 206 / Model 149 / UI 191 / Intake 38）。
 
 ## 项目定位
 
@@ -99,7 +99,7 @@ Item[] / ScoredOutfit.itemIDs
 - 入库：`GarmentLayerNormalizer` 同画布（尊重 source-alpha：抠图半成品按 alpha 边界归一，不整画布铺满）；禁止槽位框再套一层（防胸前小贴纸）  
 - 空层：Today 英雄区胶囊提示，非静默裸体
 
-### 打磨不变量（Polish wave 2026-08，15 轮 loop 收敛，580 tests）
+### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），584 tests）
 
 - **保存失败原子性**：全部写路径走 `ModelSave`（snapshot → 操作 → 失败 `rollback` + 内存态恢复）；删除-only 失败留 dirty marker、不假装成功；测试中点保存禁止（no mid-operation saves）；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`（图文件删除同样原子 + orphan 清理）。
 - **脏输入即缺失**：NaN / 0 / 负值在 FitEngine / FFITClassifier / ColorHarmony / WeatherFit / BodyMorph / FFIT 一律按 nil / 中性处理，绝不做「自信兜底」。
@@ -108,6 +108,8 @@ Item[] / ScoredOutfit.itemIDs
 - **数据生命周期**：删除级联 person→profiles、wardrobe→plans+图文件、deleteAll 全走 `ModelSave`；导出确定性（id tie-break 排序）；`Item.barcode` 端到端（Intake 条码/OCR → `OpenProductFactsClient` 富化 → 持久化 → 导出）。
 - **跨柜不变量**在所有入口点强制（transfer / draft / search / copilot），非仅服务层。
 - **Hero/cinematic**：30fps 解码缓存、yaw 门控、VO 标签、空层门、writer-death 挂起修复、确定性帧 fallback。
+- **a11y**：入库拍摄 VO 可达（combine 手势不吞主按钮）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44`（`BodyAvatarView.swift:690,696`、`CopilotView.swift:75`）。
+- **测试隔离**：`ITEM_IMAGE_ROOT` per-process 临时目录（`ItemImageStore.swift:22-26`）；异步测试用 rendezvous 替代 wall-clock sleep。
 
 ## 模块依赖 DAG
 
