@@ -29,8 +29,9 @@ struct ClosetApp: App {
                 configurations: mainConfig, localConfig)
             AppLog.info("ModelContainer ready", .data)
         } catch {
-            AppLog.fault("ModelContainer failed: \(error)", .data)
-            fatalError("ModelContainer failed: \(error)")
+            // errRef：\(error) 全量 dump 携带容器路径（日志隐私不变量，与 Packages 同标准）
+            AppLog.fault("ModelContainer failed: \(AppLog.errRef(error))", .data)
+            fatalError("ModelContainer failed: \(AppLog.errRef(error))")
         }
     }
 
@@ -65,7 +66,7 @@ struct RootView: View {
                                     ForEach(wardrobes, id: \.id) { w in
                                         Button(w.name.isEmpty ? "Closet" : w.name) {
                                             activeID = w.id
-                                            AppLog.info("switch wardrobe \(w.name)", .app)
+                                            AppLog.info("switch wardrobe \(AppLog.ref(w.id))", .app)
                                         }
                                     }
                                 } label: {

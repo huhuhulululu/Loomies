@@ -9,7 +9,7 @@
 | 推荐引擎 + copilot 补全 + 四条正确性 | ClosetCore |
 | SwiftData 实体 + 转移/删除/不变量 | ClosetModel |
 | 打卡防重复 | CheckInService |
-| 检索 / 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
+| 检索（**柜内**；跨柜检索服务支持但 UI 恒钉当前柜，§2.3 承诺的全局检索未闭合）/ 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
 | 入库 seam + mock | ClosetIntake |
 | Onboarding / Today / Closet 网格 / 打卡 | ClosetUI |
 | **Today Avatar 首屏（方案 B）** | 大 BodyAvatar + 今日 look；Other looks 点选；非冷启动自动 full-auto |
@@ -42,7 +42,7 @@
 
 | 能力 | 说明 |
 |------|------|
-| PHPicker / 相机连拍 | **相册 + 相机** 已接线（`AddPieceSheet`）；真机验相机 |
+| PHPicker / 相机连拍 | 相册**单选** + 相机已接线（`AddPieceSheet`，`selectionLimit = 1`）；**批量多选/连拍队列未做**（§F1 承诺项）；真机验相机 |
 | Vision 抠图 / OCR 真推理 | **Vision 真机优先**（`IntakeServiceFactory`）；模拟器 mock |
 | 单品本地图 | `Item.localImageRelativePath` + `ItemImageStore`；网格/详情缩略图 |
 | WeatherKit | 协议已隔离；现主路径 Open-Meteo，真机可再实现 `WeatherProviding` |

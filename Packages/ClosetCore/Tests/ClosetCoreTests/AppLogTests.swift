@@ -79,6 +79,9 @@ struct AppLogTests {
             .deletingLastPathComponent()                    // Tests
             .deletingLastPathComponent()                    // ClosetCore
             .deletingLastPathComponent()                    // Packages
+        // app-shell 也在扫描范围（曾有 \(error) dump + 衣柜名入日志逃过 lint 的实例）
+        let appShellDir = packagesDir.deletingLastPathComponent()
+            .appendingPathComponent("app-shell", isDirectory: true)
         let forbidden = [
             #"\(item.name"#, #"\(wardrobe.name"#, #"\(outfit.name"#,
             #"\(location.name"#, #"\(dest.name"#, #"\(w.name"#,
@@ -86,10 +89,17 @@ struct AppLogTests {
         ]
         var violations: [String] = []
         let fm = FileManager.default
-        let en = fm.enumerator(at: packagesDir, includingPropertiesForKeys: nil)
-        while let url = en?.nextObject() as? URL {
-            guard url.pathExtension == "swift",
-                  url.path.contains("/Sources/") else { continue }
+        var files: [URL] = []
+        for root in [packagesDir, appShellDir] {
+            let en = fm.enumerator(at: root, includingPropertiesForKeys: nil)
+            while let url = en?.nextObject() as? URL {
+                guard url.pathExtension == "swift",
+                      url.path.contains("/Sources/") || url.path.contains("/app-shell/")
+                else { continue }
+                files.append(url)
+            }
+        }
+        for url in files {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
             where line.contains("AppLog.") {

@@ -1,6 +1,6 @@
 # 交接文档（HANDOFF）
 
-> 2026-08-10。CLI **586 tests** 全绿（D80 打磨波收敛 + D81 后续波）+ **TestFlight build 28 已上传**（D79）。
+> 2026-08-10。CLI **647 tests** 全绿（D80 打磨波收敛 + D81 后续波 + rounds 31-46 两波猎手 61 项收口）+ **TestFlight build 28 已上传**（D79）。测试数以 `docs/ARCHITECTURE.md` 为准。
 
 ## 一句话状态
 
@@ -25,7 +25,7 @@ done
 ## v1.0 核心回路（已闭合验证）
 
 ```
-Onboarding → 入库 → 管理（多衣柜/转移/删除/跨柜检索）
+Onboarding → 入库 → 管理（多衣柜/转移/删除/柜内检索）
                          ↓
               copilot（天气×场合×体型×近7天防重复）
                          ↓
