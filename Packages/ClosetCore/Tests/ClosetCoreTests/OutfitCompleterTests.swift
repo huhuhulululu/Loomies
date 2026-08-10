@@ -23,6 +23,22 @@ struct OutfitCompleterTests {
         #expect(out[0].outfit.itemIDs == ["b", "myTop", "sh"])
     }
 
+    /// 无锚定 full-auto：池内裙装与上下装两种骨架都要产出（组合枝拆分不得漏形态），
+    /// 且不出现裙 + 上/下装的非法混搭。
+    @Test func fullAutoYieldsBothDressAndSeparatesShapes() {
+        let pool = [
+            item("d", .dress), item("t", .top), item("b", .bottom), item("sh", .shoes),
+        ]
+        let out = OutfitCompleter.complete(
+            anchors: [], pool: pool, context: ctx, scoring: sctx, maxSuggestions: 10)
+        let idSets = out.map { Set($0.outfit.itemIDs) }
+        #expect(idSets.contains(Set(["d", "sh"])))
+        #expect(idSets.contains(Set(["t", "b", "sh"])))
+        for s in out {
+            #expect(OutfitGrammar.isValid(s.outfit.items))
+        }
+    }
+
     /// 端到端置换不变性：锚定集顺序（SwiftData 关系数组不保序）不得改变
     /// 建议列表的内容、顺序、分数与理由文案。
     @Test func suggestionsInvariantToAnchorOrder() {

@@ -32,6 +32,15 @@ struct AvatarImageCacheTests {
         #expect(cache.cachedImage(forKey: "ok")! != nil)
     }
 
+    /// 非有限/非正宽度（首帧布局瞬态）安全降级为 nil，不 trap（Int(NaN) 陷阱）。
+    @Test func morphCacheSurvivesNonFiniteWidth() {
+        let cache = BodyMorphImageCache()
+        #expect(cache.image(named: "x", morph: .neutral, width: .nan) == nil)
+        #expect(cache.image(named: "x", morph: .neutral, width: .infinity) == nil)
+        #expect(cache.image(named: "x", morph: .neutral, width: 0) == nil)
+        #expect(cache.image(named: "x", morph: .neutral, width: -5) == nil)
+    }
+
     /// morph 缓存对 miss（资产缺失）也要负缓存：缺资产不得每 tick 重走读盘+解码。
     @Test func morphCacheCachesMisses() {
         let cache = BodyMorphImageCache()

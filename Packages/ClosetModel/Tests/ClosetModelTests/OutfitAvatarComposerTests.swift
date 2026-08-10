@@ -40,13 +40,35 @@ struct OutfitAvatarComposerTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let bare = Item(name: "bare"); bare.slotRaw = "top"; bare.wardrobe = w; ctx.insert(bare)
-        let pic = Item(name: "pic"); pic.slotRaw = "top"; pic.wardrobe = w
-        pic.localImageRelativePath = "ItemImages/x.jpg"; ctx.insert(pic)
+        let pic = Item(name: "pic"); pic.slotRaw = "top"; pic.wardrobe = w; ctx.insert(pic)
+        // 真实文件（存在性判定，不是路径非空判定）
+        let rel = ItemImageStore.save(data: Data([0x1]), for: pic.id, ext: "jpg")
+        pic.localImageRelativePath = rel
         try ctx.save()
+        defer { ItemImageStore.delete(relativePath: rel) }
         let layers = OutfitAvatarComposer.layers(from: [bare, pic])
         #expect(layers.count == 1)
-        #expect(layers[0].localRelativePath == "ItemImages/x.jpg")
+        #expect(layers[0].localRelativePath == rel)
         #expect(layers[0].id.contains(pic.id.uuidString))
+    }
+
+    /// 反向孤儿不得劫持同槽择优：死路径（文件已消失）不算「有图」，
+    /// 不得击败真有图的同槽单品把整套 look 渲染成占位块。
+    @Test func deadPathLosesToRealImageInSlotContention() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let real = Item(name: "real"); real.slotRaw = "top"; real.wardrobe = w; ctx.insert(real)
+        let rel = ItemImageStore.save(data: Data([0x1]), for: real.id, ext: "jpg")
+        real.localImageRelativePath = rel
+        let orphan = Item(name: "orphan"); orphan.slotRaw = "top"; orphan.wardrobe = w
+        orphan.localImageRelativePath = "ItemImages/gone-\(UUID().uuidString).jpg"
+        ctx.insert(orphan)
+        try ctx.save()
+        defer { ItemImageStore.delete(relativePath: rel) }
+        // real 在前、orphan 在后：旧「路径非空即有图 + 同有图后写覆盖」会让 orphan 赢
+        let layers = OutfitAvatarComposer.layers(from: [real, orphan])
+        #expect(layers.count == 1)
+        #expect(layers[0].localRelativePath == rel)
     }
 
     @Test func workLookStacksTeeBlazerTrousersShoes() throws {
@@ -95,17 +117,23 @@ struct OutfitAvatarComposerTests {
     }
 
     @Test func sameSlotBothWithImagesLaterWins() throws {
-        // 同槽都有图 → 数组中靠后的覆盖（outfit 顺序靠调用方保证）
+        // 同槽都有图（真实文件）→ 数组中靠后的覆盖（outfit 顺序靠调用方保证）
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
-        let first = Item(name: "first"); first.slotRaw = "top"; first.wardrobe = w
-        first.localImageRelativePath = "ItemImages/first.png"; ctx.insert(first)
-        let second = Item(name: "second"); second.slotRaw = "top"; second.wardrobe = w
-        second.localImageRelativePath = "ItemImages/second.png"; ctx.insert(second)
+        let first = Item(name: "first"); first.slotRaw = "top"; first.wardrobe = w; ctx.insert(first)
+        let rel1 = ItemImageStore.save(data: Data([0x1]), for: first.id, ext: "png")
+        first.localImageRelativePath = rel1
+        let second = Item(name: "second"); second.slotRaw = "top"; second.wardrobe = w; ctx.insert(second)
+        let rel2 = ItemImageStore.save(data: Data([0x2]), for: second.id, ext: "png")
+        second.localImageRelativePath = rel2
         try ctx.save()
+        defer {
+            ItemImageStore.delete(relativePath: rel1)
+            ItemImageStore.delete(relativePath: rel2)
+        }
         let layers = OutfitAvatarComposer.layers(from: [first, second])
         #expect(layers.count == 1)
-        #expect(layers[0].localRelativePath == "ItemImages/second.png")
+        #expect(layers[0].localRelativePath == rel2)
         #expect(layers[0].id.contains(second.id.uuidString))
     }
 
@@ -115,13 +143,15 @@ struct OutfitAvatarComposerTests {
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let empty = Item(name: "empty"); empty.slotRaw = "bottom"; empty.wardrobe = w
         empty.localImageRelativePath = ""; ctx.insert(empty)
-        let pic = Item(name: "pic"); pic.slotRaw = "bottom"; pic.wardrobe = w
-        pic.localImageRelativePath = "ItemImages/pants.png"; ctx.insert(pic)
+        let pic = Item(name: "pic"); pic.slotRaw = "bottom"; pic.wardrobe = w; ctx.insert(pic)
+        let rel = ItemImageStore.save(data: Data([0x1]), for: pic.id, ext: "png")
+        pic.localImageRelativePath = rel
         try ctx.save()
+        defer { ItemImageStore.delete(relativePath: rel) }
         // 空串在后 → 仍被有图的覆盖
         let layers = OutfitAvatarComposer.layers(from: [pic, empty])
         #expect(layers.count == 1)
-        #expect(layers[0].localRelativePath == "ItemImages/pants.png")
+        #expect(layers[0].localRelativePath == rel)
         #expect(layers[0].id.contains(pic.id.uuidString))
     }
 

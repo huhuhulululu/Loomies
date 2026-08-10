@@ -69,6 +69,12 @@ public enum ItemImageStore {
         return try? Data(contentsOf: url)
     }
 
+    /// 存在性检查（stat，不读内容）：同槽择优等热路径用，别用 loadData 全量读。
+    public static func fileExists(relativePath: String?) -> Bool {
+        guard let url = absoluteURL(relativePath: relativePath) else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
     public static func delete(relativePath: String?) {
         guard let url = absoluteURL(relativePath: relativePath) else { return }
         try? FileManager.default.removeItem(at: url)

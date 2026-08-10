@@ -34,7 +34,10 @@ enum BodyMorphRaster {
         let srcStride = srcW * 4
         guard srcW > 2, srcH > 2 else { return nil }
 
-        let outW = max(64, min(1536, Int(outputWidth.rounded(.toNearestOrAwayFromZero))))
+        // 浮点域先钳掉非有限值再转 Int：Int(NaN/∞) 是运行时陷阱（GeometryReader
+        // 首帧/无约束轴可给 0/∞）。
+        let outW = Int(min(1536, max(64, outputWidth.isFinite ? outputWidth : 64))
+            .rounded(.toNearestOrAwayFromZero))
         let outH = max(96, Int((CGFloat(outW) * CGFloat(srcH) / CGFloat(srcW)).rounded(.toNearestOrAwayFromZero)))
         let m = morph.clamped()
         // 高度不在像素行里做非均匀 warp（会整段纵移乳贴 →「乱飘」）；
@@ -271,8 +274,10 @@ final class BodyMorphImageCache {
     private(set) var renderAttempts = 0
 
     func image(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
+        // 非有限/非正宽度（首帧布局瞬态）直接返回 nil，不缓存也不 trap（Int(NaN) 陷阱）。
+        guard width.isFinite, width > 0 else { return nil }
         let m = morph.clamped()
-        let wKey = Int(width.rounded())
+        let wKey = Int(min(8192, width).rounded())
         // v3：乳贴带扩宽 + 无纵向 height warp
         let key = "v3|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
         if let box = cache.object(forKey: key as NSString) { return box.image }

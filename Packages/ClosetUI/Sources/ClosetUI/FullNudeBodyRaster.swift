@@ -232,8 +232,10 @@ public struct FullNudeBodyImageView: View {
     }
 
     public var body: some View {
-        let h = max(96, Int(logicalWidth * 1.5))
-        let w = max(64, Int(logicalWidth))
+        // 浮点域先钳非有限值再转 Int（Int(NaN/∞) 陷阱；GeometryReader 首帧可给 0/∞）
+        let safeW = min(4096, max(64, logicalWidth.isFinite ? logicalWidth : 64))
+        let h = max(96, Int(safeW * 1.5))
+        let w = Int(safeW)
         let img = FullNudeBodyRaster.makeCGImage(
             sex: sex,
             phenotype: phenotype,
