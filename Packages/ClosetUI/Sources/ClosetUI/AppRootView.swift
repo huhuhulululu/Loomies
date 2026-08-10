@@ -517,9 +517,18 @@ public struct ClosetGridView: View {
                 let title = ClosetGridEmptyCopy.title(isFacetFiltering: isFacetFiltering)
                 let description = emptyGridDescription
                 ContentUnavailableView {
-                    Label(title, systemImage: "square.grid.2x2")
-                } description: {
-                    Text(description)
+                    // A11Y: .combine only on the text column — the action
+                    // buttons stay separate, activatable VoiceOver targets
+                    // (same fix class as IntakeView empty state).
+                    VStack(spacing: 8) {
+                        Label(title, systemImage: "square.grid.2x2")
+                        Text(description)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(title). \(description)")
                 } actions: {
                     if isFacetFiltering {
                         Button("Clear filters") {
@@ -540,8 +549,6 @@ public struct ClosetGridView: View {
                         Button("Add piece") { showIntake = true }
                     }
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(title). \(description)")
             }
         }
     }

@@ -478,6 +478,9 @@ public struct BodyAvatarView: View {
                     } label: {
                         Image(systemName: "chevron.left.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
+                            // A11Y: grow tap target to 44pt without changing the .title2 visual.
+                            .frame(width: Self.orbitChevronHitArea, height: Self.orbitChevronHitArea)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Self.orbitStepAccessibilityLabel(direction: .previous))
@@ -497,6 +500,9 @@ public struct BodyAvatarView: View {
                     } label: {
                         Image(systemName: "chevron.right.circle.fill")
                             .font(.title2).foregroundStyle(DS.accent)
+                            // A11Y: grow tap target to 44pt without changing the .title2 visual.
+                            .frame(width: Self.orbitChevronHitArea, height: Self.orbitChevronHitArea)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(Self.orbitStepAccessibilityLabel(direction: .next))
@@ -694,6 +700,12 @@ public struct BodyAvatarView: View {
     /// A11Y: orbit dots stay 5–7pt visually but are the only discrete steppers
     /// in compactChrome — the tap target must be at least this large (pt).
     nonisolated static let orbitDotHitArea: CGFloat = 24
+
+    /// A11Y: hero orbit chevrons stay .title2 visually but are the primary
+    /// angle steppers — the tap target meets the 44pt HIG minimum (same
+    /// floor as lookPagerChevronHitArea). `nonisolated` so tests can pin
+    /// without MainActor hops.
+    nonisolated static let orbitChevronHitArea: CGFloat = 44
 
     private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
         var tried: [BodyAvatarYaw] = [yaw, yaw.stepped(by: 1), yaw.stepped(by: -1)]

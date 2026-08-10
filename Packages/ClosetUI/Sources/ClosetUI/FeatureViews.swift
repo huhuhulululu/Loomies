@@ -502,6 +502,9 @@ public struct BodyProfileView: View {
             Spacer()
             Button { step(vm.usesMetric ? -1 : -0.5) } label: {
                 Image(systemName: "minus.circle.fill").foregroundStyle(DS.accent)
+                    // A11Y: grow tap target to 44pt without changing the icon visual.
+                    .frame(width: Self.measureStepperHitArea, height: Self.measureStepperHitArea)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Self.measureStepAccessibilityLabel(title: title, direction: .decrease))
@@ -511,6 +514,9 @@ public struct BodyProfileView: View {
                 .accessibilityLabel("\(title) \(vm.displayValue(inches: value)) \(vm.unitLabel)")
             Button { step(vm.usesMetric ? 1 : 0.5) } label: {
                 Image(systemName: "plus.circle.fill").foregroundStyle(DS.accent)
+                    // A11Y: grow tap target to 44pt without changing the icon visual.
+                    .frame(width: Self.measureStepperHitArea, height: Self.measureStepperHitArea)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Self.measureStepAccessibilityLabel(title: title, direction: .increase))
@@ -526,6 +532,11 @@ public struct BodyProfileView: View {
     enum MeasureStepDirection: Sendable {
         case decrease, increase
     }
+
+    /// A11Y: measure steppers keep the small icon visual but the tap target
+    /// meets the 44pt HIG minimum. `nonisolated` so tests can pin without
+    /// MainActor hops.
+    nonisolated static let measureStepperHitArea: CGFloat = 44
 
     static func measureStepAccessibilityLabel(
         title: String, direction: MeasureStepDirection

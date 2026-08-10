@@ -484,3 +484,14 @@ struct AddPiecePostConfirmFlashTests {
         }
     }
 }
+
+/// UI-A2 — measure stepper +/- icon buttons keep the small icon visual but
+/// the tap target must meet the 44pt HIG minimum (lookPagerChevron parity).
+@Suite("BodyProfileView.measureStepperHitArea")
+struct MeasureStepperHitAreaTests {
+    @Test func hitAreaMeetsHIGMinimum() {
+        #expect(BodyProfileView.measureStepperHitArea >= 44)
+        // Icon visual is ~22pt — hit area must grow well past it.
+        #expect(BodyProfileView.measureStepperHitArea > 22)
+    }
+}

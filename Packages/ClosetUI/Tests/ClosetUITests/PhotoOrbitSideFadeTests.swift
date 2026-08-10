@@ -235,4 +235,12 @@ struct PhotoOrbitSideFadeTests {
         // Visual dot sizes the hit area wraps (regression guard vs. shrink).
         #expect(BodyAvatarView.orbitDotHitArea > 7)
     }
+
+    /// A11Y: hero orbit chevrons keep the .title2 visual but must meet the
+    /// 44pt HIG minimum hit target (same floor as lookPagerChevronHitArea).
+    @Test func orbitChevronHitAreaMeetsHIGMinimum() {
+        #expect(BodyAvatarView.orbitChevronHitArea >= 44)
+        // Visual chevron is .title2 (~28pt) — hit area must grow past it.
+        #expect(BodyAvatarView.orbitChevronHitArea > 28)
+    }
 }
