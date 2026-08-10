@@ -33,6 +33,13 @@ public enum StorageLocationService {
                 return nil
             }
         }
+        // 同级重名拒绝（大小写不敏感）：同名兄弟在 Picker 里不可区分；跨 parent 同名合法。
+        let siblings = parent?.children
+            ?? (wardrobe.locations ?? []).filter { $0.parent == nil }
+        if siblings.contains(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+            AppLog.error("location create duplicate sibling blocked \(trimmedName)", .data)
+            return nil
+        }
         let loc = StorageLocation(name: trimmedName)
         loc.wardrobe = wardrobe
         loc.parent = parent
@@ -72,12 +79,15 @@ public enum StorageLocationService {
 
     /// 扁平列出某柜位置（深度优先）。
     public static func list(in wardrobe: Wardrobe) -> [StorageLocation] {
+        // 同名按 id 决胜（与导出快照同约定）：Swift sort 不稳定，同名兄弟顺序不得随 fetch 漂移。
         let roots = (wardrobe.locations ?? []).filter { $0.parent == nil }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
         var out: [StorageLocation] = []
         func walk(_ loc: StorageLocation) {
             out.append(loc)
-            for c in (loc.children ?? []).sorted(by: { $0.name < $1.name }) { walk(c) }
+            for c in (loc.children ?? []).sorted(by: {
+                ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString)
+            }) { walk(c) }
         }
         for r in roots { walk(r) }
         return out

@@ -18,11 +18,12 @@ public final class WardrobeSwitcherViewModel {
 
     public init(person: Person, active: Wardrobe? = nil) {
         self.person = person
-        self.active = active ?? (person.wardrobes ?? []).sorted { $0.name < $1.name }.first
+        self.active = active ?? (person.wardrobes ?? [])
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }.first
     }
 
     public var wardrobes: [Wardrobe] {
-        (person.wardrobes ?? []).sorted { $0.name < $1.name }
+        (person.wardrobes ?? []).sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
     public func select(_ wardrobe: Wardrobe) {
@@ -38,6 +39,10 @@ public final class WardrobeSwitcherViewModel {
         let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             message = WardrobeManageActions.needNameMessage
+            return nil
+        }
+        guard !WardrobeManageActions.nameConflicts(name, among: person.wardrobes ?? []) else {
+            message = WardrobeManageActions.duplicateNameMessage
             return nil
         }
         let city = newCity.trimmingCharacters(in: .whitespacesAndNewlines)

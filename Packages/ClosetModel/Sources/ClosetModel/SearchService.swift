@@ -40,7 +40,7 @@ public enum SearchService {
             }
             return true
         }
-        .sorted { $0.name < $1.name }
+        .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
     /// Closet browse / search facet: status + type via `GarmentSlot.resolved` (displaySlot truth).

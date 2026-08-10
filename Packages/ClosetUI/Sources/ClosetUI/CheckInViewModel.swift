@@ -22,7 +22,8 @@ public final class CheckInViewModel {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var availableItems: [Item] {
-        (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.sorted { $0.name < $1.name }
+        (wardrobe.items ?? []).filter { $0.statusRaw == "available" }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
     public func isSelected(_ item: Item) -> Bool { selectedIDs.contains(item.id) }

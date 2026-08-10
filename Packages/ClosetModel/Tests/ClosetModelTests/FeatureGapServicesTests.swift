@@ -165,6 +165,31 @@ struct FeatureGapServicesTests {
         #expect(loc?.name == "Rod")
     }
 
+    /// 同级重名存放位置在 Picker 里不可区分：同 parent 拒绝，跨 parent 允许。
+    @Test func storageLocationCreateRejectsDuplicateSiblingName() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        try ctx.save()
+        let rod = StorageLocationService.create(name: "Rod", in: w, context: ctx)
+        #expect(rod != nil)
+        // 同级（根层）重名拒绝（大小写/空白不敏感）
+        #expect(StorageLocationService.create(name: " rod ", in: w, context: ctx) == nil)
+        // 不同 parent 下同名允许（"Left shelf/Box" 与 "Right shelf/Box"）
+        let shelf = StorageLocationService.create(name: "Shelf", in: w, context: ctx)
+        #expect(StorageLocationService.create(name: "Rod", in: w, parent: shelf, context: ctx) != nil)
+    }
+
+    /// 同级同名兄弟节点（历史数据）list 顺序按 (name,id) 决胜，不随 fetch 顺序漂移。
+    @Test func storageLocationListSameNameStableByID() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let l1 = StorageLocation(name: "Box"); l1.wardrobe = w; ctx.insert(l1)
+        let l2 = StorageLocation(name: "Box"); l2.wardrobe = w; ctx.insert(l2)
+        try ctx.save()
+        let expected = [l1, l2].sorted { $0.id.uuidString < $1.id.uuidString }.map(\.id)
+        #expect(StorageLocationService.list(in: w).map(\.id) == expected)
+    }
+
     @Test func saveFavoriteFromIDsAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

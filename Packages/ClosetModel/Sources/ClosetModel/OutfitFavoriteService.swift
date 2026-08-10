@@ -46,6 +46,6 @@ public enum OutfitFavoriteService {
 
     public static func favorites(in wardrobe: Wardrobe) -> [Outfit] {
         (wardrobe.outfits ?? []).filter { $0.isFavorite && !$0.permanentlyMissing }
-            .sorted { $0.name < $1.name }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 }

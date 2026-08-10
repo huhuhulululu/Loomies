@@ -31,7 +31,8 @@ public final class TransferViewModel {
         let all = (try? context.fetch(FetchDescriptor<Wardrobe>())) ?? []
         destinations = all
             .filter { $0.id != item.wardrobe?.id }
-            .sorted { $0.name < $1.name }
+            // 同名按 id 决胜：默认目的地不得因排序不稳定漂移到另一个同名柜
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
         selectedDestinationID = destinations.first?.id
         didTransfer = false
     }

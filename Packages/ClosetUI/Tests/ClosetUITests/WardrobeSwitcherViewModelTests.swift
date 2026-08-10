@@ -30,6 +30,67 @@ struct WardrobeSwitcherViewModelTests {
         #expect(vm.active?.id == bkk.id)
     }
 
+    /// 重名衣柜会让默认目的地/active 漂移且 UI 无法区分：create 拒绝同名（大小写/空白不敏感）。
+    @Test func createWardrobeRejectsDuplicateName() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "Alex"); ctx.insert(person)
+        let trip = Wardrobe(name: "Trip"); trip.owner = person; ctx.insert(trip)
+        try ctx.save()
+        let vm = WardrobeSwitcherViewModel(person: person)
+        for dup in ["Trip", "trip", " TRIP "] {
+            vm.newName = dup
+            #expect(vm.createWardrobe(in: ctx) == nil)
+            #expect(vm.message == WardrobeManageActions.duplicateNameMessage)
+        }
+        #expect(vm.wardrobes.count == 1)
+        // 不同名正常创建
+        vm.newName = "Trip 2"
+        #expect(vm.createWardrobe(in: ctx) != nil)
+    }
+
+    /// Manage 入口同守卫（两条 create 路径同一标准）。
+    @Test func manageCreateRejectsDuplicateName() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "Alex"); ctx.insert(person)
+        let trip = Wardrobe(name: "Trip"); trip.owner = person; ctx.insert(trip)
+        try ctx.save()
+        let (msg, w) = WardrobeManageActions.create(
+            name: " trip ", city: "", existingPeople: [person], in: ctx)
+        #expect(w == nil)
+        #expect(msg == WardrobeManageActions.duplicateNameMessage)
+        #expect((person.wardrobes ?? []).count == 1)
+    }
+
+    /// 重命名撞其他衣柜名拒绝；重命名为自己当前名（大小写调整）放行。
+    @Test func renameRejectsOtherWardrobesName() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "Alex"); ctx.insert(person)
+        let trip = Wardrobe(name: "Trip"); trip.owner = person; ctx.insert(trip)
+        let home = Wardrobe(name: "Home"); home.owner = person; ctx.insert(home)
+        try ctx.save()
+        #expect(!ProfileLabels.applyWardrobeName("trip", to: home, in: ctx))
+        #expect(home.name == "Home")
+        // 自身大小写调整不是冲突
+        #expect(ProfileLabels.applyWardrobeName("TRIP", to: trip, in: ctx))
+        #expect(trip.name == "TRIP")
+    }
+
+    /// 同名实体排序确定性：(name, id) 决胜，与导出快照同约定。
+    @Test func sameNameWardrobesSortStableByID() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "Alex"); ctx.insert(person)
+        let a = Wardrobe(name: "Trip"); a.owner = person; ctx.insert(a)
+        let b = Wardrobe(name: "Trip 2"); b.owner = person; ctx.insert(b)
+        try ctx.save()
+        // 改成同名（绕过 create 守卫，模拟历史数据）
+        b.name = "Trip"
+        try ctx.save()
+        let vm = WardrobeSwitcherViewModel(person: person)
+        let expected = [a, b].sorted { $0.id.uuidString < $1.id.uuidString }.map(\.id)
+        #expect(vm.wardrobes.map(\.id) == expected)
+        #expect(vm.active?.id == expected.first)
+    }
+
     @Test func createWardrobeSetsActive() throws {
         let ctx = try makeContext()
         let person = Person(name: "Alex"); ctx.insert(person)

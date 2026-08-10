@@ -9,6 +9,16 @@ import ClosetCore
 public enum WardrobeManageActions {
     public static let needNameMessage = "Enter a closet name."
     public static let createFailedMessage = "Couldn't create closet — try again"
+    /// 重名衣柜会让 Transfer 默认目的地 / active 衣柜漂移且 UI 无法区分。
+    public static let duplicateNameMessage = "A closet with that name already exists."
+
+    /// 同 owner 下同名（大小写/空白不敏感）。excluding 用于重命名时排除自身。
+    public static func nameConflicts(
+        _ name: String, among wardrobes: [Wardrobe], excluding: Wardrobe? = nil
+    ) -> Bool {
+        guard let t = TextNormalize.blankToNil(name)?.lowercased() else { return false }
+        return wardrobes.contains { $0.id != excluding?.id && $0.name.lowercased() == t }
+    }
     /// List meta when closet has no city (Title Case; not lowercase “no city”).
     public static let noCityCaption = "No city"
     /// Empty “Your closets” section — recovery is Add closet below (no fake sync).
@@ -34,6 +44,10 @@ public enum WardrobeManageActions {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
             return (needNameMessage, nil)
+        }
+        if let owner = existingPeople.first,
+           nameConflicts(name, among: owner.wardrobes ?? []) {
+            return (duplicateNameMessage, nil)
         }
         var autoCreatedPerson: Person?
         let person = existingPeople.first ?? {

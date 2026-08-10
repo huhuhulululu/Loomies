@@ -588,6 +588,12 @@ public enum ProfileLabels {
     ) -> Bool {
         let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return false }
+        // 撞同 owner 其他衣柜名拒绝（自身大小写调整不算冲突）——与 create 同守卫。
+        if WardrobeManageActions.nameConflicts(
+            t, among: wardrobe.owner?.wardrobes ?? [], excluding: wardrobe) {
+            AppLog.error("wardrobe rename duplicate blocked \(t)", .data)
+            return false
+        }
         let old = wardrobe.name
         wardrobe.name = t
         guard ModelSave.save(context, label: "closetName") else {

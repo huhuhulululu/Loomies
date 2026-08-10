@@ -84,7 +84,8 @@ public final class CopilotViewModel {
     }
 
     public var availableItems: [Item] {
-        (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.sorted { $0.name < $1.name }
+        (wardrobe.items ?? []).filter { $0.statusRaw == "available" }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
     public var isColdStart: Bool {
