@@ -8,6 +8,20 @@ import Foundation
 /// 用户扫到的商品条码发往 Open*Facts）。
 struct ComplianceCopyTests {
 
+    /// 录 URL 的假传输：只记账、永远抛错（不联网）。
+    actor URLLedger {
+        private(set) var urls: [URL] = []
+        func record(_ url: URL) { urls.append(url) }
+    }
+
+    struct RecordingTransport: PublicAPITransport {
+        let ledger = URLLedger()
+        func get(url: URL) async throws -> Data {
+            await ledger.record(url)
+            throw PublicAPIError.notFound
+        }
+    }
+
     /// 出网面对账：客户端实际会请求的每个 host 都必须在披露清单里。
     /// 新增出网面而文案未更新 → 本测试红（比「禁用词」黑名单强得多）。
     @Test func everyOutboundHostIsDisclosed() {
@@ -16,11 +30,33 @@ struct ComplianceCopyTests {
         for host in OpenProductFactsClient().hosts {
             #expect(disclosedHosts.contains(host), Comment(rawValue: "undisclosed host: \(host)"))
         }
-        // 天气（Open-Meteo：geocoding + forecast）
-        for host in ["geocoding-api.open-meteo.com", "api.open-meteo.com"] {
+        // 天气（Open-Meteo：geocoding + forecast）——取实现的真值，不手抄字面量
+        for host in OpenMeteoWeatherProvider.hosts {
             #expect(disclosedHosts.contains(host), Comment(rawValue: "undisclosed host: \(host)"))
         }
         #expect(!NetworkSurfaceCatalog.surfaces.isEmpty)
+    }
+
+    /// 行为级对账：让两个客户端**真的发一次请求**，录下它们请求的 URL，
+    /// 断言每个 host 都已披露。此前天气侧是测试里手抄的字面量数组，与实现互不引用——
+    /// 改 host 或加 endpoint 时对账不会红，而 D86 的卖点正是「新增出网面即红」。
+    @Test func hostsActuallyRequestedAtRuntimeAreDisclosed() async throws {
+        let spy = RecordingTransport()
+        let disclosed = Set(NetworkSurfaceCatalog.surfaces.flatMap(\.hosts))
+
+        // 天气：geocode + forecast 两个 endpoint 都要走到
+        let weather = OpenMeteoWeatherProvider(transport: spy)
+        _ = try? await weather.geocode(name: "Austin")
+        _ = try? await weather.forecastDay(latitude: 30, longitude: -97, on: Date())
+        // 条码：三个 Facts 域名依次尝试
+        let facts = OpenProductFactsClient(transport: spy)
+        _ = try? await facts.lookup(barcode: "0123456789012")
+
+        let requested = Set(await spy.ledger.urls.compactMap { $0.host })
+        #expect(requested.count >= 4, Comment(rawValue: "只录到 \(requested.sorted())"))
+        for host in requested {
+            #expect(disclosed.contains(host), Comment(rawValue: "undisclosed at runtime: \(host)"))
+        }
     }
 
     /// 每条出网面都要说清「发什么 / 何时发 / 能否关」——不得只列域名。

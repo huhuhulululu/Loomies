@@ -58,7 +58,8 @@ public struct QuickAddDraft: Equatable, Sendable {
         item.statusRaw = "available"
         if let swatch = GarmentColorPalette.entry(id: colorPaletteID) {
             item.colorIsNeutral = swatch.isNeutral
-            item.colorHue = swatch.isNeutral ? nil : swatch.hueDegrees
+            // 中性色也存 hue（色板槽位，打分层忽略）——否则回读丢选中态
+            item.colorHue = swatch.hueDegrees
         } else {
             // 未选颜色：保持「未知」而非谎报中性（Adapter 的中性语义只给显式中性）
             item.colorIsNeutral = false
@@ -74,6 +75,8 @@ public struct QuickAddDraft: Equatable, Sendable {
             return nil
         }
         AppLog.info("quickAdd item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .intake)
+        // 遥测：槽位是白名单键（无名称、无图像、无身体维度）；默认关闭且当前无 sink
+        TelemetryGate.shared.track(.itemConfirmed, payload: ["slot": item.slotRaw])
         return item
     }
 }

@@ -106,6 +106,10 @@ public final class OnboardingViewModel {
         self.wardrobe = wardrobe
         self.bodyProfile = profile
         self.completed = true
+        TelemetryGate.shared.track(.onboardingCompleted, payload: [
+            "has_body_complete": String(
+                bustInches != nil && waistInches != nil && hipInches != nil),
+        ])
         message = ""
         return true
     }

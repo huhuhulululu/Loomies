@@ -39,7 +39,10 @@ public final class CopilotViewModel {
 
     public var lookCount: Int { suggestions.count }
 
+    /// 用户选定某个候选（wear-as-is 路径入口）。
     public func selectSuggestion(at index: Int) {
+        TelemetryGate.shared.track(.copilotAccepted,
+                                   payload: ["mode": fullAuto ? "auto" : "anchored"])
         guard !suggestions.isEmpty else {
             selectedSuggestionIndex = 0
             return
@@ -98,6 +101,9 @@ public final class CopilotViewModel {
         if anchorIDs.contains(item.id) { anchorIDs.remove(item.id) }
         else { anchorIDs.insert(item.id) }
         AppLog.debug("anchor toggle item=\(AppLog.ref(item.id)) now=\(anchorIDs.count)", .copilot)
+        // 换某件/重配 = tweak（只记模式，不记是哪件）
+        TelemetryGate.shared.track(.copilotTweaked,
+                                   payload: ["mode": fullAuto ? "auto" : "anchored"])
     }
 
     public func clearAnchors() {
@@ -160,7 +166,15 @@ public final class CopilotViewModel {
 
     public func refresh() {
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            // 遥测：模式 / 场合 / 候选数——都是非身份字段（白名单外的键会被丢弃）
+            TelemetryGate.shared.track(.copilotRefresh, payload: [
+                "mode": fullAuto ? "auto" : "anchored",
+                "occasion": occasion,
+                "suggestion_count": String(suggestions.count),
+            ])
+        }
         let t0 = CFAbsoluteTimeGetCurrent()
         let dbg = DebugSettings.shared
         let forceAnchor = isColdStart || !fullAuto

@@ -296,6 +296,8 @@ public enum DataLifecycleService {
         public var wipedItemImages: Bool
         /// 请求了删图但未全部删成（区分「未请求」——那不是失败）。
         public var imageWipeFailed: Bool = false
+        /// 身体数据同意与遥测开关已归零（默认 false 兼容旧回执解码）。
+        public var resetConsent: Bool = false
 
         /// Customer toast after Delete all — must mention body profiles when wiped (matches confirm copy).
         public var summaryLine: String {
@@ -322,11 +324,18 @@ public enum DataLifecycleService {
     /// 二次确认后调用：清空全部用户实体 + 可选本地单品图目录。
     /// WearRecord 一并删除（与单品级联删不同——整库重置，不保留统计）。
     /// CloudKit 私有库若启用由系统随本地删同步；当前默认 off。
+    /// `bodyDataConsent` / `telemetryGate` 注入式（测试可隔离 UserDefaults suite）：
+    /// 「行使删除权」必须把同意状态一并归零，否则删完回到 onboarding 时身体数据
+    /// 同意仍是已授予（下次采集不再征求）、遥测开关仍开着——合规残渣。
+    /// 顺序刻意：**先删数据成功、后清同意位**，删除失败时同意保持原样
+    /// （数据还在而同意没了是更糟的不一致）。
     @discardableResult
     public static func deleteAllUserData(
         in context: ModelContext,
         wipeItemImages: Bool = true,
-        now: Date = Date()
+        now: Date = Date(),
+        bodyDataConsent: BodyDataConsent = .shared,
+        telemetryGate: TelemetryGate = .shared
     ) throws -> DeleteReceipt {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
@@ -358,6 +367,10 @@ public enum DataLifecycleService {
             wipedImages = wipeItemImageDirectory()
         }
 
+        // 数据已删定 → 同意状态归零（FAQ / 隐私政策都承诺了这条）
+        bodyDataConsent.setGranted(false)
+        telemetryGate.setEnabled(false)
+
         let receipt = DeleteReceipt(
             deletedAt: iso.string(from: now),
             deletedPersons: deletedPersons,
@@ -369,7 +382,8 @@ public enum DataLifecycleService {
             deletedPlans: deletedPlans,
             deletedBodyProfiles: deletedBodyProfiles,
             wipedItemImages: wipedImages,
-            imageWipeFailed: wipeItemImages && !wipedImages
+            imageWipeFailed: wipeItemImages && !wipedImages,
+            resetConsent: true
         )
         AppLog.notice("deleteAllUserData \(receipt.summaryLine)", .data)
         return receipt

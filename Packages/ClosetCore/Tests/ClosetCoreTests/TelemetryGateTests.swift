@@ -102,3 +102,71 @@ struct TelemetryGateTests {
         #expect(sink.recorded[0].1["slot"] == "top")
     }
 }
+
+/// D88：遥测开关不得是**安慰剂控件**。此前 `track()` 在全部生产代码里零调用点——
+/// 白名单里定义了 10 个事件，一个都没有产出方；用户在 Privacy 分组拨动的开关
+/// 不改变任何行为。文案本身诚实（"Nothing is sent yet"），但控件本身是空的。
+struct TelemetryWiringTests {
+
+    static func productionSources() -> [URL] {
+        let packages = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let appShell = packages.deletingLastPathComponent()
+            .appendingPathComponent("app-shell", isDirectory: true)
+        var files: [URL] = []
+        let fm = FileManager.default
+        for root in [packages, appShell] {
+            let en = fm.enumerator(at: root, includingPropertiesForKeys: nil)
+            while let url = en?.nextObject() as? URL {
+                guard url.pathExtension == "swift",
+                      url.path.contains("/Sources/") || url.path.contains("/app-shell/"),
+                      !url.path.contains("/Tests/"), !url.path.contains("/.build/")
+                else { continue }
+                files.append(url)
+            }
+        }
+        return files
+    }
+
+    /// 每个白名单事件都必须有生产产出方——否则它只是个没人发的枚举 case。
+    @Test func everyDeclaredEventHasAProductionEmitter() throws {
+        var body = ""
+        for url in Self.productionSources() {
+            body += (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        }
+        #expect(body.contains("TelemetryGate.shared.track("), "全仓零调用点")
+        var missing: [String] = []
+        for event in TelemetryEvent.allCases {
+            // 调用点写作 `.appLaunch` / `.itemConfirmed` 等
+            let needle = ".\(String(describing: event))"
+            let emitted = body.components(separatedBy: "track(").dropFirst()
+                .contains { $0.hasPrefix(needle) }
+            if !emitted { missing.append(event.rawValue) }
+        }
+        #expect(missing.isEmpty, Comment(rawValue: "无产出方的事件：\(missing)"))
+    }
+
+    /// 产出方不得夹带红线字段：搜索词、单品名、城市、围度一律不进 payload。
+    @Test func emittersCarryNoUserContent() throws {
+        var violations: [String] = []
+        let forbidden = ["text", "name", "city", "query", "bust", "waist", "hip"]
+        for url in Self.productionSources() {
+            guard let text = try? String(contentsOf: url, encoding: .utf8),
+                  text.contains("TelemetryGate.shared.track(") else { continue }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            for (n, line) in lines.enumerated() {
+                // payload 字面量键名（"xxx": ...）
+                guard line.contains("\": ") else { continue }
+                // 只看 track( 调用之后 6 行内的键
+                let start = max(0, n - 6)
+                let window = lines[start...n].joined()
+                guard window.contains("track(") else { continue }
+                for key in forbidden where line.contains("\"\(key)\":") {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ \(key)")
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue: "\(violations)"))
+    }
+}

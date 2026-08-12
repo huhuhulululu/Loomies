@@ -47,10 +47,20 @@ public final class ItemDetailViewModel {
         self.locationID = item.location?.id
         self.warmthRaw = item.warmthRaw
         // 已存颜色 → 最近色板选中态；中性无 hue 时也能回读（hue nil → 用 0 参与中性匹配）
-        self.colorPaletteID = Self.paletteID(
+        let initialPalette = Self.paletteID(
             hue: item.colorHue, isNeutral: item.colorIsNeutral)
+        self.colorPaletteID = initialPalette
+        self.initialColorPaletteID = initialPalette
         self.attributes = Set(item.attributesRaw.compactMap { StyleAttribute(rawValue: $0) })
     }
+
+    /// 打开详情页时的色板选中态。用户没动过色板就不带 color patch——
+    /// colorPaletteID 是 nearest() 量化值，无条件回写会把入库识别的连续色相
+    /// （例如 15°）静默改写成最近色板值（28°），而用户只是改了个名字。
+    private let initialColorPaletteID: String?
+
+    /// 用户是否真的改动过颜色选择。
+    var colorWasEdited: Bool { colorPaletteID != initialColorPaletteID }
 
     /// 单品颜色 → 色板 id（无颜色信息时 nil＝未知，不假装用户选过）。
     static func paletteID(hue: Double?, isNeutral: Bool) -> String? {
@@ -58,7 +68,7 @@ public final class ItemDetailViewModel {
             return GarmentColorPalette.nearest(
                 to: GarmentColor(hueDegrees: hue, isNeutral: isNeutral))?.id
         }
-        // hue 未知 + 标记中性：视作中性未指定具体色 → 仍未知（用户可主动选 Black/White…）
+        // 存量行（hue 未知 + 中性标记）无法还原是哪个中性色 → 诚实显示未知，不猜
         return nil
     }
 
@@ -90,6 +100,8 @@ public final class ItemDetailViewModel {
         ) {
             fitLabel = FitMarkCopy.label(v)
             fitDetail = FitMarkCopy.detail(v)
+            // 只发判定档位——**不含任何围度值**（bust/waist/hip 是红线键，整包会被拒）
+            TelemetryGate.shared.track(.fitMarkShown, payload: ["verdict": String(describing: v)])
         } else {
             fitLabel = nil
             fitDetail = nil
@@ -118,10 +130,14 @@ public final class ItemDetailViewModel {
                   replaceFlatWidths: true,
                   replaceWarmth: true,
                   attributesRaw: attributes.map(\.rawValue).sorted(),
-                  // 中性色 hue 无意义 → 置 nil（Adapter 保「中性」语义）；未选 → 清为未知
-                  colorHue: (swatch?.isNeutral ?? true) ? nil : swatch?.hueDegrees,
-                  colorIsNeutral: swatch?.isNeutral ?? item.colorIsNeutral,
-                  replaceColor: true),
+                  // 中性色的 hue 只是色板槽位（打分层面被忽略：ColorHarmony 见中性即
+                  // 返回 .neutral，60-30-10 直接滤掉中性），但**必须存**——否则回读时
+                  // 7 个中性色塌成同一状态，用户选的 Black 退出重进就变回「未选」。
+                  colorHue: colorWasEdited ? swatch?.hueDegrees : item.colorHue,
+                  // 取消选择 = 回到未知，不得回落旧值（否则中性是有进无出的单向门）
+                  colorIsNeutral: colorWasEdited
+                    ? (swatch?.isNeutral ?? false) : item.colorIsNeutral,
+                  replaceColor: colorWasEdited),
             to: item, in: context)
         let statusOk = ItemStatusService.setStatus(item, to: statusRaw, in: context)
         let locationOk = applyLocation(in: context)

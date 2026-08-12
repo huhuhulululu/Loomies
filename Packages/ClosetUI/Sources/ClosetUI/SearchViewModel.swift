@@ -74,6 +74,11 @@ public final class SearchViewModel {
             .init(text: text, slotRaw: slotRaw, occasion: occasion,
                   statusRaw: statusRaw, wardrobeID: effectiveWardrobeID),
             in: context)
+        // 遥测：只发「有没有输入文字」与结果条数——**绝不发搜索词本身**
+        TelemetryGate.shared.track(.searchPerformed, payload: [
+            "has_text": String(!TextNormalize.isBlank(text)),
+            "result_count": String(results.count),
+        ])
     }
 
     /// 全清（含作用域复位）：清空后不得仍停在跨柜而用户不知情。

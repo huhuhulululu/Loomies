@@ -30,6 +30,7 @@ public final class WardrobeSwitcherViewModel {
         guard wardrobe.owner?.id == person.id || (person.wardrobes ?? []).contains(where: { $0.id == wardrobe.id })
         else { return }
         active = wardrobe
+        TelemetryGate.shared.track(.wardrobeSwitched)
     }
 
     /// 新建衣柜并设为 active。名非空。Save failure rolls back insert (no silent success).

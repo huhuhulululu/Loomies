@@ -25,7 +25,7 @@ public enum NetworkSurfaceCatalog {
             sends: "The city name you set for a closet — no closet contents, no photos, no identifiers.",
             trigger: "When Today loads or you change a closet's city.",
             optOut: "Leave the closet's city empty; the app falls back to an offline climate estimate.",
-            hosts: ["geocoding-api.open-meteo.com", "api.open-meteo.com"]),
+            hosts: OpenMeteoWeatherProvider.hosts),
         Surface(
             id: "barcode",
             title: "Barcode lookup",
@@ -77,7 +77,8 @@ public enum ComplianceCopy {
     public static let privacySummary =
         "Your closet, photos, and body measurements live on this device. "
         + "Body measurements are kept in a separate local store and are never synced. "
-        + "Two features do reach the internet — see \"What leaves my device\" below for exactly what and when."
+        + "Two features do reach the internet — see \"What leaves my device\" in Help & FAQ "
+        + "for exactly what and when."
 
     /// 遥测状态行。当前没有任何发送出口（无 SDK），措辞不得暗示正在上报。
     public static func telemetryStatusLine(enabled: Bool) -> String {
@@ -120,7 +121,8 @@ public enum ComplianceCopy {
         FAQEntry(
             question: "How do I delete everything?",
             answer: "Me → Data → Delete all data removes closets, pieces, looks, wear history, "
-                + "plans, and local photos from this device. Uninstalling the app alone does not."),
+                + "plans, body measurements, and local photos from this device. It also resets "
+                + "your body-data and analytics choices. Uninstalling the app alone does not."),
         FAQEntry(
             question: "Where are my body measurements stored?",
             answer: "In a separate local store on this device that is excluded from cloud sync. "

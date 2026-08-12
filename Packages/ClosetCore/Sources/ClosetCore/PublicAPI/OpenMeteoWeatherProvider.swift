@@ -53,8 +53,14 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         }
     }
 
+    /// 出网 host 的**唯一真相**——披露清单从这里取值对账，不再在测试里手抄字面量
+    /// （手抄的镜像数组与实现互不引用，改 host 或加 endpoint 时对账测试不会红）。
+    public static let geocodeHost = "geocoding-api.open-meteo.com"
+    public static let forecastHost = "api.open-meteo.com"
+    public static let hosts = [geocodeHost, forecastHost]
+
     public func geocode(name: String) async throws -> GeoPlace {
-        var comps = URLComponents(string: "https://geocoding-api.open-meteo.com/v1/search")
+        var comps = URLComponents(string: "https://\(Self.geocodeHost)/v1/search")
         comps?.queryItems = [
             URLQueryItem(name: "name", value: name),
             URLQueryItem(name: "count", value: String(geocodeLimit)),
@@ -79,7 +85,7 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         latitude: Double, longitude: Double, on date: Date,
         timeZoneIdentifier: String? = nil
     ) async throws -> ForecastDay {
-        var comps = URLComponents(string: "https://api.open-meteo.com/v1/forecast")
+        var comps = URLComponents(string: "https://\(Self.forecastHost)/v1/forecast")
         // 日界口径两端一致：有城市时区（geocode 返回）→ dayString 与请求都用它，
         // 设备时区 ≠ 城市时区（出差/双城衣柜）不再取错日；无 → 设备本地历 + auto（旧行为）。
         let cityTZ = timeZoneIdentifier.flatMap(TimeZone.init(identifier:))

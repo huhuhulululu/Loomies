@@ -12,6 +12,8 @@ struct ClosetApp: App {
     init() {
         _ = DebugSettings.shared
         AppLog.notice("Loomies launch", .app)
+        // 遥测（默认关、当前无 sink）：只带 schema 版本，无任何身份字段
+        TelemetryGate.shared.track(.appLaunch)
 
         do {
             // 装配单一入口（D84）：实体清单 + 双域 config + migrationPlan 全在 LoomiesStore，

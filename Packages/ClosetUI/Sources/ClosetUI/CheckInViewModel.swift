@@ -91,6 +91,10 @@ public final class CheckInViewModel {
             feedbackFailed = !CheckInService.setFitFeedback(fitFeedback, on: rec, in: context)
         }
         lastRecord = rec
+        TelemetryGate.shared.track(.checkInRecorded, payload: [
+            "item_count": String(items.count),
+            "has_fit_feedback": String(verdict != nil),
+        ])
         selectedIDs = []
         fitFeedback = nil
         if feedbackFailed {
