@@ -89,8 +89,9 @@ public struct MeView: View {
                     }
                 }
                 Section("Wardrobes") {
-                    NavigationLink("Manage wardrobes") {
-                        WardrobeManageView()
+                    NavigationLink("Closets & people") {
+                        // 传当前柜 id：当前打开的衣柜不给删除动作（防上层持已删模型）
+                        WardrobeManageView(currentWardrobeID: wardrobe.id)
                     }
                 }
                 Section("Looks") {

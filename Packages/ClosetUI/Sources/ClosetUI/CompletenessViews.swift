@@ -281,8 +281,9 @@ public enum StorageEmptyCopy {
 public struct StorageLocationsView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
-    @State private var locations: [StorageLocation] = []
+    @State private var nodes: [StorageLocationService.Node] = []
     @State private var newName = ""
+    @State private var newParentID: UUID?
     @State private var message = ""
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -292,20 +293,18 @@ public struct StorageLocationsView: View {
             Section {
                 HStack {
                     TextField("New location (e.g. Rail A)", text: $newName)
-                    Button("Add") {
-                        let n = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !n.isEmpty else { return }
-                        if StorageLocationService.create(name: n, in: wardrobe, context: context) != nil {
-                            newName = ""
-                            message = ""
-                        } else {
-                            // Keep draft name for retry; do not claim success.
-                            message = StorageLocationService.createSaveFailedMessage
-                        }
-                        reload()
-                    }
-                    .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button("Add") { add() }
+                    .disabled(TextNormalize.isBlank(newName))
                 }
+                // 建子节点入口（此前只能建根节点，树形语义无入口）
+                Picker("Inside", selection: $newParentID) {
+                    Text(StorageRowCopy.topLevelTitle).tag(Optional<UUID>.none)
+                    ForEach(nodes, id: \.id) { node in
+                        Text(StorageRowCopy.indentedTitle(node.location.name, depth: node.depth))
+                            .tag(Optional(node.location.id))
+                    }
+                }
+                .accessibilityLabel("Parent location")
                 if !message.isEmpty {
                     Text(message)
                         .font(.caption)
@@ -314,21 +313,27 @@ public struct StorageLocationsView: View {
                 }
             }
             Section("Locations") {
-                if locations.isEmpty {
+                if nodes.isEmpty {
                     Text(StorageEmptyCopy.title)
                         .font(.caption)
                         .foregroundStyle(DS.muted)
                         .accessibilityLabel(StorageEmptyCopy.title)
                 } else {
-                    ForEach(locations, id: \.id) { loc in
+                    ForEach(nodes, id: \.id) { node in
                         HStack {
-                            Image(systemName: "archivebox")
-                            Text(loc.name)
+                            Image(systemName: node.depth == 0 ? "archivebox" : "arrow.turn.down.right")
+                                .foregroundStyle(node.depth == 0 ? DS.ink : DS.muted)
+                            Text(node.location.name)
                             Spacer()
-                            Text("\((loc.items ?? []).count)")
+                            Text("\((node.location.items ?? []).count)")
                                 .font(.caption).foregroundStyle(DS.muted)
                         }
-                        .accessibilityElement(children: .combine)
+                        .padding(.leading, CGFloat(node.depth) * 16)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(StorageRowCopy.accessibilityLabel(
+                            name: node.location.name,
+                            parentName: node.location.parent?.name,
+                            itemCount: (node.location.items ?? []).count))
                         .accessibilityHint(StorageEmptyCopy.rowSwipeAccessibilityHint)
                     }
                     .onDelete(perform: delete)
@@ -339,14 +344,36 @@ public struct StorageLocationsView: View {
         .onAppear { reload() }
     }
 
+    private func add() {
+        guard let n = TextNormalize.blankToNil(newName) else { return }
+        let parent = newParentID.flatMap { id in nodes.first { $0.location.id == id }?.location }
+        // 提交前先判重名：诚实报「同名已存在」，而不是笼统的 "Couldn't add — try again"
+        guard !StorageLocationService.siblingNameConflicts(n, in: wardrobe, parent: parent) else {
+            message = StorageLocationService.duplicateSiblingMessage
+            return
+        }
+        if StorageLocationService.create(name: n, in: wardrobe, parent: parent, context: context) != nil {
+            newName = ""
+            message = ""
+        } else {
+            // Keep draft name for retry; do not claim success.
+            message = StorageLocationService.createSaveFailedMessage
+        }
+        reload()
+    }
+
     private func reload() {
-        locations = StorageLocationService.list(in: wardrobe)
+        nodes = StorageLocationService.listWithDepth(in: wardrobe)
+        // 父节点被删后选择项失效 → 回落顶层，避免 Picker 悬空
+        if let pid = newParentID, !nodes.contains(where: { $0.location.id == pid }) {
+            newParentID = nil
+        }
     }
 
     private func delete(at offsets: IndexSet) {
         var saveFailed = false
         for i in offsets {
-            if !DeleteService.deleteLocation(locations[i], in: context) {
+            if !DeleteService.deleteLocation(nodes[i].location, in: context) {
                 saveFailed = true
             }
         }
@@ -355,6 +382,25 @@ public struct StorageLocationsView: View {
         if saveFailed {
             message = StorageLocationService.removeSaveFailedMessage
         }
+    }
+}
+
+/// 位置行文案（纯值，可单测——本仓无 ViewInspector，View 本身不可测）。
+public enum StorageRowCopy {
+    public static let topLevelTitle = "Top level"
+
+    /// Picker 里的层级缩进标题（全角空格，Picker 不渲染前导半角空格）。
+    public static func indentedTitle(_ name: String, depth: Int) -> String {
+        String(repeating: "　", count: max(0, depth)) + name
+    }
+
+    /// VoiceOver：「Rail A, inside Closet 1, 3 pieces」——层级靠缩进的视觉信息
+    /// 对 VO 不可达，必须在标签里说出来。
+    public static func accessibilityLabel(name: String, parentName: String?, itemCount: Int) -> String {
+        var parts = [TextNormalize.blankToNil(name) ?? "Location"]
+        if let parent = TextNormalize.blankToNil(parentName) { parts.append("inside \(parent)") }
+        parts.append(itemCount == 1 ? "1 piece" : "\(itemCount) pieces")
+        return parts.joined(separator: ", ")
     }
 }
 

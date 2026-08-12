@@ -254,6 +254,47 @@ struct FeatureGapServicesTests {
         #expect(i.colorHue == nil)
     }
 
+    /// D85 波 B：位置树。`listWithDepth` 供 UI 缩进展示；`siblingNameConflicts` 让
+    /// UI 能在提交前诚实报「重名」而不是笼统的「Couldn't add — try again」。
+    @Test func listWithDepthGivesTreeLevelsDeterministically() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        try ctx.save()
+        let closet = StorageLocationService.create(name: "Closet 1", in: w, context: ctx)
+        let rail = StorageLocationService.create(name: "Rail A", in: w, parent: closet, context: ctx)
+        _ = StorageLocationService.create(name: "Box 1", in: w, parent: rail, context: ctx)
+        _ = StorageLocationService.create(name: "Attic", in: w, context: ctx)
+
+        let nodes = StorageLocationService.listWithDepth(in: w)
+        #expect(nodes.map { "\($0.depth):\($0.location.name)" }
+            == ["0:Attic", "0:Closet 1", "1:Rail A", "2:Box 1"])
+        // list(in:) 与之同源（顺序一致）
+        #expect(StorageLocationService.list(in: w).map(\.name) == nodes.map(\.location.name))
+    }
+
+    /// 审查发现的回落缺陷：`parent?.children ?? 根层` 在 children 为 nil 时会拿根层当兄弟，
+    /// 于是「父节点下新建与某根节点同名」被误报重名（客户可见的谎）。
+    @Test func siblingNameConflictsIsParentScopedWithoutRootFallback() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        try ctx.save()
+        let closet = try #require(StorageLocationService.create(name: "Closet 1", in: w, context: ctx))
+        _ = StorageLocationService.create(name: "Attic", in: w, context: ctx)
+        // 根层同名（大小写/空白不敏感）→ 冲突
+        #expect(StorageLocationService.siblingNameConflicts(" attic ", in: w, parent: nil))
+        #expect(!StorageLocationService.siblingNameConflicts("Basement", in: w, parent: nil))
+        // 子层与根层同名 → **不**冲突（即使父节点尚无子节点）
+        #expect((closet.children ?? []).isEmpty)
+        #expect(!StorageLocationService.siblingNameConflicts("Attic", in: w, parent: closet))
+        #expect(StorageLocationService.create(name: "Attic", in: w, parent: closet, context: ctx) != nil)
+        // 同一父下再同名 → 冲突
+        #expect(StorageLocationService.siblingNameConflicts("attic", in: w, parent: closet))
+        // 文案存在且诚实（不是笼统的 try again）
+        #expect(!StorageLocationService.duplicateSiblingMessage.isEmpty)
+        #expect(StorageLocationService.duplicateSiblingMessage
+            .localizedCaseInsensitiveContains("already exists"))
+    }
+
     @Test func saveFavoriteFromIDsAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

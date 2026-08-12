@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **696 tests**（Core 238 / Model 185 / UI 231 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间。D83：属性录入面（温区/颜色/风格属性）。D84：Schema 单向门（VersionedSchema + 指纹 golden + 装配单一入口）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **709 tests**（Core 238 / Model 187 / UI 242 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间。D83：属性录入面（温区/颜色/风格属性）。D84：Schema 单向门（VersionedSchema + 指纹 golden + 装配单一入口）。D85：零 UI 入口接线（删柜/删人、位置树）。
 
 ## 项目定位
 
@@ -110,6 +110,7 @@ Item[] / ScoredOutfit.itemIDs
 - **日界口径**：穿着防重复窗口按日历日算（`WearHistory.recentlyWornItemIDs` 注入 `Calendar`，DST 安全），与 UI 承诺「de-prioritized 7 days」一致，不随打卡钟点漂移。天气「今天」按**衣柜城市时区**取日（geocode 的 IANA `timezone` 字段 → dayString 与请求参数同源；无字段退回设备历 + auto）——设备时区 ≠ 城市时区（出差/双城柜）不再取错日。离线气候表月份保持设备历（粗估 ±数°F，不为月界数小时加时区表——已评估不修）。**CalendarPlan 以 `dayKey`（"yyyy-MM-dd"，加法 schema）为日历日真相**：`date`（本地午夜瞬时值）跨时区会漂到前一天——查询/去重/展示（`displayDate` 本地正午反解）/导出全走 dayKey；空键旧数据退回 date 按设备历解释，覆盖写时顺带固化。
 - **关键词折叠**：名称关键词分类（剪影/displaySlot）与搜索一律走 `TextNormalize.foldedKey`（大小写 locale 无关 + 变音符号折叠）；禁用 `localizedCaseInsensitiveContains` 做关键词匹配（tr locale 下 I≠i）；失败文案样式判定（"couldn't"，无 i 字符）不受限。
 - **文本判空统一**：可选文本字段（brand/size/位置名/名称）「空白即缺失」一律走 `ClosetCore.TextNormalize`（trim 后判空/转 nil）；实时 TextField 绑定不 trim（输入中），落库口与判定口必 trim；空白名 patch 拒绝（return false）而非静默丢弃。
+- **零 UI 入口接线（D85）**：服务层就绪但用户够不着的能力逐项接通——删衣柜/删人（`WardrobeManageActions.DeleteOutcome` 带**类型化** `blockedReason`，View 靠它升级二段确认，不得用 message 字符串相等；确认对话框持**值类型快照** `PendingWardrobeDelete`，绝不在 @State 里持 @Model——删后重求值是未定义行为；force 警告完整告知级联面含 CalendarPlan；当前打开的衣柜不可删；失败着色由返回值驱动而非关键词嗅探）；存放位置树（`listWithDepth` 缩进展示 + 父节点 Picker + `siblingNameConflicts` 提交前诚实报重名——父层判定显式分支，不用 `parent?.children ?? 根层` 的回落，否则子层与根层同名会被误报）。
 - **命名完整性**：衣柜 create/rename 与存放位置同级 create 拒绝重名（大小写/空白不敏感，`WardrobeManageActions.nameConflicts`）；运行时所有 name 排序按 `(name, id.uuidString)` 决胜，与导出快照约定一致——Swift sort 不稳定，同名顺序不得随 fetch 漂移。
 - **推荐确定性**：同输入必同输出，不随 SwiftData 关系数组顺序/进程 hash seed 漂移——六三一聚族先按色相排序（置换不变性测试锁）、体型 affinity 按属性 rawValue 排序累加（防权重表引入非整数后浮点结合律绕过 tie-break）、Adapter 保「中性无 hue」语义可达（quick-add 衣柜不得全并列退化为 UUID 序推荐）。组合枚举按 grammar 硬规则拆枝（裙枝/上下装枝分开，N=12 冷天 34 万次迭代 → 2.4 万），grammar 仍是最终裁判；每槽截断前按体型 affinity 预打分（(预分, id) 序——纯 id 前缀截断等于打分前随机抽样，大衣柜最合体型单品可能从未被评估）。程序化裸体栅格走 `FullNudeBodyImageCache`（View body 不得每次重求值全画布重绘）。
 - **同槽择优口径**：`OutfitAvatarComposer` 的「有图」= 文件真实存在（`ItemImageStore.fileExists`，stat 不读内容），非路径非空——反向孤儿死路径不得劫持择优。`Int(CGFloat)` 转换一律浮点域先钳非有限值（GeometryReader 首帧 0/∞ → `Int(NaN)` 是运行时陷阱；3 处修复）。

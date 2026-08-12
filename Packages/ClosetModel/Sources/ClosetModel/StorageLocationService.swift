@@ -34,9 +34,7 @@ public enum StorageLocationService {
             }
         }
         // 同级重名拒绝（大小写不敏感）：同名兄弟在 Picker 里不可区分；跨 parent 同名合法。
-        let siblings = parent?.children
-            ?? (wardrobe.locations ?? []).filter { $0.parent == nil }
-        if siblings.contains(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+        if siblingNameConflicts(trimmedName, in: wardrobe, parent: parent) {
             AppLog.error("location create duplicate sibling blocked", .data)
             return nil
         }
@@ -75,6 +73,49 @@ public enum StorageLocationService {
             return false
         }
         return true
+    }
+
+    /// 同级重名判定（大小写/空白不敏感）。UI 提交前调用即可给出诚实的「重名」提示，
+    /// 而不是把重名笼统报成「Couldn't add — try again」。
+    /// ⚠️ 父层与根层必须显式分支：`parent?.children ?? 根层` 在 children 为 nil 时
+    /// 会拿根层当兄弟，导致「父节点下新建与某根节点同名」被误报重名。
+    public static func siblingNameConflicts(
+        _ name: String, in wardrobe: Wardrobe, parent: StorageLocation?
+    ) -> Bool {
+        guard let key = TextNormalize.blankToNil(name)?.lowercased() else { return false }
+        let siblings: [StorageLocation]
+        if let parent {
+            siblings = parent.children ?? []
+        } else {
+            siblings = (wardrobe.locations ?? []).filter { $0.parent == nil }
+        }
+        return siblings.contains { $0.name.lowercased() == key }
+    }
+
+    /// 客户可见的重名提示（与 `siblingNameConflicts` 同源）。
+    public static let duplicateSiblingMessage = "A location with that name already exists here."
+
+    /// 位置 + 树深度（UI 缩进展示用）。
+    public struct Node: Identifiable {
+        public let location: StorageLocation
+        public let depth: Int
+        public var id: UUID { location.id }
+    }
+
+    /// 深度优先展开（与 `list(in:)` 同序，附层级）。
+    public static func listWithDepth(in wardrobe: Wardrobe) -> [Node] {
+        // 同名按 id 决胜（与导出快照同约定）：Swift sort 不稳定
+        let roots = (wardrobe.locations ?? []).filter { $0.parent == nil }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+        var out: [Node] = []
+        func walk(_ loc: StorageLocation, _ depth: Int) {
+            out.append(Node(location: loc, depth: depth))
+            for c in (loc.children ?? []).sorted(by: {
+                ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString)
+            }) { walk(c, depth + 1) }
+        }
+        for r in roots { walk(r, 0) }
+        return out
     }
 
     /// 扁平列出某柜位置（深度优先）。

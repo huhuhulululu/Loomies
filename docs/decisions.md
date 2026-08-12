@@ -568,3 +568,29 @@ app-shell 手搓 `Schema([...])`）。本次落地并经对抗审查（3 簇蓝�
 - **DoD 含 app-shell 真编译**（审查 HIGH：app-shell 不参与 swift test，文本 lint 不算数）：
   `xcodebuild -scheme ClosetApp -destination generic/platform=iOS` **BUILD SUCCEEDED** 已验证。
 - 顺带修掉一个 flake 源：`CinematicExportGateTests` 触盘却缺 `ItemImageTestRoot.install()`。
+
+## D85 [2026-08-11] 零 UI 入口接线（波 A 删柜/删人 · 波 B 位置树）
+
+完整性审计 A2：六项服务能力全就绪且带级联测试，却零 View 调用点——用户根本用不到。
+本波接通前两项，不新增业务语义，只做「入口 + 诚实文案 + 可测 helper」。经对抗审查整改：
+
+- **删衣柜 / 删人**（Me → 「Closets & people」）：滑动删除 → 二段确认。
+  - 结果类型 `DeleteOutcome` 带**类型化** `blockedReason: DeleteError?`——View 靠它判定
+    是否升级到「Delete anyway」，**不得**用 `message ==` 字符串相等（审查 MEDIUM：
+    日后润色一句阻断文案，两段流程会静默失效且无测试会红）。
+  - 确认对话框持**值类型快照** `PendingWardrobeDelete`（id/name/itemCount/lookCount/planCount）：
+    **绝不在 @State 里持 @Model**（审查 HIGH：对话框消散动画期间仍会重新求值 title/message，
+    读已 `context.delete` 的模型属性是未定义行为）。动作按 id 现取现用。
+  - force 警告完整告知级联面**含 CalendarPlan**（审查 MEDIUM：`deleteWardrobe(force:)` 会删
+    绑定的日历计划，用户排好的计划会无声蒸发——不得声称做了没做的事，也不得隐瞒做了的事）。
+  - 失败着色改由返回值 `isFailure` 驱动（审查 HIGH：旧的 `CustomerFlashStyle` 关键词嗅探只认
+    couldn't/failed/missing，对「This is the closet you're in.」这类诚实阻断会误判成成功色）。
+  - **当前打开的衣柜不可删**（行内标 Current，无删除动作 + VO hint 说明原因）：避免上层持有
+    已删模型、以及删到零柜回落 Onboarding 造重复 Person。代价：单柜用户删不掉唯一衣柜（可改名/清空）。
+- **存放位置树**：`listWithDepth` 深度优先带层级 + 父节点 Picker（此前只能建根节点，
+  §F3 的「挂区/抽屉/换季箱」树形语义无入口）；行按 depth 缩进 + `StorageRowCopy.accessibilityLabel`
+  把层级读给 VoiceOver（缩进的视觉信息 VO 不可达）。
+  - `siblingNameConflicts` 抽为 public 并在**提交前**判重，把重名从笼统的
+    「Couldn't add — try again」升级为诚实的「A location with that name already exists here.」
+  - 审查 LOW 修复：父层判定必须显式分支，`parent?.children ?? 根层` 在 children 为 nil 时会拿
+    根层当兄弟 → 「父节点下新建与某根节点同名」被误报重名（客户可见的谎）。有测试锁。
