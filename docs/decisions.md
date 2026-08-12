@@ -640,3 +640,23 @@ app-shell 手搓 `Schema([...])`）。本次落地并经对抗审查（3 簇蓝�
   `BodyProfileView` 未同意时先出说明卡再进录入面。
 - 受契约变更影响的既有 onboarding 测试同步更新为「先授权再落围度」（审查 HIGH 点名的 7 个用例）。
 - app-shell `xcodebuild` BUILD SUCCEEDED（装配路径未变，仍作 DoD 硬条件）。
+
+## D87 [2026-08-11] 数据导出补原图 ZIP
+
+§10.6 spec 写的是「JSON 全实体 + 原图 ZIP」，此前只出 JSON——而 JSON 里的
+`localImageRelativePath` 是指向沙箱的死路径，用户拿到一串打不开的路径，
+数据可携带性不诚实。按对抗审查的两条 HIGH 整改：
+
+- **压缩不上主线程**（审查 HIGH：原设计把 `writeBundle` 放在 Button 闭包里同步调用，
+  几百张图会阻塞数秒至数分钟，无进度无取消且按钮可重复点）：两段式——
+  `plan`（MainActor，读 SwiftData 出值类型计划）+ `writeBundle`（nonisolated，
+  UI 侧 `Task.detached`）；进行中禁用按钮并显示 `bundleInProgressMessage`。
+- **`sharePayload` 与诊断导出共用**（审查 HIGH：整体换成 ShareItem 会连带打断诊断路径）：
+  `ShareBox` 改为「文本或文件」二选一，诊断仍走文本路径不受影响；文件路径在
+  分享面板关闭时清理（与 cinematic MP4 同纪律，临时文件不得无界积累）。
+- Foundation-only 压缩：`NSFileCoordinator` 的 `.forUploading` 对 staging 目录产出 zip，
+  无第三方依赖。归档结构 `data.json` + `photos/<itemID>.<ext>`，文件名排序确定（可复现）。
+- 韧性：反向孤儿（行指向已消失文件）在 plan 阶段跳过；单张拷贝失败不炸整包——
+  诚实地少一张，胜过整个导出失败。staging 目录用后即删，只留 zip。
+- 顺带修一个自己写的松断言：`!json.contains("34")` 会因 UUID 随机含 "34" 而时红时绿，
+  改为断言字段名 `bustInches`。

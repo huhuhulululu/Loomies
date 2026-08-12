@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **738 tests**（Core 255 / Model 188 / UI 253 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间。D83：属性录入面（温区/颜色/风格属性）。D84：Schema 单向门（VersionedSchema + 指纹 golden + 装配单一入口）。D85：零 UI 入口接线全部完成（删柜/删人、位置树、跨柜检索、合身反馈、手动打卡）。D86：产品外壳合规（出网面披露、遥测 opt-in 门、帮助/FAQ、政策与署名、身体数据同意）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **743 tests**（Core 255 / Model 193 / UI 253 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间。D83：属性录入面（温区/颜色/风格属性）。D84：Schema 单向门（VersionedSchema + 指纹 golden + 装配单一入口）。D85：零 UI 入口接线全部完成（删柜/删人、位置树、跨柜检索、合身反馈、手动打卡）。D86：产品外壳合规（出网面披露、遥测 opt-in 门、帮助/FAQ、政策与署名、身体数据同意）。D87：导出包（JSON + 原图 ZIP，后台压缩）。
 
 ## 项目定位
 
@@ -111,6 +111,7 @@ Item[] / ScoredOutfit.itemIDs
 - **关键词折叠**：名称关键词分类（剪影/displaySlot）与搜索一律走 `TextNormalize.foldedKey`（大小写 locale 无关 + 变音符号折叠）；禁用 `localizedCaseInsensitiveContains` 做关键词匹配（tr locale 下 I≠i）；失败文案样式判定（"couldn't"，无 i 字符）不受限。
 - **文本判空统一**：可选文本字段（brand/size/位置名/名称）「空白即缺失」一律走 `ClosetCore.TextNormalize`（trim 后判空/转 nil）；实时 TextField 绑定不 trim（输入中），落库口与判定口必 trim；空白名 patch 拒绝（return false）而非静默丢弃。
 - **零 UI 入口接线（D85）**：服务层就绪但用户够不着的能力逐项接通——删衣柜/删人（`WardrobeManageActions.DeleteOutcome` 带**类型化** `blockedReason`，View 靠它升级二段确认，不得用 message 字符串相等；确认对话框持**值类型快照** `PendingWardrobeDelete`，绝不在 @State 里持 @Model——删后重求值是未定义行为；force 警告完整告知级联面含 CalendarPlan；当前打开的衣柜不可删；失败着色由返回值驱动而非关键词嗅探）；存放位置树（`listWithDepth` 缩进展示 + 父节点 Picker + `siblingNameConflicts` 提交前诚实报重名——父层判定显式分支，不用 `parent?.children ?? 根层` 的回落，否则子层与根层同名会被误报）。
+- **导出包（D87）**：`ExportBundleService` 两段式——`plan` 在 MainActor 读 SwiftData 出值类型计划，`writeBundle` **nonisolated**（几百张图的拷贝+压缩在主线程会冻结 UI 数秒到数分钟，`AvatarCinematicExporter` 已有同类判例）；UI 侧 `Task.detached` + 进行中禁用按钮。Foundation-only 压缩（`NSFileCoordinator .forUploading`，无第三方依赖）；反向孤儿与单张拷贝失败静默跳过（诚实地少一张胜过整包失败）；staging 目录用后即删；分享面板关闭清理临时 zip（与 cinematic MP4 同纪律）。`ShareBox` 支持文本/文件两种载荷，诊断导出路径不受影响。
 - **合规诚实（D86）**：**出网面单一真相** `NetworkSurfaceCatalog`——任何新增网络请求必须登记，否则对账测试 `everyOutboundHostIsDisclosed` 变红（比「禁用词黑名单」强得多；旧 About 笼统写「images never leave」，而条码查询确实会把用户扫到的商品条码发往 Open*Facts）。`ComplianceCopy` 是帮助/FAQ/隐私/署名/政策链接的唯一真相（署名按名排序，含许可与用途）。**遥测**：`TelemetryGate` 是唯一发送出口——opt-in 默认关闭、`sanitize` 是 `track` 的内部步骤、sink 协议不暴露原始 payload（绕过白名单在类型层就做不到）；生产无 sink，状态行如实说「Nothing is sent yet」。**身体数据同意** `BodyDataConsent`：门必须在**任何 insert 之前**（insert 之后 return false 会留 pending insert + 关系幻影污染下一次 save），仅围度受门约束、体型快选不设路障。
 - **检索作用域（D85 波 C）**：`SearchScope`（本柜/全部）——服务层早支持 `wardrobeID = nil`，UI 此前恒钉当前柜使 §2.3 承诺的全局检索无入口。`effectiveWardrobeID` 由 scope 派生；跨柜结果行**必须**显示所属衣柜（可见文案与 VO 同源，否则同名单品分不清）；跨柜结果的合身标记按**该单品所属柜主人**取身体档案（不能用当前柜主人）；`clear()` 一并复位 scope（清空后不得仍停在跨柜而用户不知情），`clearFiltersKeepingScope()` 保留作用域；每次打开搜索回到本柜（安全默认，与文档描述一致）。
 - **打卡语义唯一（D85 波 D）**：Today「Wore it」与手动 `CheckInView` 写的是**同一种** WearRecord，不是两套打卡概念；合身反馈是同一条记录的 update，`CheckInService.setFitFeedback` 是**唯一**写入入口（校验 FitVerdict + 快照回滚），`recordWear` 的宽松签名保留给历史用例但 UI 不再走它——两条 UI 路径共用同一守卫，脏值不会绕过。v1.0 只采集不喂 FitEngine，文案不得暗示会改变推荐，且如实披露会随 Export my data 导出。

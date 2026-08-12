@@ -40,6 +40,9 @@ public struct MeView: View {
     @State private var diagText: String?
     @State private var dataMessage: String?
     @State private var sharePayload: String?
+    /// 导出包（zip）临时文件；分享面板关闭后清理
+    @State private var shareFileURL: URL?
+    @State private var isBuildingExport = false
     @State private var includeBodyInExport = false
     @State private var confirmDeleteAll = false
     /// 遥测 opt-in（默认关闭；D86。状态行如实说明当前未接分析服务）
@@ -140,26 +143,13 @@ public struct MeView: View {
                 }
                 Section("Data") {
                     Toggle("Include body measurements in export", isOn: $includeBodyInExport)
-                    Button("Export my data") {
-                        do {
-                            let json = try DataLifecycleService.exportJSONString(
-                                in: context, includeBodyDimensions: includeBodyInExport)
-                            #if os(iOS)
-                            sharePayload = json
-                            #endif
-                            // Honest "ready" toast only when the payload was actually
-                            // handed off (share sheet); otherwise inline preview —
-                            // parity with diagnostics below.
-                            dataMessage = DataExportFeedback.message(
-                                payloadHandedOff: DataExportFeedback.payloadHandoffAvailable,
-                                json: json,
-                                includeBodyDimensions: includeBodyInExport)
-                            AppLog.notice("data export ready body=\(includeBodyInExport)", .data)
-                        } catch {
-                            dataMessage = DataLifecycleService.exportFailedMessage
-                            AppLog.error("data export failed: \(AppLog.errRef(error))", .data)
-                        }
+                    Button(isBuildingExport
+                           ? ExportBundleService.bundleInProgressMessage
+                           : "Export my data") {
+                        exportBundle()
                     }
+                    // 进行中禁用：几百张图的压缩要时间，重复点会起多个后台任务
+                    .disabled(isBuildingExport)
                     .accessibilityHint(DataLifecycleService.exportButtonAccessibilityHint)
                     Button("Delete all data…", role: .destructive) {
                         confirmDeleteAll = true
@@ -250,12 +240,63 @@ public struct MeView: View {
             }
             #if os(iOS)
             .sheet(item: Binding(
-                get: { sharePayload.map { ShareBox(text: $0) } },
-                set: { sharePayload = $0?.text }
+                get: {
+                    if let url = shareFileURL { return ShareBox(fileURL: url) }
+                    return sharePayload.map { ShareBox(text: $0) }
+                },
+                set: { box in
+                    if box == nil {
+                        // 关闭即清理临时 zip（与 cinematic MP4 同纪律）
+                        if let url = shareFileURL { try? FileManager.default.removeItem(at: url) }
+                        shareFileURL = nil
+                        sharePayload = nil
+                    }
+                }
             )) { box in
-                ActivityView(items: [box.text])
+                ActivityView(items: box.activityItems)
             }
             #endif
+        }
+    }
+
+    /// 导出包：MainActor 读 SwiftData 出计划 → **后台**拷贝+压缩 → 分享面板。
+    /// 压缩绝不放主线程（几百张图会冻结 UI 数秒到数分钟；exporter 已有同类判例）。
+    private func exportBundle() {
+        guard !isBuildingExport else { return }
+        isBuildingExport = true
+        dataMessage = ExportBundleService.bundleInProgressMessage
+        do {
+            let plan = try ExportBundleService.plan(
+                in: context, includeBodyDimensions: includeBodyInExport)
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
+            Task {
+                let result: Result<URL, Error> = await Task.detached(priority: .userInitiated) {
+                    do {
+                        try FileManager.default.createDirectory(
+                            at: dir, withIntermediateDirectories: true)
+                        return .success(try ExportBundleService.writeBundle(plan, in: dir))
+                    } catch {
+                        return .failure(error)
+                    }
+                }.value
+                isBuildingExport = false
+                switch result {
+                case .success(let url):
+                    #if os(iOS)
+                    shareFileURL = url
+                    #endif
+                    dataMessage = ExportBundleService.bundleReadyMessage
+                    AppLog.notice("export bundle ready body=\(includeBodyInExport)", .data)
+                case .failure(let error):
+                    dataMessage = ExportBundleService.bundleFailedMessage
+                    AppLog.error("export bundle failed: \(AppLog.errRef(error))", .data)
+                }
+            }
+        } catch {
+            isBuildingExport = false
+            dataMessage = ExportBundleService.bundleFailedMessage
+            AppLog.error("export plan failed: \(AppLog.errRef(error))", .data)
         }
     }
 
@@ -286,9 +327,20 @@ public struct MeView: View {
     }
 }
 
+/// 分享载荷：文本（诊断 / 纯 JSON）或文件（导出包 zip）。
+/// 二者共用同一 sheet，但文件路径需在关闭后清理（临时文件不得无界积累）。
 private struct ShareBox: Identifiable {
     let id = UUID()
-    let text: String
+    let text: String?
+    let fileURL: URL?
+
+    init(text: String) { self.text = text; self.fileURL = nil }
+    init(fileURL: URL) { self.text = nil; self.fileURL = fileURL }
+
+    var activityItems: [Any] {
+        if let fileURL { return [fileURL] }
+        return [text ?? ""]
+    }
 }
 
 #if os(iOS)
