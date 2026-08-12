@@ -5,6 +5,11 @@ import Foundation
 import ClosetCore
 
 /// Model-lane gap fixes: transfer 位置清理、整柜删除级联计划、打卡同柜守卫、收藏单次提交。
+/// D112：`.serialized` 是 **suite / 参数化用例** 的 trait；
+/// 挂在非参数化的单个 `@Test` 上**什么都不做**（全仓曾有 25 处这样的写法，
+/// 于是「这里安全因为串行」的说法全是假的）。本套用进程级钩子
+///（`ItemImageStore.forceFailure` / 共享图片根），必须真的串行。
+@Suite(.serialized)
 @MainActor
 struct ModelLaneGapFixesTests {
 
@@ -33,7 +38,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-1: transfer save 失败须还原位置 + rollback——脏标记不得滞留。
-    @Test(.serialized) func transferSaveFailureRestoresLocationAndRollsBack() throws {
+    @Test func transferSaveFailureRestoresLocationAndRollsBack() throws {
         let ctx = try makeContext()
         let a = Wardrobe(name: "A"); ctx.insert(a)
         let b = Wardrobe(name: "B"); ctx.insert(b)
@@ -91,7 +96,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-4: 收藏落库单次提交——save 失败不得残留非收藏 outfit。
-    @Test(.serialized) func saveFavoriteSaveFailurePersistsNoOutfit() throws {
+    @Test func saveFavoriteSaveFailurePersistsNoOutfit() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let t = Item(name: "t"); t.wardrobe = w; ctx.insert(t)
@@ -109,7 +114,7 @@ struct ModelLaneGapFixesTests {
 
     /// CM-R1: 跨柜拒绝路径（含 WardrobeInvariant 守卫契约）——拒绝后不得滞留
     /// 脏标记，锚点单品的内存 outfits 不得残留幻影搭配。
-    @Test(.serialized) func crossWardrobeRejectLeavesNoDirtyMarkerOrPhantom() throws {
+    @Test func crossWardrobeRejectLeavesNoDirtyMarkerOrPhantom() throws {
         let ctx = try makeContext()
         let a = Wardrobe(name: "A"); ctx.insert(a)
         let b = Wardrobe(name: "B"); ctx.insert(b)
@@ -127,7 +132,7 @@ struct ModelLaneGapFixesTests {
 
     /// CM-A: deleteItem 中途不得 save——forceFailure 下失败的 deleteItem 不得
     /// 残留 permanentlyMissing / 脏标记；单品仍在。
-    @Test(.serialized) func deleteItemSaveFailureCommitsNoIntermediateState() throws {
+    @Test func deleteItemSaveFailureCommitsNoIntermediateState() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.wardrobe = w; ctx.insert(i)
@@ -170,7 +175,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-B: deletePerson save 失败 → profile 与人一并回滚，无滞留。
-    @Test(.serialized) func deletePersonSaveFailureKeepsBodyProfile() throws {
+    @Test func deletePersonSaveFailureKeepsBodyProfile() throws {
         let ctx = try makeContext()
         let p = Person(name: "me"); ctx.insert(p)
         let profile = PersonBodyProfile(personID: p.id); ctx.insert(profile)
@@ -186,7 +191,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-C: force 整柜删除须清理单品本地图文件——不留孤儿照片。
-    @Test(.serialized) func forceDeleteWardrobeDeletesItemImageFiles() throws {
+    @Test func forceDeleteWardrobeDeletesItemImageFiles() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.wardrobe = w; ctx.insert(i)
@@ -203,7 +208,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-D: setFavorite save 失败 → 内存还原 + context rollback，脏标记不滞留。
-    @Test(.serialized) func setFavoriteSaveFailureRollsBackContext() throws {
+    @Test func setFavoriteSaveFailureRollsBackContext() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let t = Item(name: "t"); t.wardrobe = w; ctx.insert(t)
@@ -217,7 +222,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-D: calendarPlan save 失败（新建 + 覆盖两路）→ context rollback。
-    @Test(.serialized) func calendarPlanSaveFailureRollsBackContext() throws {
+    @Test func calendarPlanSaveFailureRollsBackContext() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let t = Item(name: "t"); t.wardrobe = w; ctx.insert(t)
@@ -333,7 +338,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-P1: 打卡 save 失败 → 返回 nil、不落 WearRecord、脏标记不滞留。
-    @Test(.serialized) func recordWearSaveFailureLeavesNoResidue() throws {
+    @Test func recordWearSaveFailureLeavesNoResidue() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.wardrobe = w; ctx.insert(i)
@@ -348,7 +353,7 @@ struct ModelLaneGapFixesTests {
 
     /// CM-P2: demoSeed save 失败 → .saveFailed、零残留单品、脏标记不滞留，
     /// 且失败前已写盘的剪影 PNG 必须从 ItemImageStore 删除——不留孤儿文件。
-    @Test(.serialized) func seedSaveFailureDeletesSilhouetteFilesAndLeavesNoResidue() throws {
+    @Test func seedSaveFailureDeletesSilhouetteFilesAndLeavesNoResidue() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
@@ -370,7 +375,7 @@ struct ModelLaneGapFixesTests {
 
     /// CM-P2b: 剪影写盘失败（ItemImageStore.forceFailure）不得阻断 seed——
     /// 单品仍入库、仅无本地图。首个 exercise 此 hook 的测试。
-    @Test(.serialized) func seedSucceedsWhenImageStoreFails() throws {
+    @Test func seedSucceedsWhenImageStoreFails() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
@@ -382,7 +387,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-P3: location create save 失败 → 返回 nil、不落 StorageLocation、脏标记不滞留。
-    @Test(.serialized) func createLocationSaveFailureLeavesNoResidue() throws {
+    @Test func createLocationSaveFailureLeavesNoResidue() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
@@ -394,7 +399,7 @@ struct ModelLaneGapFixesTests {
     }
 
     /// CM-P4: calendarRemove save 失败 → 返回 false、计划仍在、脏标记不滞留。
-    @Test(.serialized) func removePlanSaveFailureKeepsPlanAndRollsBack() throws {
+    @Test func removePlanSaveFailureKeepsPlanAndRollsBack() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let t = Item(name: "t"); t.wardrobe = w; ctx.insert(t)
@@ -411,7 +416,7 @@ struct ModelLaneGapFixesTests {
 
     /// CM-deleteLocation: deleteLocation save 失败 → 返回 false、内存指针还原
     ///（item/child 仍指向被删位置）、脏标记不滞留，后续无关 save 不得提交失败删除。
-    @Test(.serialized) func deleteLocationSaveFailureRestoresPointersAndRollsBack() throws {
+    @Test func deleteLocationSaveFailureRestoresPointersAndRollsBack() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let parent = StorageLocationService.create(name: "Closet", in: w, context: ctx)

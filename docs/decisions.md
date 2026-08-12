@@ -1312,3 +1312,27 @@ SQLite 往返（实测比 `@Query` + 内存查找慢约两个数量级）。三�
 「缓存丢了必须能重新解码」。`concurrentProcessLastCallWins` 的会合桩是**有界自旋**
 （10 万次 `Task.yield()` 后放弃），CPU 争用时走完计数还没等到对方被调度；
 改成真正会挂起的信号，连跑三次稳过。
+
+## D113 — 测试可信度与缓存一致性（2026-08-12）
+
+先修「让其余证据打折」的那一类。
+
+**全仓 25 处 `@Test(.serialized)` 是无操作**：`.serialized` 是 suite / 参数化用例的
+trait，挂在单个非参数化 `@Test` 上什么都不做。于是那五个套件里
+「这里安全因为串行」的注释**全是假的**——而它们恰好都在用进程级钩子
+（`ItemImageStore.forceFailure`、共享图片根）。移到 `@Suite(.serialized)`，
+并加门禁止逐用例写法。
+
+**测试对生产图片根做整目录破坏**：`reconcile(in:)` 默认扫
+`ItemImageStore.rootDirectory`，同进程并行的其他用例文件就在同一个根下——
+「孤儿清理」会删掉别人的文件。犯这条的正是本轮我自己新写的
+`SourcePhotoTests.reconcileKeepsTheSourcePhoto`（一小时前）。照仓内既有的
+`scanDir` 写法收口，并加门（门的字面量刻意拆开拼接，否则会抓到自己）。
+
+**删库之后网格仍会画出刚删掉的照片**：`ThumbnailImageCache.removeAll()` 零调用点，
+盘上文件擦了、内存里解码好的位图还在。接到删全部数据的成功分支上。
+
+**换图后这一格永久显示旧图**：`.task(id: cacheKey)` 在 key 变化时会重跑，
+但第一条 guard 是 `decoded == nil` → 立刻返回，而 `@State decoded` 里留着上一张。
+判定抽成纯函数 `shouldDropStaleDecoded` 才测得到（SwiftUI 的状态行为在
+`swift test` 里观察不到，同 D101/D110 的处理）。

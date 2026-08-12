@@ -105,3 +105,42 @@ struct ThumbnailImageCacheTests {
         #expect(await ThumbnailImageCache.decode(path: rel, variant: .grid) == nil)
     }
 }
+
+#if canImport(AppKit) && !os(iOS)
+import AppKit
+#endif
+
+/// D112：`ItemThumbnailView` 的 `@State decoded` 在图路径变化时不会自己清空，
+/// 而 `.task(id:)` 的第一条 guard 又会立刻返回 —— 于是换图/换件之后
+/// 这一格**永久显示旧图**。判定抽成纯函数才测得到（SwiftUI 状态本身测不了）。
+@MainActor
+struct StaleDecodedThumbnailTests {
+
+    private func makeImage() -> PlatformImage {
+        #if canImport(UIKit)
+        return UIImage()
+        #else
+        return NSImage(size: .init(width: 1, height: 1))
+        #endif
+    }
+
+    @Test func nothingDecodedNeedsNoReset() {
+        #expect(!ItemThumbnailView.shouldDropStaleDecoded(nil, cachedForCurrentKey: makeImage()))
+    }
+
+    @Test func aDifferentImageUnderTheCurrentKeyIsStale() {
+        let old = makeImage(), new = makeImage()
+        #expect(ItemThumbnailView.shouldDropStaleDecoded(old, cachedForCurrentKey: new))
+    }
+
+    /// 新 key 下缓存未命中，手里那张一定是旧的 —— 必须丢掉，否则永远显示旧图。
+    @Test func aCacheMissUnderTheCurrentKeyIsStale() {
+        #expect(ItemThumbnailView.shouldDropStaleDecoded(makeImage(), cachedForCurrentKey: nil))
+    }
+
+    /// 同一张就别折腾（否则每次 task 都白解一次）。
+    @Test func theSameImageIsKept() {
+        let img = makeImage()
+        #expect(!ItemThumbnailView.shouldDropStaleDecoded(img, cachedForCurrentKey: img))
+    }
+}

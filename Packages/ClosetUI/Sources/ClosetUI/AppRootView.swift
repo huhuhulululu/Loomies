@@ -258,6 +258,9 @@ public struct MeView: View {
                 Button("Delete everything", role: .destructive) {
                     do {
                         let receipt = try DataLifecycleService.deleteAllUserData(in: context)
+                        // 盘上文件已擦，内存里解码好的位图还在——不清的话
+                        // 「已删除全部数据」之后网格仍会画出刚被删掉的照片（D112）。
+                        ThumbnailImageCache.shared.removeAll()
                         dataMessage = receipt.summaryLine
                         // RootView @Query 空柜 → 自动回 Onboarding。
                     } catch {

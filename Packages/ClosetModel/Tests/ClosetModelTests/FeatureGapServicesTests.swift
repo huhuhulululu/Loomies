@@ -4,6 +4,11 @@ import Foundation
 @testable import ClosetModel
 import ClosetCore
 
+/// D112：`.serialized` 是 **suite / 参数化用例** 的 trait；
+/// 挂在非参数化的单个 `@Test` 上**什么都不做**（全仓曾有 25 处这样的写法，
+/// 于是「这里安全因为串行」的说法全是假的）。本套用进程级钩子
+///（`ItemImageStore.forceFailure` / 共享图片根），必须真的串行。
+@Suite(.serialized)
 @MainActor
 struct FeatureGapServicesTests {
 
@@ -345,7 +350,7 @@ struct FeatureGapServicesTests {
     }
 
     /// M2: save 失败必须 rollback——变更不得滞留污染下一次无关 save。
-    @Test(.serialized) func statusSaveFailureRollsBackContext() throws {
+    @Test func statusSaveFailureRollsBackContext() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.wardrobe = w; ctx.insert(i)
@@ -358,7 +363,7 @@ struct FeatureGapServicesTests {
     }
 
     /// CM-1: itemEdit save 失败须还原内存字段值 + rollback——UI 不得显示未入库的新值。
-    @Test(.serialized) func itemEditorSaveFailureRestoresValuesAndRollsBack() throws {
+    @Test func itemEditorSaveFailureRestoresValuesAndRollsBack() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "old tee"); i.slotRaw = "top"; i.brand = "Uniqlo"
@@ -379,7 +384,7 @@ struct FeatureGapServicesTests {
     }
 
     /// CM-2: transfer save 失败须 rollback——还原字段值之外脏标记也不得滞留。
-    @Test(.serialized) func transferSaveFailureRollsBackContext() throws {
+    @Test func transferSaveFailureRollsBackContext() throws {
         let ctx = try makeContext()
         let a = Wardrobe(name: "A"); ctx.insert(a)
         let b = Wardrobe(name: "B"); ctx.insert(b)
@@ -393,7 +398,7 @@ struct FeatureGapServicesTests {
     }
 
     /// CM-2: locationAssign save 失败须 rollback——与 transfer 同款。
-    @Test(.serialized) func locationAssignSaveFailureRollsBackContext() throws {
+    @Test func locationAssignSaveFailureRollsBackContext() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let loc = StorageLocationService.create(name: "Rod", in: w, context: ctx)

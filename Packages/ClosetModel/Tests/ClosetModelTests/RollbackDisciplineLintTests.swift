@@ -68,3 +68,59 @@ struct RollbackDisciplineLintTests {
             + violations.joined(separator: "\n")))
     }
 }
+
+/// D112：**测试不得对生产图片根做整目录破坏**。
+///
+/// `reconcile(in:)` 默认扫 `ItemImageStore.rootDirectory`，`deleteAllData` 会
+/// 整根擦除——而同进程内并行跑的其他用例的文件就在同一个根下，
+/// 于是「孤儿清理」会把别人的文件删掉（本波确认的 live flake，
+/// 且犯这条的正是本轮新写的用例）。
+/// 触盘用例要么传自己的 `directory:`，要么别用整根 API。
+struct TestIsolationLintTests {
+
+    private var testsDir: URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    }
+
+    @Test func noTestScansOrWipesTheProductionImageRoot() throws {
+        var violations: [String] = []
+        let fm = FileManager.default
+        for case let url as URL in fm.enumerator(at: testsDir, includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let s = String(line)
+                // reconcile 不带 directory: → 扫生产根
+                if s.contains("ImageReconcileService.reconcile("), !s.contains("directory:") {
+                    violations.append("\(url.lastPathComponent):\(i + 1) reconcile 未指定 directory:")
+                }
+                if s.contains("wipeItemImage" + "Directory(") {
+                    violations.append("\(url.lastPathComponent):\(i + 1) 测试里擦除整个图片根")
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue:
+            "并发下会删掉其他用例的文件：\n" + violations.joined(separator: "\n")))
+    }
+
+    /// 本门自身的字面量刻意拆开拼接：否则门会抓到自己的门文本（自指假阳性）。
+    /// `.serialized` 挂在非参数化的单个用例上是**无操作**——
+    /// 要串行就挂在 `@Suite` 上，否则那行注释在骗人。
+    @Test func serializedIsDeclaredWhereItActuallyWorks() throws {
+        var violations: [String] = []
+        let fm = FileManager.default
+        for case let url as URL in fm.enumerator(
+            at: testsDir.deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent(),   // Packages/
+            includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" && url.path.contains("/Tests/") {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
+            where String(line).contains("@Test(." + "serialized)") {
+                violations.append("\(url.lastPathComponent):\(i + 1)")
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue:
+            "逐用例 serialized 对非参数化用例无效，应挂 @Suite：\(violations)"))
+    }
+}

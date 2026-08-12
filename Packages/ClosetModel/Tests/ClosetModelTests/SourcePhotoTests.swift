@@ -76,8 +76,23 @@ struct SourcePhotoTests {
         let src = try #require(ItemImageStore.saveSourcePhoto(tinyJPEG(), layerRelativePath: layer))
         defer { ItemImageStore.deleteAll(relativePath: layer) }
 
-        _ = ImageReconcileService.reconcile(in: ctx)
-        #expect(ItemImageStore.fileExists(relativePath: src),
+        // 扫描目录必须是**本用例自己的**：`reconcile(in:)` 默认扫生产根，
+        // 并发跑的其他用例的文件会被当孤儿一起删掉（本波审计确认的 live flake，
+        // 而这行正是我自己一小时前写下的）。照 `ImageReconcileServiceTests` 的
+        // scanDir 写法收口：把两个文件按同名复制进临时目录，rel 串照样对得上。
+        let scanDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("source-photo-scan-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: scanDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scanDir) }
+        for rel in [layer, src] {
+            let from = try #require(ItemImageStore.absoluteURL(relativePath: rel))
+            try FileManager.default.copyItem(
+                at: from, to: scanDir.appendingPathComponent(from.lastPathComponent))
+        }
+        _ = ImageReconcileService.reconcile(in: ctx, directory: scanDir)
+        #expect(FileManager.default.fileExists(
+            atPath: scanDir.appendingPathComponent(
+                URL(fileURLWithPath: src).lastPathComponent).path),
                 "对账把用户的照片当孤儿删了")
     }
 

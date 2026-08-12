@@ -3,6 +3,11 @@ import SwiftData
 import Foundation
 @testable import ClosetModel
 
+/// D112：`.serialized` 是 **suite / 参数化用例** 的 trait；
+/// 挂在非参数化的单个 `@Test` 上**什么都不做**（全仓曾有 25 处这样的写法，
+/// 于是「这里安全因为串行」的说法全是假的）。本套用进程级钩子
+///（`ItemImageStore.forceFailure` / 共享图片根），必须真的串行。
+@Suite(.serialized)
 @MainActor
 struct DeleteServiceTests {
     init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
@@ -102,7 +107,7 @@ struct DeleteServiceTests {
     /// M2: save 失败必须 rollback——pending delete 不得滞留污染下一次无关 save。
     /// 整柜级联删（force）同时删成员图；save 失败保留文件（行未删，删图即反向孤儿）。
     /// 此路径此前零测试覆盖——将来接 UI 时的回归高危区。
-    @Test(.serialized) func deleteWardrobeForceRemovesMemberImagesKeepsOnFailure() throws {
+    @Test func deleteWardrobeForceRemovesMemberImagesKeepsOnFailure() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.slotRaw = "top"; i.wardrobe = w; ctx.insert(i)
@@ -123,7 +128,7 @@ struct DeleteServiceTests {
     }
 
     /// 删除单品同时删本地图（与 deleteWardrobe 同责任模型）；save 失败保留文件可重试。
-    @Test(.serialized) func deleteItemRemovesLocalImageOnCommitKeepsOnFailure() throws {
+    @Test func deleteItemRemovesLocalImageOnCommitKeepsOnFailure() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "tee"); i.slotRaw = "top"; i.wardrobe = w; ctx.insert(i)
@@ -143,7 +148,7 @@ struct DeleteServiceTests {
         #expect(ItemImageStore.loadData(relativePath: rel) == nil)
     }
 
-    @Test(.serialized) func deleteItemSaveFailureRollsBackPendingDelete() throws {
+    @Test func deleteItemSaveFailureRollsBackPendingDelete() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let i = Item(name: "x"); i.wardrobe = w; ctx.insert(i)

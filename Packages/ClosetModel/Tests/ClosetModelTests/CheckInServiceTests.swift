@@ -4,6 +4,11 @@ import Foundation
 @testable import ClosetModel
 import ClosetCore
 
+/// D112：`.serialized` 是 **suite / 参数化用例** 的 trait；
+/// 挂在非参数化的单个 `@Test` 上**什么都不做**（全仓曾有 25 处这样的写法，
+/// 于是「这里安全因为串行」的说法全是假的）。本套用进程级钩子
+///（`ItemImageStore.forceFailure` / 共享图片根），必须真的串行。
+@Suite(.serialized)
 @MainActor
 struct CheckInServiceTests {
     let today = Date(timeIntervalSince1970: 1_700_000_000)
@@ -107,7 +112,7 @@ struct CheckInServiceTests {
 
     /// D85 波 D：合身反馈是打卡后的**追问**（同一条 WearRecord 的 update），
     /// 不是第二种打卡语义。校验 + 快照回滚收敛在这一个入口。
-    @Test(.serialized) func setFitFeedbackValidatesAndRollsBack() throws {
+    @Test func setFitFeedbackValidatesAndRollsBack() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         let top = mk(ctx, w, "top", "top")

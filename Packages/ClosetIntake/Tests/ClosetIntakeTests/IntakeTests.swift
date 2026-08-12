@@ -7,6 +7,11 @@ import ImageIO
 @testable import ClosetModel // for ItemImageStore.forceFailure test hook
 import ClosetCore
 
+/// D112：`.serialized` 是 **suite / 参数化用例** 的 trait；
+/// 挂在非参数化的单个 `@Test` 上**什么都不做**（全仓曾有 25 处这样的写法，
+/// 于是「这里安全因为串行」的说法全是假的）。本套用进程级钩子
+///（`ItemImageStore.forceFailure` / 共享图片根），必须真的串行。
+@Suite(.serialized)
 @MainActor
 struct IntakeTests {
     init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
@@ -841,7 +846,7 @@ struct IntakeTests {
 
     /// 归一成功但 ItemImageStore.save 返回 nil（磁盘写失败）：衣物本体仍入库，
     /// 但层图丢失不得静默——状态条诚实提示可重拍。
-    @Test(.serialized) func confirmLayerImageSaveFailureSurfacesHonestMessage() async throws {
+    @Test func confirmLayerImageSaveFailureSurfacesHonestMessage() async throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .top))
@@ -949,7 +954,7 @@ struct IntakeTests {
     /// Item 不得落库，已写出的层图文件必须一并清除（无孤儿文件）。
     /// 只断言本测试 confirm 写出的那个文件：ItemImageStore.rootDirectory 是
     /// 跨测试进程共享的真盘目录，全目录快照 diff 会被并行进程的外来增删打乱。
-    @Test(.serialized) func confirmSaveFailureRollsBackItemAndImage() async throws {
+    @Test func confirmSaveFailureRollsBackItemAndImage() async throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .top))
@@ -971,7 +976,7 @@ struct IntakeTests {
     /// INT-1: 层图路径已置 statusMessage（归一失败 "Added, but…"）后 ModelSave 失败：
     /// 单品实际未入库（已回滚），不得同时闪现成功措辞与保存失败——
     /// statusMessage 必须随回滚清空，只留 lastError。
-    @Test(.serialized) func confirmSaveFailureRollbackClearsStaleStatusMessage() async throws {
+    @Test func confirmSaveFailureRollbackClearsStaleStatusMessage() async throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         let vm = makeVM(ItemTags(slot: .top))

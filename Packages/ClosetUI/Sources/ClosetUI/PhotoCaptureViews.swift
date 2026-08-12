@@ -143,6 +143,15 @@ public struct ItemThumbnailView: View {
     /// 此前是在 body 里同步读盘 + 解码，SwiftUI 每次求值都重来一遍。
     @State private var decoded: PlatformImage?
 
+    /// 手里这张是不是**上一个 key** 的？（`@State` 不会因为 id 变了就自己清空）
+    /// 纯函数以便可测：SwiftUI 的身份行为在 `swift test` 里观察不到。
+    static func shouldDropStaleDecoded(
+        _ decoded: PlatformImage?, cachedForCurrentKey: PlatformImage?
+    ) -> Bool {
+        guard let decoded else { return false }          // 本来就没有，无需重置
+        return cachedForCurrentKey !== decoded           // 当前 key 下不是同一张 → 是旧的
+    }
+
     private var cached: PlatformImage? {
         decoded ?? ThumbnailImageCache.shared.image(
             path: item.localImageRelativePath, variant: variant)
@@ -185,6 +194,15 @@ public struct ItemThumbnailView: View {
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
         .task(id: cacheKey) {
+            // D112：换图/换件后 `cacheKey` 变了，但 `decoded` 里还留着**上一张**，
+            // 而下面第一条 guard 立刻返回 —— 于是这一格永久显示旧图。
+            // 先按新 key 重新解析：命中缓存则由 `cached` 兜住，不会闪空。
+            if Self.shouldDropStaleDecoded(
+                decoded,
+                cachedForCurrentKey: ThumbnailImageCache.shared.image(
+                    path: item.localImageRelativePath, variant: variant)) {
+                decoded = nil
+            }
             // 命中缓存就不做任何事；未命中才后台解码（首次还会生成派生图，
             // 那是几十毫秒的活儿，绝不能卡在滑到该格的那一帧上）
             guard decoded == nil,
