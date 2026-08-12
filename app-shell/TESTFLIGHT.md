@@ -8,7 +8,9 @@
 | App Icon 1024 | ✅ |
 | PrivacyInfo.xcprivacy | ✅ |
 | 出口合规 `ITSAppUsesNonExemptEncryption=NO` | ✅ |
-| 版本 `0.1.0` (build **28**) | ✅ |
+| 版本 `0.1.0` (build **37**) | ✅ |
+| Build 37 | ✅ Delivery `26e18067-729c-4e75-acf4-abb5d2dc8f48`（D101–D105：第二轮审计 HIGH 清空 + 日间天气/打分权重/导出/派生档 + 转移史不崩 + 遥测文案跟 hasSink） |
+| Build 36 | ✅ D100（4 tab 定案 + F2 死码族 + 臀宽合身） |
 | Build 28 | ✅ Delivery `09d8ffe1-2731-4ba7-a8ca-68638271e5e6`（ModelSave 诚实链 + 空态/VO 扫尾 + 天气源/fail-orange + Storage 列表 + cloth-done 完善） |
 | Build 27 | ✅ Delivery `3c30f1d9-51ad-4e15-8c48-d7f1d7e92e96`（Open-Meteo 天气 + 条码 Open Facts + 旅程 e2e 打磨 / displaySlot 全链路） |
 | Build 26 | ✅ Delivery `8cce71fe-be57-4cbc-ae7f-bbd51a7b1d4f`（纸娃娃正确穿衣 D75：displaySlot 全链路 + 侧淡 + 空层/fitCaption） |
