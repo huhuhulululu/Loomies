@@ -507,3 +507,12 @@ D80 收敛后增量打磨（commit 粒度），不新增产品功能，仅抬升
 - **测试质量（cf98879）**：`ITEM_IMAGE_ROOT` per-process 临时目录隔离；异步测试 rendezvous 替代 wall-clock sleep。
 - **工具链（bd8ca35, 09322f9）**：脚本可移植化、ASC 凭据走 env（`.env.asc`）、xcodegen 前置 guard、pyc 出跟踪 + gitignore。
 - 测试数 **580 → 586**（Core 206 / Model 149 / UI 193 / Intake 38；增量来自 a11y 两波）。后续同类波按 commit 追加，不再逐波计数。
+
+## D82 [2026-08-11] Avatar 资产 shape 维度 + 试衣间（用户拍板：B 方案 + 正面档 + 试衣间）
+
+用户反馈四条主诉（体型×人种覆盖不够 / 转角换人换细节 / 无法换装试穿 / 细节需筛查）→ 完整侦察后拍板：
+
+- **换人根因**：默认表型 eastAsian 仅有正面帧（F 1/8、M 2/8），D69 防换人守卫对 eastAsian 显式豁免 → 转角回退通用轨（另一人）。**选 B 方案**：保留现有 eastAsian 脸，按锁脸流程重出 13 张转角图（清单 = `PhotorealInventoryQATests.matrixGapsExactlyMatchKnownPendingList` 账本；落盘后删豁免）。
+- **体型维度**：photoreal 命名新增 shape token（`photoreal_{sex}_{phenotype}_{shape}_{front|yaw###}`），resolve 链 shape 专属 → 表型 → 通用（D69 不变）；shape 真图命中时 `BodyMorphParams.removingShapePreset` 旁路 preset warp（防双重效果，用户微调保留）。**选正面档**：出图 64 张（rectangle 视基础帧近似后补），任务清单入 BODY-AVATAR-IMAGE-PROMPTS §10。
+- **资产 QA 门**：`PhotorealInventoryQATests`——矩阵账本（缺格==已知待补，防再漏）、严格 2:3 尺寸（已修 `photoreal_female_african_yaw045` 765×1099 孤例）、命名白名单合规。croquis 轨确认为渲染死代码，手册 §8/§9 改写为 photoreal 命名。
+- **试衣间**：`FittingRoomViewModel/View`（Closet 工具栏 tshirt 入口）——按槽位挑本柜单品（displaySlot 纠偏、裙↔上下装互斥、跨柜静默拒绝）→ 纸娃娃正面上身（与推荐/收藏同一条 composer 链）→ 存收藏（source=fittingRoom，失败保留选区诚实提示）。侧背叠衣是结构性缺口（无 per-yaw 层图），另立项。

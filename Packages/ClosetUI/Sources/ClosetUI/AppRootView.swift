@@ -292,6 +292,7 @@ public struct ClosetGridView: View {
     @Environment(\.modelContext) private var context
     @State private var showIntake = false
     @State private var showSearch = false
+    @State private var showFittingRoom = false
     @State private var searchVM = SearchViewModel()
     @State private var statusFilter: String = "all"
     /// nil = all types; chips use GarmentSlot + displaySlot name correction.
@@ -364,6 +365,15 @@ public struct ClosetGridView: View {
                     }
                     .accessibilityLabel(ClosetGridEmptyCopy.addPieceAccessibilityLabel)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showFittingRoom = true } label: {
+                        Image(systemName: "tshirt")
+                    }
+                    .accessibilityLabel(FittingRoomView.entryAccessibilityLabel)
+                }
+            }
+            .sheet(isPresented: $showFittingRoom) {
+                FittingRoomView(wardrobe: wardrobe)
             }
             .sheet(isPresented: $showIntake) {
                 AddPieceSheet(wardrobe: wardrobe) { flash in
