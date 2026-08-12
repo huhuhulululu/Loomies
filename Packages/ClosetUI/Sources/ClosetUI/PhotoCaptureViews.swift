@@ -226,6 +226,8 @@ public struct AddPieceSheet: View {
     /// 批量进度与诚实记账；nil = 不在批量流里
     @State private var batchQueue: BatchIntakeQueue?
     @State private var batchNotice = ""
+    /// 抠图手修（D96）
+    @State private var showRetouch = false
 
     enum Mode { case choose, manual, intake }
 
@@ -277,6 +279,13 @@ public struct AddPieceSheet: View {
                 }
             }
             #if os(iOS)
+            .sheet(isPresented: $showRetouch) {
+                if let matted = intakeVM.mattedImage {
+                    MatteRetouchView(matted: matted, original: intakeVM.originalImage) { edited in
+                        intakeVM.applyRetouchedMatte(edited)
+                    }
+                }
+            }
             .sheet(isPresented: $showLibrary) {
                 // 批量为默认路径（DESIGN §F1）；每张仍由用户逐一拍板
                 PhotoLibraryPicker(selectionLimit: BatchIntakeQueue.maxSelection) { results in
@@ -398,6 +407,9 @@ public struct AddPieceSheet: View {
                                     .frame(maxWidth: .infinity)
                                     .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                             }
+                            // 抠图有啃掉袖口/留下背景的时候——当场修，不用重拍（D96）
+                            Button(MatteRetouchViewModel.title) { showRetouch = true }
+                                .font(.caption.weight(.medium))
                             #endif
                         }
                     }

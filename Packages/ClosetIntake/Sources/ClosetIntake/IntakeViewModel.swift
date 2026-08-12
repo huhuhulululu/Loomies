@@ -15,6 +15,17 @@ public final class IntakeViewModel {
 
     public var draft: IntakeDraft?
     public private(set) var mattedImage: Data?
+    /// 抠图前的原图。手修的「找回」要从这里取像素——不留着就只能擦不能恢复（D96）。
+    /// 手修结果回写（D96）。只在有真改动时调用，避免无谓重编码。
+    @discardableResult
+    public func applyRetouchedMatte(_ data: Data) -> Bool {
+        guard mattedImage != nil else { return false }
+        mattedImage = data
+        AppLog.info("matte retouched", .intake)
+        return true
+    }
+
+    public private(set) var originalImage: Data?
     public private(set) var isProcessing = false
     /// User-facing last failure (empty photo, blank name, etc.).
     public private(set) var lastError: String?
@@ -63,6 +74,7 @@ public final class IntakeViewModel {
         guard !imageData.isEmpty else {
             draft = nil
             mattedImage = nil
+            originalImage = nil
             // 空照片即放弃整条流水线：旧的抠图失败标志不得残留，
             // 否则后续条形码草稿 confirm 会误报「照片不会出现在试穿」。
             mattingFailed = false
@@ -118,6 +130,7 @@ public final class IntakeViewModel {
         d.name = Self.suggestedName(for: d)
         guard generation == processGeneration else { return }  // 已被新照片/reset 取代
         mattedImage = mattingSucceeded ? workingImage : nil
+        originalImage = imageData
         mattingFailed = !mattingSucceeded
         if !mattingSucceeded {
             statusMessage = Self.mattingFailedMessage
@@ -322,6 +335,7 @@ public final class IntakeViewModel {
         processGeneration += 1
         draft = nil
         mattedImage = nil
+        originalImage = nil
         mattingFailed = false
         return item
     }
@@ -365,6 +379,7 @@ public final class IntakeViewModel {
         processGeneration += 1   // 取消在途 process()：其结果不得复活草稿
         draft = nil
         mattedImage = nil
+        originalImage = nil
         mattingFailed = false
         isProcessing = false
         lastError = nil
