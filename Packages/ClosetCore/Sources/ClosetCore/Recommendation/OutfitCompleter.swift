@@ -59,11 +59,14 @@ public enum OutfitCompleter {
             let scored = filtered.filter { $0.slot == slot }.map { it in
                 (item: it, pre: preShape.map { BodyShapeStyling.affinity(items: [it], shape: $0) } ?? 0)
             }
-            // 降级时最近穿过的排在后面（降权 = 排序影响，不是二次排除）
+            // 降级时最近穿过的排在后面（降权 = 排序影响，不是二次排除）。
+            // 首键与 `rankByRecency` 共用同一段逻辑（D105：此前是两份，
+            // 而只有没人用的那份有测试）；次键是体型预分，生产独有。
             let ordered = scored.sorted { a, b in
-                let aWorn = outcome.recentlyWornIDs.contains(a.item.id)
-                let bWorn = outcome.recentlyWornIDs.contains(b.item.id)
-                if aWorn != bWorn { return !aWorn && bWorn }
+                if let byRecency = CandidateFilter.recencyOrder(
+                    a.item.id, b.item.id, recentlyWornIDs: outcome.recentlyWornIDs) {
+                    return byRecency
+                }
                 return a.pre != b.pre ? a.pre > b.pre : a.item.id < b.item.id
             }
             return Array(ordered.prefix(Self.maxOptionsPerSlot).map(\.item))

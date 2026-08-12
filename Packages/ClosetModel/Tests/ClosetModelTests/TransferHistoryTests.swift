@@ -167,3 +167,43 @@ struct TransferRecordLifecycleTests {
         #expect(json.contains(item.id.uuidString))
     }
 }
+
+/// D105（审计 LOW，但后果是崩）：`closetNames` 用 `Dictionary(uniqueKeysWithValues:)`
+/// 按 `Wardrobe.id` 建表——而 schema **没有**把 id 声明为 unique，
+/// 导入/同步产生的重复 id 会让它直接 fatalError，而不是退化成一个可用的映射。
+/// 崩在一个只是「给历史行取个名字」的路径上，代价完全不成比例。
+@MainActor
+struct TransferHistoryNameLookupTests {
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 重复 id 不得 trap——取一个确定的胜者即可（按名 + id 决胜，可复现）。
+    @Test func duplicateIdsDoNotTrap() throws {
+        let ctx = try makeContext()
+        let shared = UUID()
+        let a = Wardrobe(name: "Alpha"); a.id = shared; ctx.insert(a)
+        let b = Wardrobe(name: "Beta"); b.id = shared; ctx.insert(b)
+        try ctx.save()
+        let names = TransferHistory.closetNames(in: ctx)
+        #expect(names[shared] != nil)
+        // 确定性：同样的库跑两次结果一致
+        #expect(TransferHistory.closetNames(in: ctx)[shared] == names[shared])
+    }
+
+    /// 正常情况照旧。
+    @Test func distinctIdsMapNormally() throws {
+        let ctx = try makeContext()
+        let a = Wardrobe(name: "Home"); ctx.insert(a)
+        let b = Wardrobe(name: "Lake"); ctx.insert(b)
+        try ctx.save()
+        let names = TransferHistory.closetNames(in: ctx)
+        #expect(names[a.id] == "Home")
+        #expect(names[b.id] == "Lake")
+    }
+}

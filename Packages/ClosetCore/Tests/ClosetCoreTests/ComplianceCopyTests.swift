@@ -85,10 +85,10 @@ struct ComplianceCopyTests {
         // 身体数据本地域是真的（D5 + schema 守卫），可以说
         #expect(text.contains("body"))
         // 遥测：措辞必须与实际状态一致（当前无 SDK，未发送任何事件）
-        #expect(ComplianceCopy.telemetryStatusLine(enabled: false)
+        #expect(ComplianceCopy.telemetryStatusLine(enabled: false, hasSink: false)
             .localizedCaseInsensitiveContains("off"))
         for enabled in [true, false] {
-            let line = ComplianceCopy.telemetryStatusLine(enabled: enabled)
+            let line = ComplianceCopy.telemetryStatusLine(enabled: enabled, hasSink: false)
             #expect(!line.isEmpty)
             // 不得声称正在上报——当前没有 sink
             #expect(!line.localizedCaseInsensitiveContains("uploading"))
@@ -149,5 +149,39 @@ struct ComplianceCopyTests {
             .sections.map(\.body).joined(separator: " ").lowercased() ?? ""
         #expect(privacyText.contains("barcode"))
         #expect(privacyText.contains("city"))
+    }
+}
+
+/// D105（审计 LOW）：`TelemetryGate.hasSink` 存在的**唯一理由**就是让这句隐私文案
+/// 说得诚实——「没有接分析服务，所以什么都没发」。它却零调用点，
+/// 而 `telemetryStatusLine` 把「no analytics service is connected」**硬编码**进句子里。
+/// 真接上 SDK 那天，这句话会在没人注意的情况下变成谎话。
+struct TelemetryStatusLineReflectsRealityTests {
+
+    @Test func statusLineIsDrivenByWhetherASinkExists() {
+        // 无 sink：可以说「什么都没发」
+        let noSink = ComplianceCopy.telemetryStatusLine(enabled: true, hasSink: false)
+        #expect(noSink.localizedCaseInsensitiveContains("nothing is sent"))
+        // 有 sink 且用户已开启：**不得**再说「什么都没发」
+        let withSink = ComplianceCopy.telemetryStatusLine(enabled: true, hasSink: true)
+        #expect(!withSink.localizedCaseInsensitiveContains("nothing is sent"))
+        #expect(!withSink.localizedCaseInsensitiveContains("no analytics service"))
+    }
+
+    /// 关掉时无论有没有 sink 都是「不收集不发送」——那是开关的语义。
+    @Test func disabledMeansNothingRegardlessOfSink() {
+        for hasSink in [true, false] {
+            let line = ComplianceCopy.telemetryStatusLine(enabled: false, hasSink: hasSink)
+            #expect(line.localizedCaseInsensitiveContains("off"))
+            #expect(line.localizedCaseInsensitiveContains("nothing"))
+        }
+    }
+
+    /// 当前构建确实没有 sink——文案与事实一致（接上那天这条会红，逼人改文案）。
+    @Test func thisBuildHasNoSinkAndSaysSo() {
+        #expect(!TelemetryGate.shared.hasSink)
+        let line = ComplianceCopy.telemetryStatusLine(
+            enabled: true, hasSink: TelemetryGate.shared.hasSink)
+        #expect(line.localizedCaseInsensitiveContains("nothing is sent"))
     }
 }

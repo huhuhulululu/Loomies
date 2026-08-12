@@ -81,10 +81,15 @@ public enum ComplianceCopy {
         + "for exactly what and when."
 
     /// 遥测状态行。当前没有任何发送出口（无 SDK），措辞不得暗示正在上报。
-    public static func telemetryStatusLine(enabled: Bool) -> String {
-        enabled
-            ? "Anonymous usage stats: on. Nothing is sent yet — no analytics service is connected in this build."
-            : "Anonymous usage stats: off. Nothing is collected or sent."
+    /// `hasSink` 必须由调用方从 `TelemetryGate` 取实况传入（D105）：
+    /// 此前「no analytics service is connected」是**硬编码**在句子里的，
+    /// 而 `TelemetryGate.hasSink`——存在的唯一理由就是让这句话诚实——零调用点。
+    /// 真接上 SDK 那天，这句话会在没人注意的情况下变成谎话。
+    public static func telemetryStatusLine(enabled: Bool, hasSink: Bool) -> String {
+        guard enabled else { return "Anonymous usage stats: off. Nothing is collected or sent." }
+        return hasSink
+            ? "Anonymous usage stats: on. Only allowlisted event names and non-identifying fields are sent."
+            : "Anonymous usage stats: on. Nothing is sent yet — no analytics service is connected in this build."
     }
 
     /// 逐项开源署名（§4.3 许可红线）。按 name 排序——确定性，且 UI 直接铺。

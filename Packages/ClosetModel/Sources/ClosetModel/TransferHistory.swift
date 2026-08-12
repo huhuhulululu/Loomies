@@ -37,6 +37,12 @@ public enum TransferHistory {
     @MainActor
     public static func closetNames(in context: ModelContext) -> [UUID: String] {
         let all = (try? context.fetch(FetchDescriptor<Wardrobe>())) ?? []
-        return Dictionary(uniqueKeysWithValues: all.map { ($0.id, $0.name) })
+        // `uniqueKeysWithValues` 对重复 key 直接 fatalError，而 schema **没有**
+        // 把 Wardrobe.id 声明为 unique——导入/同步产生的重复 id 会让一个
+        // 「给历史行取名字」的路径把 App 崩掉（D105）。取确定的胜者即可。
+        return Dictionary(all.map { ($0.id, $0.name) }) { lhs, rhs in
+            // (name, 名字) 决胜：同一个库跑两次结果一致
+            min(lhs, rhs)
+        }
     }
 }

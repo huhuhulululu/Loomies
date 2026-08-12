@@ -104,7 +104,9 @@ public struct MeView: View {
                             telemetryEnabled = on
                             TelemetryGate.shared.setEnabled(on)
                         }))
-                    Text(ComplianceCopy.telemetryStatusLine(enabled: telemetryEnabled))
+                    Text(ComplianceCopy.telemetryStatusLine(
+                        enabled: telemetryEnabled,
+                        hasSink: TelemetryGate.shared.hasSink))
                         .font(.caption2).foregroundStyle(DS.muted)
                     NavigationLink("Help & FAQ") { HelpView() }
                 } header: {

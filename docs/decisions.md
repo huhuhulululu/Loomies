@@ -1136,3 +1136,20 @@ DESIGN §F2 快速层已标注 v1.0 未接 + 指向本条——**把 mock 说成
 **导出带上 onboarding 场合题**：`PersonDTO.primaryOccasionRaw`。详情 200pt 帧取
 `.detail` 派生（`forDisplayHeight`，≥200）。`Mannequin3DView` 从架构目录的 live
 路径降为能力探针。Closet / Body 网格在 accessibility 字号收成单列。
+
+## D105 — 第二轮审计 medium/low 批之三（2026-08-12）
+
+**一个取名字的路径能把 App 崩掉**：`TransferHistory.closetNames` 用
+`Dictionary(uniqueKeysWithValues:)` 按 `Wardrobe.id` 建表，而 schema **没有**
+把 id 声明为 unique——导入/同步产生的重复 id 会直接 fatalError。
+代价与场景完全不成比例（它只是给历史行取个显示名）。改为带决胜的合并，确定可复现。
+
+**`hasSink` 存在的唯一理由就是让那句隐私文案诚实，它却零调用点**：
+`telemetryStatusLine` 把「no analytics service is connected」**硬编码**进句子，
+真接上 SDK 那天这句话会在没人注意的情况下变成谎话。改为由调用方传实况，
+并加门：有 sink 时不得再说「什么都没发」。
+
+**只有没人用的那份有测试**：`CandidateFilter.rankByRecency` 与
+`OutfitCompleter` 里手写的排序是两份逻辑，生产那份还多一个体型预分次键，
+所以不能简单让它去调前者。抽出**首键** `recencyOrder`（打平返回 nil，
+调用方继续比下一键）让两边共用——测试从此守的是生产真的在跑的那段。

@@ -89,3 +89,18 @@ struct AntiRepeatFallbackTests {
         #expect(!CandidateFilter.repeatRelaxedCaption.isEmpty)
     }
 }
+
+/// D105：降权排序的首键现在由生产与 `rankByRecency` **共用**——
+/// 此前两处各写一份，而只有没人用的那份有测试覆盖。
+struct RecencyOrderPrimitiveTests {
+    @Test func wornSortsAfterUnworn() {
+        #expect(CandidateFilter.recencyOrder("fresh", "worn", recentlyWornIDs: ["worn"]) == true)
+        #expect(CandidateFilter.recencyOrder("worn", "fresh", recentlyWornIDs: ["worn"]) == false)
+    }
+
+    /// 同类打平返回 nil，交给调用方比下一键（生产用体型预分，rankByRecency 用 id）。
+    @Test func tiesDeferToTheCaller() {
+        #expect(CandidateFilter.recencyOrder("a", "b", recentlyWornIDs: []) == nil)
+        #expect(CandidateFilter.recencyOrder("a", "b", recentlyWornIDs: ["a", "b"]) == nil)
+    }
+}

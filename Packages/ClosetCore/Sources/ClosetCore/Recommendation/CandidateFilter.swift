@@ -65,15 +65,27 @@ public enum CandidateFilter {
             recentlyWornIDs: Set(relaxed.map(\.id)).intersection(context.wornWithin7DaysIDs))
     }
 
+    /// 降权排序的**首键**：没穿过的排在穿过的前面。
+    /// 返回 nil = 这一键上打平，由调用方继续比下一键（体型预分等）。
+    ///
+    /// D105：此前 `rankByRecency` 与 `OutfitCompleter` 里手写的排序是两份逻辑，
+    /// 而**只有没人用的那份有测试**。抽出这个首键让两边共用——
+    /// 生产还需要体型预分做次键，所以不能简单地让它去调 `rankByRecency`。
+    public static func recencyOrder(
+        _ a: String, _ b: String, recentlyWornIDs: Set<String>
+    ) -> Bool? {
+        let aWorn = recentlyWornIDs.contains(a)
+        let bWorn = recentlyWornIDs.contains(b)
+        return aWorn == bWorn ? nil : (!aWorn && bWorn)
+    }
+
     /// 降权 = **排序**影响，不是二次排除：最近穿过的排在没穿过的后面。
     /// 同类内部按 id 决胜（排序确定性，禁止依赖数组偶然顺序）。
     public static func rankByRecency(
         _ items: [CandidateItem], recentlyWornIDs: Set<String>
     ) -> [CandidateItem] {
         items.sorted { a, b in
-            let aWorn = recentlyWornIDs.contains(a.id)
-            let bWorn = recentlyWornIDs.contains(b.id)
-            return aWorn != bWorn ? (!aWorn && bWorn) : a.id < b.id
+            recencyOrder(a.id, b.id, recentlyWornIDs: recentlyWornIDs) ?? (a.id < b.id)
         }
     }
 
