@@ -40,7 +40,9 @@ struct CheckInViewModelTests {
         #expect(rec!.fitFeedback == "fitted")
         #expect(vm.selectedIDs.isEmpty)
         #expect(vm.fitFeedback == nil)
-        #expect(vm.message.isEmpty)
+        // 成功回执点名合身档位（此前清空 message，用户无从确认备注记上没）
+        #expect(vm.message == FitFeedbackCopy.recordedMessage(.fitted))
+        #expect(!vm.didFail)
     }
 
     /// ModelSave fail toast must not look like success; selection kept for retry.
@@ -111,7 +113,9 @@ struct CheckInViewModelTests {
         let rec = vm.checkIn(in: ctx)
         #expect(rec != nil)
         #expect(rec!.wornItemIDs == [t.id.uuidString])
-        #expect(vm.message.isEmpty)
+        // 成功现在给回执（此前 message 清空 → 表单一关无从确认打卡是否生效）
+        #expect(!vm.message.isEmpty)
+        #expect(!vm.didFail)
     }
 
     @Test func recentlyWornFeedsCopilotAntiRepeat() throws {
@@ -349,5 +353,78 @@ struct CheckInViewModelTests {
         #expect(!vm.weatherSourceLabel.localizedCaseInsensitiveContains("Open-Meteo"))
         // Pill says Unavailable — do not claim cool/rain from retained °F (W1.5 honesty).
         #expect(vm.weatherDressCue == nil)
+    }
+}
+
+/// D88：合身反馈保存失败**不得静默**。此前 `checkIn` 用 `_ =` 丢弃
+/// `setFitFeedback` 的返回值，随后无条件清空 message 并返回记录，View 于是
+/// 干净关闭表单——用户明确选了「Felt tight」，看到的却是等同成功的结果，
+/// 而 fit note 根本没落库，且失败路径的 `context.rollback()` 还会连带丢弃
+/// 该 context 上其它 pending 变更。`fitFeedbackSaveFailedMessage` 早就为此写好，
+/// 却零生产调用点。
+@MainActor
+struct CheckInFitFeedbackHonestyTests {
+
+    func setup() throws -> (ModelContext, Wardrobe, Item) {
+        let ctx = try ModelContext(ModelContainer(
+            for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+            Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let t = Item(name: "tee"); t.slotRaw = "top"; t.wardrobe = w
+        t.statusRaw = "available"; ctx.insert(t)
+        try ctx.save()
+        return (ctx, w, t)
+    }
+
+    /// 反馈写入被拒（脏值）→ 打卡本身仍成功，但必须**说出**备注没保存。
+    @Test func rejectedFitFeedbackSurfacesMessageInsteadOfSilentSuccess() throws {
+        let (ctx, w, t) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        vm.toggle(t)
+        vm.fitFeedback = "snug"   // 非 FitVerdict —— setFitFeedback 拒收
+        let rec = vm.checkIn(in: ctx)
+        // 打卡已成功，不谎报整体失败
+        #expect(rec != nil)
+        // 但备注没保存这件事必须可见
+        #expect(vm.message == CheckInService.fitFeedbackSaveFailedMessage)
+        #expect(rec?.fitFeedback == nil)
+    }
+
+    /// 合法反馈 → 真落库，且成功回执点名了用户选的档位（不是空字符串）。
+    @Test func acceptedFitFeedbackPersistsAndConfirms() throws {
+        let (ctx, w, t) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        vm.toggle(t)
+        vm.fitFeedback = FitVerdict.tight.rawValue
+        let rec = vm.checkIn(in: ctx)
+        #expect(rec?.fitFeedback == FitVerdict.tight.rawValue)
+        #expect(vm.message == FitFeedbackCopy.recordedMessage(.tight))
+        #expect(vm.message.localizedCaseInsensitiveContains("tight"))
+    }
+
+    /// 无反馈的普通打卡也要有回执（此前成功路径把 message 清空，表单一关无从确认）。
+    @Test func plainCheckInStillConfirms() throws {
+        let (ctx, w, t) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        vm.toggle(t)
+        let rec = vm.checkIn(in: ctx)
+        #expect(rec != nil)
+        #expect(!vm.message.isEmpty)
+        #expect(!vm.didFail)
+    }
+
+    /// 失败与成功必须可区分——View 靠它决定是否关表单，不得靠关键词嗅探。
+    @Test func failureFlagSeparatesPartialFailureFromSuccess() throws {
+        let (ctx, w, t) = try setup()
+        let bad = CheckInViewModel(wardrobe: w)
+        bad.toggle(t); bad.fitFeedback = "snug"
+        _ = bad.checkIn(in: ctx)
+        #expect(bad.didFail)
+
+        let good = CheckInViewModel(wardrobe: w)
+        good.toggle(t); good.fitFeedback = FitVerdict.loose.rawValue
+        _ = good.checkIn(in: ctx)
+        #expect(!good.didFail)
     }
 }

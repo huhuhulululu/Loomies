@@ -207,3 +207,84 @@ struct OnboardingViewModelTests {
         #expect(vm.bodyShape == .triangle)
     }
 }
+
+/// D88：Me → Body measurements 的同意门此前是**装饰性**的——未同意时只在 Form 顶部
+/// 多一张说明卡，其后的四围输入、Save、精调滑杆（onChange 即落库）全部无条件可用，
+/// `save/saveFineTune/selectPopularShape` 也全无 consent 判定。于是从未点过
+/// 「Use my measurements」的用户照样能把四围存进库；而代码注释写着「未同意时不直接进录入面」。
+/// Onboarding 那条路径门是对的，这条**主录入入口**没有。
+@MainActor
+struct BodyProfileConsentGateTests {
+
+    func isolatedConsent(granted: Bool) -> BodyDataConsent {
+        let suite = UserDefaults(suiteName: "bodygate-\(UUID().uuidString)")!
+        let consent = BodyDataConsent(defaults: suite)
+        consent.setGranted(granted)
+        return consent
+    }
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(ModelContainer(
+            for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+            Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    }
+
+    /// 未同意 → 不落库、不留脏、给诚实提示（保存原子性：insert 之前就拦）。
+    @Test func measuresRefusedWithoutConsentAndLeaveNoDirtyState() throws {
+        let ctx = try makeContext()
+        let vm = BodyProfileViewModel(
+            personID: UUID(), bodyDataConsent: isolatedConsent(granted: false))
+        vm.bustInches = 34; vm.waistInches = 27; vm.hipInches = 37
+        vm.save(in: ctx)
+        #expect(vm.message == BodyDataConsent.requiredMessage)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+        #expect(!ctx.hasChanges)
+    }
+
+    /// 精调滑杆是 onChange 即落库的路径，同样必须被门拦住。
+    @Test func fineTuneRefusedWithoutConsent() throws {
+        let ctx = try makeContext()
+        let vm = BodyProfileViewModel(
+            personID: UUID(), bodyDataConsent: isolatedConsent(granted: false))
+        vm.fineWaist = 0.95
+        vm.saveFineTune(in: ctx)
+        #expect(vm.message == BodyDataConsent.requiredMessage)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+        #expect(!ctx.hasChanges)
+    }
+
+    /// 快选体型也写 PersonBodyProfile（同属身体数据），同样过门。
+    @Test func popularShapePickRefusedWithoutConsent() throws {
+        let ctx = try makeContext()
+        let vm = BodyProfileViewModel(
+            personID: UUID(), bodyDataConsent: isolatedConsent(granted: false))
+        vm.selectPopularShape(.pear, in: ctx)
+        #expect(vm.message == BodyDataConsent.requiredMessage)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+        #expect(!ctx.hasChanges)
+    }
+
+    /// 同意后照常工作（门不是把功能锁死）。
+    @Test func consentGrantedLetsMeasuresThrough() throws {
+        let ctx = try makeContext()
+        let vm = BodyProfileViewModel(
+            personID: UUID(), bodyDataConsent: isolatedConsent(granted: true))
+        vm.bustInches = 34; vm.waistInches = 27; vm.hipInches = 37
+        vm.save(in: ctx)
+        #expect(vm.message != BodyDataConsent.requiredMessage)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).count == 1)
+    }
+
+    /// 展示用底座（性别/表型）不是身体测量数据，但它也写同一张 PersonBodyProfile 行——
+    /// 未同意就不该建这行。否则「没同意却建了身体档案」在数据层照样成立。
+    @Test func presentationPickersAlsoRespectTheGate() throws {
+        let ctx = try makeContext()
+        let vm = BodyProfileViewModel(
+            personID: UUID(), bodyDataConsent: isolatedConsent(granted: false))
+        vm.selectBodySex(.male, in: ctx)
+        vm.selectBodyPhenotype(.african, in: ctx)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+        #expect(!ctx.hasChanges)
+    }
+}

@@ -4,10 +4,17 @@ import ClosetModel
 import ClosetIntake
 import ClosetCore
 
-/// 快速添加草稿（D83）：把 QuickAddSheet 里的落库逻辑抽成可测值类型——
-/// 此前温区硬编码 `Warmth.light` + 颜色恒中性，导致冷天必空推荐、配色打分恒中性。
+/// 手动新增草稿（D83 / D88）：Closet「+」→「Enter manually」的落库唯一真相。
+/// 此前温区硬编码 `Warmth.light` + 颜色恒中性，导致冷天必空推荐、配色打分恒中性；
 /// 未选 = 未知（nil），不替用户假设。
+///
+/// D88 教训：这段逻辑最初只接进了 `QuickAddSheet`——一个零呈现点的死 View——
+/// 而用户真正点到的手填面照旧硬编码。现在 `AddPieceSheet.manualBody` 直接用它，
+/// `WiringLintTests` 的三条门（孤儿 View / 伪造默认值 / create 失败用 delete）守住回归。
 public struct QuickAddDraft: Equatable, Sendable {
+
+    /// ModelSave 失败时的用户文案——与照片入库确认同一条（失败不得静默关面）。
+    @MainActor public static let saveFailedMessage = IntakeViewModel.confirmSaveFailedMessage
     public var name: String
     public var slotRaw: String
     public var occasion: String

@@ -39,7 +39,9 @@ public enum IntakeServiceFactory {
             slot: .top,
             color: nil,
             occasions: ["casual"],
-            warmth: .light)
+            // 云端 VLM 未接：不得凭空给出确定温区档。未知就是未知（nil），
+            // 用户在入库确认页当场填，冷天不因伪造的「薄款」被硬过滤掉。
+            warmth: nil)
     ) -> any TaggingService {
         // 云端 VLM 未接：始终 mock；接 Worker 后在此 DI
         MockTaggingService(tags: defaultTags)

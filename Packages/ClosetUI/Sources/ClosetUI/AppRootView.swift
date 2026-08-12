@@ -853,68 +853,6 @@ public struct ClosetGridView: View {
     }
 }
 
-/// 模拟器快捷入库（不依赖相机）：手填 name/slot → 落库。
-struct QuickAddSheet: View {
-    let wardrobe: Wardrobe
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @State private var draft = QuickAddDraft()
-    @State private var message = ""
-
-    /// Customer toast when ModelSave fails — same bar as manual Add (no silent stay).
-    static let saveFailedMessage = IntakeViewModel.confirmSaveFailedMessage
-
-    /// Order-preserving dedup — the picker occasion may already be "casual".
-    /// nonisolated: pure helper, callable off the View's MainActor isolation.
-    nonisolated static func dedupOccasions(_ raw: [String]) -> [String] {
-        QuickAddDraft.dedupOccasions(raw)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Name", text: $draft.name)
-                Picker("Type", selection: $draft.slotRaw) {
-                    ForEach(GarmentSlot.allCases, id: \.rawValue) { s in
-                        Text(s.displayTitle).tag(s.rawValue)
-                    }
-                }
-                Picker("Occasion", selection: $draft.occasion) {
-                    ForEach(["work", "casual", "date", "gala"], id: \.self) {
-                        Text($0.capitalized).tag($0)
-                    }
-                }
-                // D83：温区/颜色不再硬编码（light + 中性）——冷天必空推荐与配色恒中性的根因
-                Section("Warmth") { WarmthPicker(warmthRaw: $draft.warmthRaw) }
-                Section("Color") { ColorSwatchPicker(paletteID: $draft.colorPaletteID) }
-                if !message.isEmpty {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(Color.orange)
-                        .accessibilityLabel(message)
-                }
-            }
-            .navigationTitle("Add piece")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard draft.commit(into: wardrobe, context: context) != nil else {
-                            // Stay on form with toast (no silent dismiss); next Save retries.
-                            message = Self.saveFailedMessage
-                            return
-                        }
-                        dismiss()
-                    }
-                    .disabled(!draft.canCommit)
-                }
-            }
-        }
-    }
-}
-
 /// Export feedback decision: "ready" toast only when the JSON actually left the
 /// app (share-sheet handoff); otherwise an inline preview — parity with
 /// diagnostics (macOS has no share payload).

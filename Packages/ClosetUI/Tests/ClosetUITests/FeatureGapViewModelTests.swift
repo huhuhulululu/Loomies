@@ -291,7 +291,7 @@ struct FeatureGapViewModelTests {
     @Test func bodyProfileCompletesFFIT() throws {
         let ctx = try makeContext()
         let pid = UUID()
-        let vm = BodyProfileViewModel(personID: pid)
+        let vm = BodyProfileViewModel(personID: pid, bodyDataConsent: TestConsent.granted())
         vm.bustInches = 36
         vm.waistInches = 26
         vm.hipInches = 36
@@ -340,7 +340,7 @@ struct FeatureGapViewModelTests {
     }
 
     @Test func bodyProfileLivePreviewWithoutSave() {
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.bustInches = 34
         vm.waistInches = 30
         vm.hipInches = 42
@@ -354,7 +354,7 @@ struct FeatureGapViewModelTests {
     @Test func bodyProfileQuickPickWithoutMeasures() throws {
         let ctx = try makeContext()
         let pid = UUID()
-        let vm = BodyProfileViewModel(personID: pid)
+        let vm = BodyProfileViewModel(personID: pid, bodyDataConsent: TestConsent.granted())
         vm.selectPopularShape(.apple, in: ctx)
         #expect(vm.selectedPopular == .apple)
         #expect(vm.popularShape == .apple)
@@ -366,7 +366,7 @@ struct FeatureGapViewModelTests {
     }
 
     @Test func bodyProfileInferHighHip() {
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.waistInches = 28
         vm.hipInches = 40
         vm.applyInferredHighHip()
@@ -376,7 +376,7 @@ struct FeatureGapViewModelTests {
     }
 
     @Test func bodyProfileMetricDisplay() {
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.bustInches = 36
         vm.usesMetric = true
         let s = vm.displayValue(inches: 36)
@@ -384,7 +384,7 @@ struct FeatureGapViewModelTests {
     }
 
     @Test func bodyMorphUpdatesWithFineTune() {
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.selectedPopular = .hourglass
         vm.refreshPreview()
         let baseWaist = vm.morph.waist
@@ -396,7 +396,7 @@ struct FeatureGapViewModelTests {
     }
 
     @Test func bodyMorphFromMeasurements() {
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.bustInches = 40
         vm.waistInches = 26
         vm.hipInches = 40
@@ -409,14 +409,14 @@ struct FeatureGapViewModelTests {
     @Test func bodyFineTunePersistsAcrossLoad() throws {
         let ctx = try makeContext()
         let pid = UUID()
-        let vm = BodyProfileViewModel(personID: pid)
+        let vm = BodyProfileViewModel(personID: pid, bodyDataConsent: TestConsent.granted())
         vm.selectedPopular = .pear
         vm.fineChest = 1.05
         vm.fineWaist = 0.94
         vm.fineHip = 1.08
         vm.fineHeight = 1.02
         vm.save(in: ctx)
-        let vm2 = BodyProfileViewModel(personID: pid)
+        let vm2 = BodyProfileViewModel(personID: pid, bodyDataConsent: TestConsent.granted())
         vm2.load(in: ctx)
         #expect(abs(vm2.fineChest - 1.05) < 0.001)
         #expect(abs(vm2.fineWaist - 0.94) < 0.001)

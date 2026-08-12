@@ -114,31 +114,31 @@ struct CinematicExportGateTests {
 
 /// U4 — QuickAdd: occasion picker may already be "casual"; occasionsRaw must
 /// dedup order-preserving at write.
-@Suite("QuickAddSheet.dedupOccasions")
+@Suite("QuickAddDraft.dedupOccasions")
 struct QuickAddDedupTests {
     @Test func casualDoesNotDuplicate() {
-        #expect(QuickAddSheet.dedupOccasions(["casual", "casual"]) == ["casual"])
+        #expect(QuickAddDraft.dedupOccasions(["casual", "casual"]) == ["casual"])
     }
 
     @Test func distinctOccasionsKeepOrder() {
-        #expect(QuickAddSheet.dedupOccasions(["work", "casual"]) == ["work", "casual"])
-        #expect(QuickAddSheet.dedupOccasions(["gala", "casual"]) == ["gala", "casual"])
+        #expect(QuickAddDraft.dedupOccasions(["work", "casual"]) == ["work", "casual"])
+        #expect(QuickAddDraft.dedupOccasions(["gala", "casual"]) == ["gala", "casual"])
     }
 }
 
 
 /// UI-N1 — manual Add piece (AddPieceSheet.manualBody in PhotoCaptureViews)
-/// writes occasionsRaw through the same QuickAddSheet.dedupOccasions helper
-/// as the fixed QuickAddSheet (U4 bug class: picker occasion may be "casual").
+/// writes occasionsRaw through the same QuickAddDraft.dedupOccasions helper
+/// as the manual add path (U4 bug class: picker occasion may be "casual").
 @Suite("ManualAddSheet.dedupOccasions")
 struct ManualAddDedupTests {
     @Test func casualDoesNotDuplicate() {
-        #expect(QuickAddSheet.dedupOccasions(["casual", "casual"]) == ["casual"])
+        #expect(QuickAddDraft.dedupOccasions(["casual", "casual"]) == ["casual"])
     }
 
     @Test func distinctOccasionsKeepOrder() {
-        #expect(QuickAddSheet.dedupOccasions(["work", "casual"]) == ["work", "casual"])
-        #expect(QuickAddSheet.dedupOccasions(["date", "casual"]) == ["date", "casual"])
+        #expect(QuickAddDraft.dedupOccasions(["work", "casual"]) == ["work", "casual"])
+        #expect(QuickAddDraft.dedupOccasions(["date", "casual"]) == ["date", "casual"])
     }
 }
 
@@ -232,7 +232,7 @@ private func makeInMemoryContext() throws -> ModelContext {
 struct BodyProfileSaveRollbackTests {
     @Test func failedSaveOnNewProfileRollsBackInsert() throws {
         let ctx = try makeInMemoryContext()
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.bustInches = 36; vm.waistInches = 28; vm.hipInches = 38
         ModelSave.forceFailure(on: ctx)
         defer { ModelSave.clearForcedFailure(on: ctx) }
@@ -250,7 +250,7 @@ struct BodyProfileSaveRollbackTests {
 
     @Test func failedSelectBodySexRestoresExistingProfile() throws {
         let ctx = try makeInMemoryContext()
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.save(in: ctx)   // commits a profile
         let p = try #require(vm.profile)
         let oldSexRaw = p.presentationSexRaw
@@ -264,7 +264,7 @@ struct BodyProfileSaveRollbackTests {
 
     @Test func failedFineTuneRestoresMultipliers() throws {
         let ctx = try makeInMemoryContext()
-        let vm = BodyProfileViewModel(personID: UUID())
+        let vm = BodyProfileViewModel(personID: UUID(), bodyDataConsent: TestConsent.granted())
         vm.save(in: ctx)
         let p = try #require(vm.profile)
         #expect(p.fineWaist == 1)

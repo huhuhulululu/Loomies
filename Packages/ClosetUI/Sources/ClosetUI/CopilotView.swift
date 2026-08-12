@@ -62,7 +62,7 @@ public struct CopilotView: View {
                 }
                 .task { await runBootstrapOnce() }
                 .sheet(isPresented: $showCheckInSheet) {
-                    CheckInView(wardrobe: vm.wardrobe)
+                    CheckInView(wardrobe: vm.wardrobe) { note in flash(note) }
                 } // 关闭后刷新：防重复窗口立即生效
                 .onChange(of: showCheckInSheet) { _, open in
                     if !open {
@@ -1019,9 +1019,10 @@ enum CopilotWoreIt {
     static func flashMessage(_ result: Result, antiRepeatEnabled: Bool = true) -> String {
         switch result {
         case .checkedIn(let n):
+            let noun = n == 1 ? "piece" : "pieces"
             return antiRepeatEnabled
-                ? "Checked in \(n) pieces · de-prioritized 7 days"
-                : "Checked in \(n) pieces"
+                ? "Checked in \(n) \(noun) · de-prioritized 7 days"
+                : "Checked in \(n) \(noun)"
         case .noResolvablePieces:
             // Shared with CheckInViewModel stale-selection toast (same condition, one copy).
             return CheckInViewModel.staleSelectionMessage

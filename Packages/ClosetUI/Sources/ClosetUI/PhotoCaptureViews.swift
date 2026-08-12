@@ -166,9 +166,8 @@ public struct AddPieceSheet: View {
     @State private var showLibrary = false
     @State private var showCamera = false
     @State private var intakeVM = IntakeServiceFactory.makeViewModel()
-    @State private var name = ""
-    @State private var slot = "top"
-    @State private var occasion = "work"
+    /// 手填草稿：落库唯一真相是 `QuickAddDraft.commit`（未选 = 未知，不替用户假设）。
+    @State private var draft = QuickAddDraft()
     @State private var message = ""
 
     enum Mode { case choose, manual, intake }
@@ -275,18 +274,22 @@ public struct AddPieceSheet: View {
 
     private var manualBody: some View {
         Form {
-            TextField("Name", text: $name)
-            Picker("Type", selection: $slot) {
+            TextField("Name", text: $draft.name)
+            Picker("Type", selection: $draft.slotRaw) {
                 // Same GarmentSlot set as Closet search / detail (incl. accessory + displayTitle).
                 ForEach(GarmentSlot.allCases, id: \.rawValue) { s in
                     Text(s.displayTitle).tag(s.rawValue)
                 }
             }
-            Picker("Occasion", selection: $occasion) {
+            Picker("Occasion", selection: $draft.occasion) {
                 ForEach(["work", "casual", "date", "gala"], id: \.self) {
                     Text($0.capitalized).tag($0)
                 }
             }
+            // 温区/颜色必须在**入库当场**可填：此前这里硬写 light + 中性，
+            // 冷天推荐必空、配色打分恒中性，用户还得逐件进详情页纠正。
+            Section("Warmth") { WarmthPicker(warmthRaw: $draft.warmthRaw) }
+            Section("Color") { ColorSwatchPicker(paletteID: $draft.colorPaletteID) }
             if !message.isEmpty {
                 Text(message)
                     .font(.caption)
@@ -294,28 +297,15 @@ public struct AddPieceSheet: View {
                     .accessibilityLabel(message)
             }
             Button("Save") {
-                let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                let item = Item(name: trimmed)
-                // Same persistSlot truth as photo confirm (blazer name → outerwear).
-                let draftSlot = GarmentSlot(rawValue: slot) ?? .top
-                item.slotRaw = IntakeViewModel.persistSlot(draftSlot: draftSlot, name: trimmed).rawValue
-                // Picker occasion may already be "casual" — dedup at write (parity QuickAddSheet).
-                item.occasionsRaw = QuickAddSheet.dedupOccasions([occasion, "casual"])
-                item.warmthRaw = Warmth.light.rawValue
-                item.statusRaw = "available"
-                item.colorIsNeutral = true
-                item.wardrobe = wardrobe
-                context.insert(item)
-                guard ModelSave.save(context, label: "quickAdd") else {
-                    context.delete(item)
-                    message = IntakeViewModel.confirmSaveFailedMessage
-                    AppLog.error("manualAdd save failed", .intake)
+                // 落库唯一真相（断关系 + rollback 的原子性也在里面）
+                guard let item = draft.commit(into: wardrobe, context: context) else {
+                    message = QuickAddDraft.saveFailedMessage
                     return
                 }
                 AppLog.info("manualAdd item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .intake)
                 dismiss()
             }
-            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!draft.canCommit)
         }
     }
 
@@ -373,6 +363,14 @@ public struct AddPieceSheet: View {
                         Text(IntakeServiceFactory.barcodeEntryCaption)
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
+                    }
+                    // 识别只给建议，不替用户拍板：温区/颜色在确认页当场可改，
+                    // 未识别出的保持「未知」而不是被填成薄款中性。
+                    Section("Warmth") {
+                        WarmthPicker(warmthRaw: warmthBinding(draft))
+                    }
+                    Section("Color") {
+                        ColorSwatchPicker(paletteID: colorBinding(draft))
                     }
                     if let err = intakeVM.lastError, !err.isEmpty {
                         Section {
@@ -450,6 +448,31 @@ public struct AddPieceSheet: View {
         Binding(
             get: { draft.wrappedValue.brand ?? "" },
             set: { draft.wrappedValue.brand = $0.isEmpty ? nil : $0 })
+    }
+
+    /// 温区：`Warmth?` ↔ 控件的 `Int?`（nil 一路保持为「未知」，不落成默认档）。
+    private func warmthBinding(_ draft: Binding<IntakeDraft>) -> Binding<Int?> {
+        Binding(
+            get: { draft.wrappedValue.warmth?.rawValue },
+            set: { draft.wrappedValue.warmth = $0.flatMap(Warmth.init(rawValue:)) })
+    }
+
+    /// 颜色：`GarmentColor?` ↔ 色板 id。识别给出的连续色相按最近色板回显，
+    /// 用户没动就原样保留（不因为打开过确认页就把色相量化改写）。
+    private func colorBinding(_ draft: Binding<IntakeDraft>) -> Binding<String?> {
+        Binding(
+            get: {
+                guard let c = draft.wrappedValue.color else { return nil }
+                return GarmentColorPalette.nearest(to: c)?.id
+            },
+            set: { id in
+                guard let entry = GarmentColorPalette.entry(id: id) else {
+                    draft.wrappedValue.color = nil
+                    return
+                }
+                draft.wrappedValue.color = GarmentColor(
+                    hueDegrees: entry.hueDegrees, isNeutral: entry.isNeutral)
+            })
     }
 
     private func barcodeBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {

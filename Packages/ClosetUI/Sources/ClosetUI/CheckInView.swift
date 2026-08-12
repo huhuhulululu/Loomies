@@ -8,12 +8,16 @@ import ClosetCore
 /// 只是这里由用户挑件，那里用 copilot 建议——不是第二个打卡概念。
 public struct CheckInView: View {
     let wardrobe: Wardrobe
+    /// 成功回执交回 Today 闪现——表单关闭后回执不该跟着消失
+    /// （与「Wore it」的 feedbackChip 对等：两条打卡路径都给得到确认）。
+    let onLoggedFlash: ((String) -> Void)?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var vm: CheckInViewModel
 
-    public init(wardrobe: Wardrobe) {
+    public init(wardrobe: Wardrobe, onLoggedFlash: ((String) -> Void)? = nil) {
         self.wardrobe = wardrobe
+        self.onLoggedFlash = onLoggedFlash
         _vm = State(initialValue: CheckInViewModel(wardrobe: wardrobe))
     }
 
@@ -93,8 +97,12 @@ public struct CheckInView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log") {
-                        if vm.checkIn(in: context) != nil { dismiss() }
-                        // 失败留在表单（vm.message 已给诚实提示），不静默关闭
+                        guard vm.checkIn(in: context) != nil else { return }
+                        // 合身备注写失败时打卡本身已成功，但**留在表单**把话说清楚，
+                        // 不静默关闭假装一切正常（didFail 驱动，不嗅探文案关键词）。
+                        guard !vm.didFail else { return }
+                        onLoggedFlash?(vm.message)
+                        dismiss()
                     }
                     .disabled(!vm.canCheckIn)
                 }

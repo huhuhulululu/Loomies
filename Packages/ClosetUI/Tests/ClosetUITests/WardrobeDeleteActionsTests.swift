@@ -150,3 +150,68 @@ struct WardrobeDeleteActionsTests {
         #expect(snap.name == "Trip")
     }
 }
+
+/// D88：删柜确认面的**判空与文案**。此前判空只看 `itemCount`，而 DeleteService 的
+/// 阻断判据同样只看 items——于是「0 件单品但有 N 套 look / M 条日历计划」的衣柜
+/// 会一路 force=false 删除成功，级联抹掉全部 look 与计划，而用户看到的确认文案是
+/// 「This closet is empty.」。可达路径：逐件删光单品或全部 Transfer 走，look 留在原柜。
+@MainActor
+struct WardrobeDeleteConfirmCopyTests {
+
+    func snap(items: Int, looks: Int, plans: Int) -> WardrobeDeleteConfirm.Counts {
+        WardrobeDeleteConfirm.Counts(itemCount: items, lookCount: looks, planCount: plans)
+    }
+
+    @Test func emptyOnlyWhenNothingCascades() {
+        #expect(WardrobeDeleteConfirm.isEffectivelyEmpty(snap(items: 0, looks: 0, plans: 0)))
+        // 有 look / 有计划 → 不是空柜，哪怕一件衣服都没有
+        #expect(!WardrobeDeleteConfirm.isEffectivelyEmpty(snap(items: 0, looks: 1, plans: 0)))
+        #expect(!WardrobeDeleteConfirm.isEffectivelyEmpty(snap(items: 0, looks: 0, plans: 1)))
+        #expect(!WardrobeDeleteConfirm.isEffectivelyEmpty(snap(items: 3, looks: 0, plans: 0)))
+    }
+
+    /// 零单品但有 look/计划：不得说「empty」，且必须点名将被删的 look 与计划。
+    @Test func zeroItemsWithLooksIsNotCalledEmpty() {
+        let msg = WardrobeDeleteConfirm.message(snap(items: 0, looks: 2, plans: 1))
+        #expect(!msg.localizedCaseInsensitiveContains("empty"))
+        #expect(msg.localizedCaseInsensitiveContains("look"))
+        #expect(msg.localizedCaseInsensitiveContains("plan"))
+        // 「0 pieces」是噪音——一件都没有就别提件数
+        #expect(!msg.contains("0 pieces"))
+    }
+
+    @Test func trulyEmptyClosetSaysSo() {
+        let msg = WardrobeDeleteConfirm.message(snap(items: 0, looks: 0, plans: 0))
+        #expect(msg.localizedCaseInsensitiveContains("empty"))
+    }
+
+    /// 单次确认即完成：非空柜按钮措辞升级为 "Delete anyway"，且直接 force 删除——
+    /// 此前叠两层 .confirmationDialog 并在同一 runloop 内切换，第二层会被 SwiftUI 吞掉，
+    /// 表现为「点了删除什么也没发生」，而第二层文案与第一层逐字相同、无新增披露。
+    @Test func nonEmptyClosetConfirmsOnceWithEscalatedButton() {
+        let empty = snap(items: 0, looks: 0, plans: 0)
+        let full = snap(items: 2, looks: 1, plans: 0)
+        #expect(WardrobeDeleteConfirm.confirmTitle(empty) == "Delete")
+        #expect(WardrobeDeleteConfirm.confirmTitle(full)
+            .localizedCaseInsensitiveContains("anyway"))
+        #expect(WardrobeDeleteConfirm.needsForce(empty) == false)
+        #expect(WardrobeDeleteConfirm.needsForce(full) == true)
+    }
+
+    /// 计数快照必须来自真实关系（0 件 + 1 look 的柜子确实存在于数据层）。
+    @Test func countsSnapshotSeesLooksWithoutItems() throws {
+        let ctx = try ModelContext(ModelContainer(
+            for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+            Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let o = Outfit(name: "look"); o.wardrobe = w; ctx.insert(o)
+        let plan = CalendarPlan(date: Date()); plan.outfit = o; ctx.insert(plan)
+        try ctx.save()
+        let pending = PendingWardrobeDelete(wardrobe: w, in: ctx)
+        #expect(pending.itemCount == 0)
+        #expect(pending.lookCount == 1)
+        #expect(pending.planCount == 1)
+        #expect(!WardrobeDeleteConfirm.isEffectivelyEmpty(pending.counts))
+    }
+}

@@ -41,7 +41,32 @@ public final class BodyProfileViewModel {
     /// 预览用连续塑形参数
     public private(set) var morph: BodyMorphParams = .neutral
 
-    public init(personID: UUID) { self.personID = personID }
+    /// 身体维度单独同意（DESIGN §2.2）。注入式便于测试；生产走 `.shared`。
+    /// 门必须在**任何 context.insert 之前**判定——insert 之后再拒绝会留下
+    /// pending insert + 关系幻影，污染下一次无关 save（保存原子性铁律）。
+    private let bodyDataConsent: BodyDataConsent
+
+    public init(personID: UUID, bodyDataConsent: BodyDataConsent = .shared) {
+        self.personID = personID
+        self.bodyDataConsent = bodyDataConsent
+    }
+
+    /// 是否已获授权写入身体数据（View 用它决定是否渲染录入面）。
+    public var hasBodyDataConsent: Bool { bodyDataConsent.isGranted }
+
+    /// 授予同意（说明卡的按钮走这里，保证 VM 与 View 读的是同一个 consent 实例）。
+    public func grantBodyDataConsent() {
+        bodyDataConsent.setGranted(true)
+        message = ""
+    }
+
+    /// 门：未同意时给诚实提示并**在 insert 之前**返回 false。
+    private func consentBlocks() -> Bool {
+        guard !bodyDataConsent.isGranted else { return false }
+        message = BodyDataConsent.requiredMessage
+        AppLog.notice("body write refused: consent not granted", .data)
+        return true
+    }
 
     public var fineTune: BodyMorphParams {
         BodyMorphParams(
@@ -114,6 +139,7 @@ public final class BodyProfileViewModel {
     public static let saveFailedMessage = "Couldn't save body profile — try again"
 
     public func save(in context: ModelContext) {
+        guard !consentBlocks() else { return }
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
@@ -132,6 +158,7 @@ public final class BodyProfileViewModel {
 
     /// 精调即时落库（滑杆松手或 onChange 后调用）。
     public func saveFineTune(in context: ModelContext) {
+        guard !consentBlocks() else { return }
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
@@ -150,6 +177,7 @@ public final class BodyProfileViewModel {
 
     /// 快选体型并立即落库。
     public func selectPopularShape(_ shape: PopularShape, in context: ModelContext) {
+        guard !consentBlocks() else { return }
         selectedPopular = shape
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
@@ -169,6 +197,7 @@ public final class BodyProfileViewModel {
 
     /// 切换 catalog 底座性别并落库。
     public func selectBodySex(_ sex: AvatarBodySex, in context: ModelContext) {
+        guard !consentBlocks() else { return }
         bodySex = sex
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
@@ -187,6 +216,7 @@ public final class BodyProfileViewModel {
 
     /// 切换 catalog 表型（外观/肤色族）并落库。
     public func selectBodyPhenotype(_ phenotype: AvatarBodyPhenotype, in context: ModelContext) {
+        guard !consentBlocks() else { return }
         bodyPhenotype = phenotype
         let wasNew = profile == nil
         let p = ensureProfile(in: context)

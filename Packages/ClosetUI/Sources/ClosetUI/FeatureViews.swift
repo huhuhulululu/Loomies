@@ -201,9 +201,12 @@ struct TransferSheet: View {
 
 public struct BodyProfileView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @State private var vm: BodyProfileViewModel
 
-    /// 身体维度单独同意（DESIGN §2.2）：未同意时先出说明卡，不直接进录入面。
+    /// 身体维度单独同意（DESIGN §2.2）：未同意时**只出说明卡**，录入面整段不渲染。
+    /// 此前这里只是在顶部多加一张卡，其后的四围输入 / Save / 精调滑杆全部照常可用
+    /// 且点一下就落库——门画了但没关上（真相由 `vm.hasBodyDataConsent` 提供）。
     @State private var consentGranted = BodyDataConsent.shared.isGranted
 
     public init(personID: UUID) {
@@ -213,19 +216,39 @@ public struct BodyProfileView: View {
     public var body: some View {
         Form {
             if !consentGranted {
-                Section {
-                    Text(BodyDataConsent.explainer)
-                        .font(.callout)
-                    Button(BodyDataConsent.grantTitle) {
-                        BodyDataConsent.shared.setGranted(true)
-                        consentGranted = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DS.accent)
-                } header: {
-                    Text(BodyDataConsent.title)
-                }
+                consentCard
+            } else {
+                entryBody
             }
+        }
+        .navigationTitle("Body")
+        .onAppear {
+            consentGranted = vm.hasBodyDataConsent
+            if consentGranted { vm.load(in: context) }
+        }
+    }
+
+    /// 未同意时的唯一内容：说明 + 授权 / 暂不。
+    private var consentCard: some View {
+        Section {
+            Text(BodyDataConsent.explainer)
+                .font(.callout)
+            Button(BodyDataConsent.grantTitle) {
+                vm.grantBodyDataConsent()
+                consentGranted = true
+                vm.load(in: context)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(DS.accent)
+            Button(BodyDataConsent.declineTitle) { dismiss() }
+                .foregroundStyle(DS.muted)
+        } header: {
+            Text(BodyDataConsent.title)
+        }
+    }
+
+    @ViewBuilder
+    private var entryBody: some View {
             Section {
                 BodyAvatarView(
                     shape: vm.popularShape,
@@ -424,9 +447,6 @@ public struct BodyProfileView: View {
             Section {
                 Button("Save measurements") { vm.save(in: context) }
             }
-        }
-        .navigationTitle("Body")
-        .onAppear { vm.load(in: context) }
     }
 
     private var previewCaption: String {

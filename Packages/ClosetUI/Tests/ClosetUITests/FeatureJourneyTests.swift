@@ -155,7 +155,7 @@ struct FeatureJourneyTests {
 
     @Test func journeyBodyMorphAndDataLifecycle() throws {
         let (ctx, person, w) = try seededCloset()
-        let body = BodyProfileViewModel(personID: person.id)
+        let body = BodyProfileViewModel(personID: person.id, bodyDataConsent: TestConsent.granted())
         body.selectPopularShape(.hourglass, in: ctx)
         body.bustInches = 36
         body.waistInches = 26

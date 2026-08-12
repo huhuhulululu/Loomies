@@ -15,6 +15,9 @@ public final class CheckInViewModel {
     public private(set) var lastRecord: WearRecord?
     /// Last customer flash (success or save-fail); empty when idle.
     public private(set) var message: String = ""
+    /// message 是成功回执还是失败提示。View 靠它决定关不关表单——
+    /// 绝不让 UI 靠关键词嗅探判断成败（润色文案就会静默失效）。
+    public private(set) var didFail: Bool = false
 
     /// Customer toast when ModelSave fails (selection kept for retry).
     public static let saveFailedMessage = CheckInService.saveFailedMessage
@@ -60,11 +63,13 @@ public final class CheckInViewModel {
     @discardableResult
     public func checkIn(on date: Date = Date(), in context: ModelContext) -> WearRecord? {
         guard canCheckIn else { return nil }
+        didFail = false
         let items = (wardrobe.items ?? []).filter { selectedIDs.contains($0.id) }
         // Drop stale IDs (transferred away / deleted since selection).
         selectedIDs = Set(items.map { $0.id })
         guard !items.isEmpty else {
             message = Self.staleSelectionMessage
+            didFail = true
             AppLog.notice("check-in skipped: selection resolved to zero items", .app)
             return nil
         }
@@ -74,16 +79,31 @@ public final class CheckInViewModel {
             items: items, on: date, in: wardrobe, in: context)
         else {
             message = Self.saveFailedMessage
+            didFail = true
             return nil
         }
+        // 反馈写失败不回滚打卡本身（打卡已成功，谎报整体失败反而不诚实），
+        // 但**必须说出**备注没保存——此前这里丢弃返回值 + 清空 message，
+        // 表单干净关闭，用户无从察觉自己选的合身档位没落库。
+        var feedbackFailed = false
+        let verdict = FitFeedbackCopy.parse(fitFeedback)
         if fitFeedback != nil {
-            // 反馈写失败不回滚打卡本身（打卡已成功，谎报失败反而不诚实）
-            _ = CheckInService.setFitFeedback(fitFeedback, on: rec, in: context)
+            feedbackFailed = !CheckInService.setFitFeedback(fitFeedback, on: rec, in: context)
         }
         lastRecord = rec
         selectedIDs = []
         fitFeedback = nil
-        message = ""
+        if feedbackFailed {
+            message = CheckInService.fitFeedbackSaveFailedMessage
+            didFail = true
+        } else if let verdict {
+            message = FitFeedbackCopy.recordedMessage(verdict)
+        } else {
+            // 与 Today「Wore it」共用同一条回执文案（两条打卡路径口径一致）
+            message = CopilotWoreIt.flashMessage(
+                .checkedIn(pieceCount: items.count),
+                antiRepeatEnabled: !DebugSettings.shared.disableAntiRepeat)
+        }
         return rec
     }
 

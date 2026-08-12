@@ -218,10 +218,10 @@ struct SearchViewModelTests {
 
     /// QuickAdd ModelSave fail must surface the same toast as manual Add (not silent stay).
     @Test func quickAddSaveFailedMessageIsHonest() {
-        #expect(QuickAddSheet.saveFailedMessage == IntakeViewModel.confirmSaveFailedMessage)
-        #expect(QuickAddSheet.saveFailedMessage.localizedCaseInsensitiveContains("couldn't save"))
-        #expect(QuickAddSheet.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
-        #expect(!QuickAddSheet.saveFailedMessage.localizedCaseInsensitiveContains("try-on"))
+        #expect(QuickAddDraft.saveFailedMessage == IntakeViewModel.confirmSaveFailedMessage)
+        #expect(QuickAddDraft.saveFailedMessage.localizedCaseInsensitiveContains("couldn't save"))
+        #expect(QuickAddDraft.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
+        #expect(!QuickAddDraft.saveFailedMessage.localizedCaseInsensitiveContains("try-on"))
     }
 
     /// Occasion facet (work/casual/date/gala chips) — SearchService contains match + clear.

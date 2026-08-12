@@ -40,11 +40,15 @@ public enum WardrobeManageActions {
         "Delete \(TextNormalize.blankToNil(name) ?? "this closet")?"
     }
 
-    /// 二段确认的警告文案。必须**完整**告知级联面（照片、日历计划），
+    /// 删除确认的警告文案。必须**完整**告知级联面（照片、日历计划），
     /// 并说明穿着历史保留——不得声称做了没做的事，也不得隐瞒做了的事。
+    /// 计数为 0 的项不出现在句子里（「0 pieces」是噪音，且会让空柜读起来像有内容）。
     public static func forceDeleteWarning(itemCount: Int, lookCount: Int, planCount: Int) -> String {
-        var parts = ["\(itemCount) pieces", "\(lookCount) looks"]
+        var parts: [String] = []
+        if itemCount > 0 { parts.append("\(itemCount) pieces") }
+        if lookCount > 0 { parts.append("\(lookCount) looks") }
         if planCount > 0 { parts.append("\(planCount) calendar plans") }
+        guard !parts.isEmpty else { return WardrobeDeleteConfirm.emptyMessage }
         return "This also deletes " + parts.joined(separator: ", ")
             + ", and their local photos. Wear history is kept."
     }
@@ -153,6 +157,50 @@ public enum WardrobeManageActions {
     }
 }
 
+/// 删柜确认的判空与文案（纯值逻辑，可测）。
+///
+/// D88 教训两条：
+/// 1. 判空只看 `itemCount` 是**谎报**——DeleteService 的阻断判据同样只看 items，
+///    于是「0 件单品但有 look / 日历计划」的柜子会走 force=false 直接删成功，
+///    级联抹掉全部 look 与计划，而用户看到的确认文案写着「This closet is empty.」。
+/// 2. 两层 `.confirmationDialog` 叠在同一 view 上、在同一 runloop 内切换，
+///    第二层会被 SwiftUI 吞掉（表现为「点了删除什么也没发生」）；而它的文案与
+///    第一层逐字相同、零新增披露。故收敛为**一次确认**：非空柜直接升级按钮措辞。
+public enum WardrobeDeleteConfirm {
+    public static let emptyMessage = "This closet is empty."
+
+    public struct Counts: Sendable, Equatable {
+        public let itemCount: Int
+        public let lookCount: Int
+        public let planCount: Int
+        public init(itemCount: Int, lookCount: Int, planCount: Int) {
+            self.itemCount = itemCount
+            self.lookCount = lookCount
+            self.planCount = planCount
+        }
+    }
+
+    /// 「空」= 删了不会连带抹掉任何东西。三个计数都得为 0。
+    public static func isEffectivelyEmpty(_ c: Counts) -> Bool {
+        c.itemCount == 0 && c.lookCount == 0 && c.planCount == 0
+    }
+
+    public static func message(_ c: Counts) -> String {
+        isEffectivelyEmpty(c)
+            ? emptyMessage
+            : WardrobeManageActions.forceDeleteWarning(
+                itemCount: c.itemCount, lookCount: c.lookCount, planCount: c.planCount)
+    }
+
+    /// 非空柜的按钮措辞升级——用户在同一个框里既看到后果又看到「anyway」。
+    public static func confirmTitle(_ c: Counts) -> String {
+        isEffectivelyEmpty(c) ? "Delete" : "Delete anyway"
+    }
+
+    /// 非空柜一次确认即 force 删除（后果已在同一个框里完整披露）。
+    public static func needsForce(_ c: Counts) -> Bool { !isEffectivelyEmpty(c) }
+}
+
 /// 衣柜列表 / 新建（接 Root 切换前的管理面）。
 /// 删除确认的**值类型**快照：绝不在 @State 里持 @Model——对话框消散动画期间仍会
 /// 重新求值 title/message，读已 `context.delete` 的模型属性是未定义行为。
@@ -162,6 +210,10 @@ public struct PendingWardrobeDelete: Identifiable, Equatable, Sendable {
     public let itemCount: Int
     public let lookCount: Int
     public let planCount: Int
+
+    public var counts: WardrobeDeleteConfirm.Counts {
+        .init(itemCount: itemCount, lookCount: lookCount, planCount: planCount)
+    }
 
     @MainActor
     public init(wardrobe: Wardrobe, in context: ModelContext) {
@@ -185,7 +237,6 @@ public struct WardrobeManageView: View {
     @State private var message = ""
     @State private var messageIsFailure = false
     @State private var pendingDelete: PendingWardrobeDelete?
-    @State private var pendingForceDelete: PendingWardrobeDelete?
     @State private var pendingPersonDelete: (id: UUID, name: String)?
     let currentWardrobeID: UUID?
 
@@ -291,26 +342,13 @@ public struct WardrobeManageView: View {
             titleVisibility: .visible,
             presenting: pendingDelete
         ) { snap in
-            Button("Delete", role: .destructive) { performDelete(snap, force: false) }
+            // 一次确认：后果已在 message 里完整披露，非空柜按钮直接说 "Delete anyway"
+            Button(WardrobeDeleteConfirm.confirmTitle(snap.counts), role: .destructive) {
+                performDelete(snap, force: WardrobeDeleteConfirm.needsForce(snap.counts))
+            }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: { snap in
-            Text(snap.itemCount == 0
-                 ? "This closet is empty."
-                 : WardrobeManageActions.forceDeleteWarning(
-                    itemCount: snap.itemCount, lookCount: snap.lookCount, planCount: snap.planCount))
-        }
-        .confirmationDialog(
-            pendingForceDelete.map { WardrobeManageActions.deleteConfirmTitle($0.name) } ?? "",
-            isPresented: Binding(get: { pendingForceDelete != nil },
-                                 set: { if !$0 { pendingForceDelete = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingForceDelete
-        ) { snap in
-            Button("Delete anyway", role: .destructive) { performDelete(snap, force: true) }
-            Button("Cancel", role: .cancel) { pendingForceDelete = nil }
-        } message: { snap in
-            Text(WardrobeManageActions.forceDeleteWarning(
-                itemCount: snap.itemCount, lookCount: snap.lookCount, planCount: snap.planCount))
+            Text(WardrobeDeleteConfirm.message(snap.counts))
         }
         .confirmationDialog(
             pendingPersonDelete.map { "Delete \($0.name)?" } ?? "",
@@ -328,23 +366,17 @@ public struct WardrobeManageView: View {
     private func performDelete(_ snap: PendingWardrobeDelete, force: Bool) {
         // 按 id 现取现用（快照只承载文案与计数，绝不持模型引用）
         guard let target = wardrobes.first(where: { $0.id == snap.id }) else {
-            pendingDelete = nil; pendingForceDelete = nil
+            pendingDelete = nil
             return
         }
         guard WardrobeManageActions.canDelete(target, currentWardrobeID: currentWardrobeID) else {
             message = WardrobeManageActions.currentClosetBlockedMessage
             messageIsFailure = true
-            pendingDelete = nil; pendingForceDelete = nil
+            pendingDelete = nil
             return
         }
         let out = WardrobeManageActions.delete(target, force: force, in: context)
         pendingDelete = nil
-        if out.blockedReason == .wardrobeNotEmpty {
-            // 类型化原因驱动二段确认（不靠 message 字符串相等）
-            pendingForceDelete = snap
-            return
-        }
-        pendingForceDelete = nil
         message = out.message
         messageIsFailure = out.isFailure
     }
