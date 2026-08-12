@@ -637,6 +637,52 @@ public struct PersonNameEditView: View {
     }
 }
 
+/// 场合构成编辑面（D98）：Me → Profile → What you dress for。
+/// D97 的文案承诺「随时可改」，当时却只有 onboarding 一个写入方。
+public struct PrimaryOccasionEditView: View {
+    let person: Person
+    @Environment(\.modelContext) private var context
+    @State private var selection: String?
+    @State private var message = ""
+
+    public init(person: Person) { self.person = person }
+
+    public static let title = "What you dress for"
+
+    public var body: some View {
+        Form {
+            Section {
+                Picker(OccasionMix.question, selection: $selection) {
+                    Text(OccasionMix.skipTitle).tag(Optional<String>.none)
+                    ForEach(OccasionMix.choices, id: \.self) { c in
+                        Text(OccasionMix.displayTitle(c)).tag(Optional(c))
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } footer: {
+                Text(OccasionMix.hint)
+            }
+            if !message.isEmpty {
+                Section {
+                    Text(message).font(.caption).foregroundStyle(Color.orange)
+                        .accessibilityLabel(message)
+                }
+            }
+        }
+        .navigationTitle(Self.title)
+        .onAppear { selection = OccasionMix.parse(person.primaryOccasionRaw) }
+        .onChange(of: selection) { _, next in
+            guard ProfileLabels.applyPrimaryOccasion(next, to: person, in: context) else {
+                message = ProfileLabels.saveFailedMessage
+                selection = OccasionMix.parse(person.primaryOccasionRaw)
+                return
+            }
+            message = ""
+        }
+    }
+}
+
 /// 冷热偏置编辑面（D90）：Me → Profile → Temperature preference。
 public struct ColdBiasEditView: View {
     let person: Person
@@ -712,6 +758,31 @@ public enum ProfileLabels {
 
     /// 冷热偏置落库（D90）。此前 `Person.coldBias` 有字段、进导出、无 UI 无消费者——
     /// 用户永远设不了它，而导出里躺着一个恒为 0 的「个人偏好」。
+    /// 场合构成改写（D98）。D97 的文案承诺「随时可改」，而当时只有 onboarding
+    /// 一个写入方——承诺必须有兑现路径。nil = 改回「没想好」（不是单向门）。
+    @discardableResult
+    public static func applyPrimaryOccasion(
+        _ raw: String?, to person: Person, in context: ModelContext
+    ) -> Bool {
+        // 脏值拒绝：不得写进引擎不认的场合
+        if raw != nil, OccasionMix.parse(raw) == nil {
+            AppLog.error("rejected unknown primary occasion", .data)
+            return false
+        }
+        let next = OccasionMix.parse(raw)
+        let old = person.primaryOccasionRaw
+        guard next != old else { return true }
+        person.primaryOccasionRaw = next
+        guard ModelSave.save(context, label: "primaryOccasion") else {
+            person.primaryOccasionRaw = old
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("primary occasion save failed", .data)
+            return false
+        }
+        AppLog.notice("primary occasion set", .data)
+        return true
+    }
+
     @discardableResult
     public static func applyColdBias(
         _ raw: Int, to person: Person, in context: ModelContext

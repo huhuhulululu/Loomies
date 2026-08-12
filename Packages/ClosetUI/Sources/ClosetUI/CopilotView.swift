@@ -491,7 +491,10 @@ public struct CopilotView: View {
     /// （真实起步 / 先看效果）、**预赋进度**（答完引导即 20%）、**场合里程碑即时兑现**。
     /// 里程碑文案是承诺——`ActivationProgress` 只让它说挣来的那部分。
     private var coldStartBanner: some View {
-        let items = (vm.wardrobe.items ?? [])
+        // 三处必须读**同一个集合**：进度条、里程碑、isColdStart 门。
+        // 此前进度条用 wardrobe.items（含在洗/外借），门用 availableItems——
+        // 同一张横幅能同时显示「100% ready」和「你还在冷启动」（D98）。
+        let items = vm.availableItems
         let candidates = items.map { $0.toCandidateItem() }
         let count = items.count
         // 能走到 Today 就说明引导已完成（app-shell 无 active 衣柜时呈现 Onboarding）
@@ -547,7 +550,9 @@ public struct CopilotView: View {
 
             // 路径二：先看效果（示例衣橱，不是用户的照片——VO 与 Me → Demo 同口径）
             Button {
-                let outcome = DemoSeedService.seedIfEmpty(vm.wardrobe, in: context)
+                // 横幅在 1-7 件时也显示，而 seedIfEmpty 对非空衣柜是 no-op ——
+                // 那个区间里这颗按钮点了什么都不会发生（D98）。用 seed（与 Closet 空态一致）。
+                let outcome = DemoSeedService.seed(vm.wardrobe, in: context)
                 flash(outcome.flashMessage)
                 // Only auto-refresh when pieces actually landed (save fail keeps cold-start honest).
                 if case .added = outcome {

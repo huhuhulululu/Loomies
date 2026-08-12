@@ -933,3 +933,48 @@ D91 交付了 #14 的三件里的两件（双路径空状态、预赋进度、�
 里程碑衡量的是**衣柜完备度**，不是今天能不能穿——文案改为
 「Your closet can make N work looks」/「Your closet covers N looks — a full week」，
 并加门禁止 ready / today / wear now 一类会被读成「现在就能穿」的词。
+
+## D98 — 激活面在真实首启路径上不可达（2026-08-12，#14 对抗审计）
+
+对 #14 跑了一轮 24-agent 对抗审计。头号发现刺眼：**D91 建的整个激活面，
+在真实首次运行路径上永远不渲染**。
+
+onboarding 完成时无条件 `DemoSeedService.seedIfEmpty` 播 9 件 demo，
+而冷启动阈值是 8——新用户一进 Today 就已经越过阈值。于是预赋进度条、
+场合里程碑、「真实起步」按钮、连同 demo 按钮本身，一个都不显示；
+DESIGN §475 的「双路径」被**替用户决定**成了 demo，而 onboarding 文案
+「We'll add sample pieces」把这个决定说成既成事实。
+
+这是本项目历史病根的又一次复发，且这次是「能力就绪 + 有测试 + 有 UI 代码 +
+渲染条件永假」。补的门是 `FirstRunLandsInColdStartTests`：走完 onboarding
+必须落在冷启动面上——这道门若早在，D91 那波就不会漏。
+
+### 同波修掉的其余确认项
+
+- **「删除全部数据」把漏斗堵死**：in-memory 的 `OnboardingViewModel` 带着
+  `completed=true` 与已删模型的引用活了下来，欢迎页再也建不出新衣柜，
+  还会对已删的 SwiftData 模型调 DemoSeedService。库空即复位 VM。
+- **同一张横幅上三个数字互相打架**：进度条读 `wardrobe.items`（含在洗/外借），
+  冷启动门与里程碑读 `availableItems`——7 件可用 + 15 件在洗时，
+  能同时显示「100% ready」和「你还在冷启动」。三处统一读 `availableItems`
+  （这也兑现了 D91 自己写下的「洗衣/外借件不计入」）。
+- **demo 按钮在横幅显示区间里是死键**：横幅在 1-7 件时也显示，
+  而 `seedIfEmpty` 对非空衣柜是 no-op——那个区间点了什么都不会发生。改用 `seed`。
+- **D97 的文案承诺没有兑现路径**：「You can change it any time」，
+  而 `primaryOccasionRaw` 全仓只有 onboarding 一个写入方。补 Me → Profile 编辑入口
+  （可改回「没想好」，不是单向门）。
+- **onboarding 的四个身体维度字段零绑定**：用户填不了，于是同意门那条分支
+  从手指永远走不到，`has_body_complete` 这个漏斗指标**结构性恒为 false**——
+  一个不可能为真的指标，长在「漏斗度量」这个缺口里。整组删除，
+  指标改发「是否给了体型起点」（真能为真）。
+- **体型快选绕过同意门**：它是 onboarding 里唯一真能填的身体输入，
+  却不过门，而 Me → Body 里同一个动作会被拒——两套行为各自都有测试护着。
+  统一为过门（D88 的口径）。
+- **真实起步文案与行为不符**：「Shoot today's outfit」开的是「相册/相机/手填」
+  选择器，不是相机。改为「Add 3 pieces — about 30 seconds」并加门禁 shoot/camera。
+
+### 未做，记为显式延期
+
+DESIGN §206 的「可选胶囊模板引导补拍」未实现。`Milestone.missingSlots` 已经算出了
+缺哪些槽位，理论上能直接喂给一个补拍清单——但那是新产品面，不在本波范围。
+**在此显式记为延期**，而不是让它继续在「功能项全部清空」的说法下静默缺席。

@@ -15,10 +15,10 @@ public final class OnboardingViewModel {
     /// 场合构成（D97，DESIGN §474 个性化三题之一）。nil = 跳过，不猜。
     public var primaryOccasion: String?
     /// 可选身体四围（英寸）。任一项非空即尝试写 profile；四围齐才激活 FFIT。
-    public var bustInches: Double?
-    public var waistInches: Double?
-    public var hipInches: Double?
-    public var highHipInches: Double?
+    // D98：四个身体维度字段在 OnboardingScreen 上**零绑定**（用户填不了），
+    // 同意门那条分支从手指永远走不到，`has_body_complete` 也结构性恒为 false ——
+    // 一个不可能为真的漏斗指标，偏偏长在「漏斗度量」这个缺口里。
+    // DESIGN 把四围列为可跳过，Me → Body 才是真入口，故这里整组删除。
     /// 可选快选大众体型（可无四围）。
     public var popularShapePick: PopularShape?
 
@@ -60,9 +60,9 @@ public final class OnboardingViewModel {
         }
         // 身体维度同意门必须在**任何 insert 之前**：insert 之后再 return false 会留下
         // pending insert + 关系幻影，污染下一次无关 save（保存原子性铁律）。
-        let hasMeasures = bustInches != nil || waistInches != nil
-            || hipInches != nil || highHipInches != nil
-        if hasMeasures, !bodyDataConsent.isGranted {
+        // 体型快选也是身体数据——Me → Body 里同一个动作会被拒，两处口径必须一致（D98）。
+        let hasBodyInput = popularShapePick != nil
+        if hasBodyInput, !bodyDataConsent.isGranted {
             message = BodyDataConsent.requiredMessage
             return false
         }
@@ -78,21 +78,9 @@ public final class OnboardingViewModel {
         context.insert(wardrobe)
 
         var profile: PersonBodyProfile?
-        let hasPick = popularShapePick != nil
-        if hasMeasures || hasPick {
+        if let pick = popularShapePick {
             let p = PersonBodyProfile(personID: person.id)
-            // 脏输入即缺失：非正/非有限围度丢弃（isComplete 会误判齐）；合法值 clamp 落库。
-            func sanitized(_ v: Double?) -> Double? {
-                guard let v, v.isFinite, v > 0 else { return nil }
-                return BodyProfileService.clampMeasureInches(v)
-            }
-            p.bustInches = sanitized(bustInches)
-            p.waistInches = sanitized(waistInches)
-            p.hipInches = sanitized(hipInches)
-            p.highHipInches = sanitized(highHipInches)
-            if let pick = popularShapePick {
-                p.popularShapeOverrideRaw = pick.rawValue
-            }
+            p.popularShapeOverrideRaw = pick.rawValue
             BodyProfileService.refreshSource(on: p)
             context.insert(p)
             profile = p
@@ -110,9 +98,10 @@ public final class OnboardingViewModel {
         self.wardrobe = wardrobe
         self.bodyProfile = profile
         self.completed = true
+        // 只发**能为真**的指标：四围在 onboarding 里根本填不了，
+        // `has_body_complete` 恒 false 是假指标（D98）。
         TelemetryGate.shared.track(.onboardingCompleted, payload: [
-            "has_body_complete": String(
-                bustInches != nil && waistInches != nil && hipInches != nil),
+            "has_body_complete": String(popularShapePick != nil),
         ])
         message = ""
         return true

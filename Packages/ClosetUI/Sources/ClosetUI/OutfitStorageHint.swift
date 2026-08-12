@@ -53,7 +53,9 @@ public enum OutfitStorageHint {
 /// 冷启动双路径文案（D91，DESIGN §475）。真实起步那条要给**具体到能立刻做**的动作，
 /// 不是「去 Closet 加点东西」这种没有下一步的句子。
 public enum CopilotColdStartCopy {
-    public static let realStartTitle = "Shoot today's outfit — 3 pieces, about 30 seconds"
+    // 文案必须描述按钮**实际**做的事：它开的是「相册/相机/手填」选择器，
+    // 不是直接举起相机（D98：原文案 "Shoot today's outfit" 与行为不符）。
+    public static let realStartTitle = "Add 3 pieces — about 30 seconds"
     public static let realStartAccessibilityHint =
-        "Opens the camera or photo picker to add pieces you are wearing today"
+        "Opens the add-piece sheet: choose photos, take one, or type details"
 }

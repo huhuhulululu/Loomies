@@ -2,7 +2,7 @@ import Testing
 import SwiftData
 import Foundation
 @testable import ClosetUI
-import ClosetModel
+@testable import ClosetModel
 import ClosetCore
 
 /// D97：「场合构成」这一题的**端到端证据**——不是存了个值，而是真的改变了
@@ -123,5 +123,58 @@ struct OccasionMixWiringTests {
         let m = try #require(ActivationProgress.headlineMilestone(
             items: candidates, statedOccasion: "brunch-with-aliens"))
         #expect(ActivationProgress.trackedOccasions.contains(m.occasion))
+    }
+}
+
+/// D98：D97 的文案承诺了「You can change it any time」，而全 App 只有 onboarding
+/// 一个写入方——答过（或跳过）之后就冻死到卸载为止。承诺必须有兑现路径。
+@MainActor
+struct OccasionMixEditPathTests {
+
+    func setup() throws -> (ModelContext, Person) {
+        let ctx = try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+        let p = Person(name: "Ada"); ctx.insert(p)
+        try ctx.save()
+        return (ctx, p)
+    }
+
+    @Test func occasionCanBeChangedAfterOnboarding() throws {
+        let (ctx, person) = try setup()
+        person.primaryOccasionRaw = "work"
+        try ctx.save()
+        #expect(ProfileLabels.applyPrimaryOccasion("gala", to: person, in: ctx))
+        #expect(person.primaryOccasionRaw == "gala")
+    }
+
+    /// 也能改回「没想好」——不是有进无出的单向门（中性色的教训）。
+    @Test func occasionCanBeClearedBackToUnstated() throws {
+        let (ctx, person) = try setup()
+        #expect(ProfileLabels.applyPrimaryOccasion("date", to: person, in: ctx))
+        #expect(ProfileLabels.applyPrimaryOccasion(nil, to: person, in: ctx))
+        #expect(person.primaryOccasionRaw == nil)
+        #expect(!OccasionMix.hasStatedAnswer(person.primaryOccasionRaw))
+    }
+
+    /// 脏值拒绝（不得写进引擎不认的场合）。
+    @Test func dirtyValueIsRejected() throws {
+        let (ctx, person) = try setup()
+        #expect(ProfileLabels.applyPrimaryOccasion("work", to: person, in: ctx))
+        #expect(!ProfileLabels.applyPrimaryOccasion("brunch", to: person, in: ctx))
+        #expect(person.primaryOccasionRaw == "work")
+    }
+
+    /// 保存失败还原 + 不留脏（与其余 Me 编辑同一条铁律）。
+    @Test func saveFailureLeavesNoDirtyState() throws {
+        let (ctx, person) = try setup()
+        #expect(ProfileLabels.applyPrimaryOccasion("work", to: person, in: ctx))
+        ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }
+        #expect(!ProfileLabels.applyPrimaryOccasion("gala", to: person, in: ctx))
+        #expect(person.primaryOccasionRaw == "work")
+        #expect(!ctx.hasChanges)
     }
 }

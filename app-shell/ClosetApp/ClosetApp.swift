@@ -81,7 +81,10 @@ struct RootView: View {
                 OnboardingScreen(vm: onboarding) {
                     if onboarding.finish(in: modelContext) {
                         if let w = onboarding.wardrobe {
-                            _ = DemoSeedService.seedIfEmpty(w, in: modelContext)
+                            // D98：**不再自动播种 demo**。播 9 件会越过冷启动阈值(8)，
+                            // 于是整个激活面（预赋进度/里程碑/真实起步）在真实首启路径上
+                            // 永远不渲染，DESIGN §475 的「双路径」被替用户决定成了 demo。
+                            // 现在空衣柜进 Today，横幅的两个按钮才是真正的分叉。
                             activeID = w.id
                         }
                     }
@@ -89,6 +92,14 @@ struct RootView: View {
             }
         }
         .onChange(of: allWardrobes.count) { _, _ in
+            // 「删除全部数据」后库空了：in-memory 的 onboarding VM 仍带着
+            // completed=true 与已删模型的引用，欢迎页会再也建不出新衣柜（D98）。
+            // 库空 = 重新开始，VM 必须跟着复位。
+            if allWardrobes.isEmpty {
+                onboarding = OnboardingViewModel()
+                activeID = nil
+                return
+            }
             // 删掉当前柜后 activeID 会失效——回落排序首位而不是留在空屏
             if WardrobeSwitcher.resolveActive(id: activeID, among: allWardrobes)?.id != activeID {
                 activeID = WardrobeSwitcher.resolveActive(id: nil, among: allWardrobes)?.id
@@ -138,7 +149,7 @@ struct OnboardingScreen: View {
                     Text("Body (optional)")
                 }
                 Section {
-                    Text("We'll add sample pieces so you can try outfit suggestions right away.")
+                    Text("Next you'll pick how to start — shoot what you're wearing, or try sample pieces first.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

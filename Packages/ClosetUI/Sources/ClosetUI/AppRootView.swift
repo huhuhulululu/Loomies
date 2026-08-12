@@ -133,6 +133,15 @@ public struct MeView: View {
                     // wardrobe must not persist an orphan PersonBodyProfile keyed
                     // to a random UUID (parity with the gated PersonNameEditView).
                     if let person = wardrobe.owner {
+                        // D98：场合构成的文案承诺「随时可改」，兑现路径在这里
+                        NavigationLink {
+                            PrimaryOccasionEditView(person: person)
+                        } label: {
+                            LabeledContent(
+                                PrimaryOccasionEditView.title,
+                                value: OccasionMix.parse(person.primaryOccasionRaw)
+                                    .map(OccasionMix.displayTitle) ?? OccasionMix.skipTitle)
+                        }
                         // D90：冷热偏置此前有字段无入口——同样 60°F，怕冷的人要更厚那档
                         NavigationLink {
                             ColdBiasEditView(person: person)
