@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **647 tests**（Core 218 / Model 174 / UI 213 / Intake 42）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **655 tests**（Core 222 / Model 174 / UI 217 / Intake 42）。
 
 ## 项目定位
 
@@ -99,7 +99,7 @@ Item[] / ScoredOutfit.itemIDs
 - 入库：`GarmentLayerNormalizer` 同画布（尊重 source-alpha：抠图半成品按 alpha 边界归一，不整画布铺满）；禁止槽位框再套一层（防胸前小贴纸）  
 - 空层：Today 英雄区胶囊提示，非静默裸体
 
-### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），647 tests）
+### 打磨不变量（Polish wave 2026-08，15 轮收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81），655 tests）
 
 - **保存失败原子性**：全部写路径走 `ModelSave`（snapshot → 操作 → 失败 `rollback` + 内存态恢复）；删除-only 失败留 dirty marker、不假装成功；测试中点保存禁止（no mid-operation saves）；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`（图文件删除同样原子 + orphan 清理）。create 失败一律「断关系 + rollback」而非 `context.delete`（delete 只删行，关系幻影与脏标记滞留污染后续 save）——衣柜/Onboarding/QuickAdd/Intake confirm 全对齐 OutfitDraftService 模式。
 - **Toast 代际**：自动消失计时器一律持单调 token 判「自己那条还在」，不按消息值判等（同文案连发会被旧计时器提前清）。
@@ -118,6 +118,7 @@ Item[] / ScoredOutfit.itemIDs
 - **cinematic 临时文件**：MP4 生命周期闭环——分享面板 onDismiss 即删、换新前删旧、导出失败清残片（cancelWriting + removeItem）、Today bootstrap 扫尾 `sweepTemporaryExports`；exporter 内置衣物下限守卫（层声明本地照片但全部读不出 → `garmentsUnavailable`，不得静默产出纯裸体底座视频）。
 - **跨柜不变量**在所有入口点强制（transfer / draft / search / copilot），非仅服务层。
 - **Hero/cinematic**：30fps 解码缓存、yaw 门控、VO 标签、空层门、writer-death 挂起修复、确定性帧 fallback；`AvatarCinematicExporter` **非 MainActor**（48 帧合成 + 编码在协作池跑，主线程不冻结；bundle 探测走线程安全 `BodyAvatarImageCache`）。
+- **Photoreal shape 维度**：命名 `photoreal_{sex}_{phenotype}_{shape}_{front|yaw###}`，resolve 链 shape 专属 → 表型 → 通用（D69 防换人守卫不变）；shape 真图命中时 View 旁路 preset warp（`BodyMorphParams.removingShapePreset`，防「真体型 + 拉伸」双重效果）；认证白名单已收 shape token。**资产 QA 门 `PhotorealInventoryQATests`**：矩阵账本（缺格 == 已知待补清单，当前 = eastAsian 13 张锁脸转角）、全库严格 2:3 尺寸、命名合法性——出图落盘必先过此门（任务清单见 BODY-AVATAR-IMAGE-PROMPTS §10）。
 - **设备传感器单例**：`SharedDeviceMotion` 是全 App 唯一 `CMMotionManager`（Apple 明文单实例），引用计数启停 + 弱引用自愈；`DepthParallaxMotion` 薄壳幂等 start/stop；View 侧 `onChange(reduceMotion)` 带可见性守卫（离屏视图树不得重启传感器）。
 - **位图缓存边界**：`BodyAvatarImageCache` / `BodyMorphImageCache` 走 `NSCache` 按字节 cost 限额（128MB/96MB + countLimit 兜底；条目数限容会让解码位图峰值数百 MB → jetsam），近似 LRU 且内存压力自动清；负缓存语义保留（miss 也存，缺资产不得每 tick 打盘）——morph 缓存补齐 miss 负缓存；bundle probe 表 512 上限（key 域数据驱动防泄漏）；`bundleUIImage/NSImage` 平台原图独立计费缓存（morph render 输入不再每次读盘+全量解码）。
 - **a11y**：`.combine` 只圈文本列、CTA 保持独立 VO target（入库拍摄、Closet 空态同规则）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44` / `measureStepperHitArea=44` / `orbitChevronHitArea=44`。

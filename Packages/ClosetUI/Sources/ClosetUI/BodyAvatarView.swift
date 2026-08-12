@@ -325,9 +325,12 @@ public struct BodyAvatarView: View {
         let holdWidth = simulatedYaw ? FullNudeBodyRaster.yawWidthFactor(yaw) : 1
         let holdTurn = simulatedYaw && !reduceMotion
             ? Self.photoHoldTurnDegrees(yawDegrees) : 0
+        // 真体型图命中时旁路 shape preset warp（照片已编码体型，双重效果会变形）
+        let effectiveMorph = (photoName.map(BodyAvatarAsset.photorealNameCarriesShape) ?? false)
+            ? morph.removingShapePreset(shape) : morph
         ZStack {
             if let name = photoName {
-                BodyMorphImageView(assetName: name, morph: morph, logicalWidth: size.width)
+                BodyMorphImageView(assetName: name, morph: effectiveMorph, logicalWidth: size.width)
                     .colorMultiply(Self.photorealPhenotypeMultiply(
                         assetName: name, phenotype: bodyPhenotype))
                     .scaleEffect(x: holdWidth, y: 1, anchor: .center)
@@ -365,11 +368,12 @@ public struct BodyAvatarView: View {
             value: layers.map(\.id).joined(separator: ","))
     }
 
-    /// 认证 catalog 真人多角帧（phenotype×yaw → sex×yaw）；门控关闭或缺帧时 `nil`。
+    /// 认证 catalog 真人多角帧（shape 专属 → phenotype×yaw → sex×yaw）；门控关闭或缺帧时 `nil`。
     private func certifiedPhotorealFrameName() -> String? {
         BodyAvatarAsset.resolvePhotorealFrameName(
             sex: bodySex,
             phenotype: bodyPhenotype,
+            shape: shape,
             yaw: yaw,
             available: {
                 NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
@@ -377,11 +381,13 @@ public struct BodyAvatarView: View {
             })
     }
 
-    /// 认证 catalog 正面（deg0 解析）；用于缺侧角时的 soft hold。
+    /// 认证 catalog 正面（deg0 解析，shape 专属优先）；用于缺侧角时的 soft hold。
     private func certifiedPhotorealFrontName() -> String? {
-        BodyAvatarAsset.resolvePhotorealFrontName(
+        BodyAvatarAsset.resolvePhotorealFrameName(
             sex: bodySex,
             phenotype: bodyPhenotype,
+            shape: shape,
+            yaw: .deg0,
             available: {
                 NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: $0)
                     && Self.bundleResourceURL(named: $0) != nil

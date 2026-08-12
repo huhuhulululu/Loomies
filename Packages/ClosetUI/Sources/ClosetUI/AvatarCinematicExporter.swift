@@ -372,15 +372,18 @@ public enum AvatarCinematicExporter {
         if let name = BodyAvatarAsset.resolvePhotorealFrameName(
             sex: request.bodySex,
             phenotype: request.bodyPhenotype,
+            shape: request.shape,
             yaw: yaw,
             available: available),
            let photo = loadCGImage(named: name)
         {
             return photo
         }
-        if let front = BodyAvatarAsset.resolvePhotorealFrontName(
+        if let front = BodyAvatarAsset.resolvePhotorealFrameName(
             sex: request.bodySex,
             phenotype: request.bodyPhenotype,
+            shape: request.shape,
+            yaw: .deg0,
             available: available),
            let photo = loadCGImage(named: front)
         {

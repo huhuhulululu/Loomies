@@ -183,6 +183,35 @@ public enum BodyAvatarAsset {
         return "photoreal_\(sex.rawValue)_\(phenotype.rawValue)_\(yaw.assetSuffix)"
     }
 
+    /// 体型专属帧（+64 正面档起）：`photoreal_{sex}_{phenotype}_{shape}_front` /
+    /// `…_{shape}_yaw###`。体型不再只靠 warp 拉伸单张基础图——shape 真图命中时
+    /// View 侧旁路 shape preset warp（防「真体型 + 拉伸」双重效果）。
+    public static func photorealFrameName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        shape: PopularShape,
+        yaw: BodyAvatarYaw
+    ) -> String {
+        let base = "photoreal_\(sex.rawValue)_\(phenotype.rawValue)_\(shape.rawValue)"
+        return yaw == .deg0 ? "\(base)_front" : "\(base)_\(yaw.assetSuffix)"
+    }
+
+    /// 名字是否携带 shape token（View 判定是否旁路 shape preset warp）。
+    public static func photorealNameCarriesShape(_ name: String) -> Bool {
+        PopularShape.allCases.contains { name.contains("_\($0.rawValue)_") }
+    }
+
+    /// 正面档导入清单：2 sex × 8 phenotype × 5 shape = 80。
+    public static var allPhotorealShapeFrontNames: [String] {
+        AvatarBodySex.allCases.flatMap { sex in
+            AvatarBodyPhenotype.allCases.flatMap { phenotype in
+                PopularShape.allCases.map {
+                    photorealFrameName(sex: sex, phenotype: phenotype, shape: $0, yaw: .deg0)
+                }
+            }
+        }
+    }
+
     /// 显式 `yaw000` 别名（与 `_front` 等价；导入管线可任选其一）。
     public static func photorealYaw000Alias(sex: AvatarBodySex) -> String {
         "photoreal_\(sex.rawValue)_yaw000"
@@ -209,6 +238,22 @@ public enum BodyAvatarAsset {
     /// - 非正面：phenotype×yaw 优先；**有表型专用正面时不回退 sex×yaw**（防换人，D69）
     ///   仅 eastAsian / 无表型正面时才用通用 sex×yaw 轨道。
     /// 非正面缺帧时返回 nil，UI soft-hold 本表型正面。
+    /// Shape 感知重载：体型专属帧优先（front 与 yaw 皆然），缺帧回退无 shape 链路
+    ///（含 D69 防换人守卫）。shape == nil 时与旧签名行为完全一致。
+    public static func resolvePhotorealFrameName(
+        sex: AvatarBodySex,
+        phenotype: AvatarBodyPhenotype,
+        shape: PopularShape?,
+        yaw: BodyAvatarYaw,
+        available: (String) -> Bool
+    ) -> String? {
+        if let shape {
+            let shaped = photorealFrameName(sex: sex, phenotype: phenotype, shape: shape, yaw: yaw)
+            if available(shaped) { return shaped }
+        }
+        return resolvePhotorealFrameName(sex: sex, phenotype: phenotype, yaw: yaw, available: available)
+    }
+
     public static func resolvePhotorealFrameName(
         sex: AvatarBodySex,
         phenotype: AvatarBodyPhenotype,

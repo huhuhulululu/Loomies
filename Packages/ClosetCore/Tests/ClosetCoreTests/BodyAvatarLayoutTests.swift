@@ -235,6 +235,79 @@ struct BodyAvatarLayoutTests {
                 == "photoreal_female_front")
     }
 
+    /// Shape 维度（+64 正面档）：体型专属真图存在时优先命中——每人种不再只有一个
+    /// 体型靠 warp 拉伸；缺 shape 帧时链路与无 shape 完全一致（向后兼容）。
+    @Test func resolvePrefersShapeSpecificFrameWhenAvailable() {
+        let set: Set<String> = [
+            "photoreal_female_african_pear_front",
+            "photoreal_female_african_front",
+            "photoreal_female_front",
+        ]
+        // shape 专属正面优先
+        #expect(
+            BodyAvatarAsset.resolvePhotorealFrameName(
+                sex: .female, phenotype: .african, shape: .pear, yaw: .deg0,
+                available: { set.contains($0) })
+                == "photoreal_female_african_pear_front")
+        // 缺 shape 帧 → 回退表型正面（与旧链一致）
+        #expect(
+            BodyAvatarAsset.resolvePhotorealFrameName(
+                sex: .female, phenotype: .african, shape: .hourglass, yaw: .deg0,
+                available: { set.contains($0) })
+                == "photoreal_female_african_front")
+        // shape == nil → 行为与旧签名完全相同
+        #expect(
+            BodyAvatarAsset.resolvePhotorealFrameName(
+                sex: .female, phenotype: .african, shape: nil, yaw: .deg0,
+                available: { set.contains($0) })
+                == "photoreal_female_african_front")
+    }
+
+    /// Shape × yaw（¾ 档预留）：转角也先找 shape 专属帧；缺帧不得跨人回退。
+    @Test func resolveShapeYawFrameAndIdentityGuardStillHolds() {
+        let set: Set<String> = [
+            "photoreal_female_african_pear_yaw045",
+            "photoreal_female_african_pear_front",
+            "photoreal_female_african_front",
+            "photoreal_female_yaw045",
+        ]
+        #expect(
+            BodyAvatarAsset.resolvePhotorealFrameName(
+                sex: .female, phenotype: .african, shape: .pear, yaw: .deg45,
+                available: { set.contains($0) })
+                == "photoreal_female_african_pear_yaw045")
+        // 缺 shape yaw → 回退表型 yaw（无）→ D69 守卫：有表型正面不得用通用轨
+        let noShapeYaw: Set<String> = [
+            "photoreal_female_african_pear_front",
+            "photoreal_female_african_front",
+            "photoreal_female_yaw045",
+        ]
+        #expect(
+            BodyAvatarAsset.resolvePhotorealFrameName(
+                sex: .female, phenotype: .african, shape: .pear, yaw: .deg45,
+                available: { noShapeYaw.contains($0) }) == nil)
+    }
+
+    /// 命名与清单：shape token 规则 + 正面档导入清单 2×8×5=80 + carriesShape 判定
+    ///（View 靠它决定「真体型图命中时旁路 shape preset warp，防双重效果」）。
+    @Test func shapeFrameNamingInventoryAndCarriesShape() {
+        #expect(
+            BodyAvatarAsset.photorealFrameName(
+                sex: .male, phenotype: .latinx, shape: .invertedTriangle, yaw: .deg0)
+                == "photoreal_male_latinx_invertedTriangle_front")
+        #expect(
+            BodyAvatarAsset.photorealFrameName(
+                sex: .female, phenotype: .eastAsian, shape: .rectangle, yaw: .deg90)
+                == "photoreal_female_eastAsian_rectangle_yaw090")
+        let fronts = BodyAvatarAsset.allPhotorealShapeFrontNames
+        #expect(fronts.count == 80)
+        #expect(Set(fronts).count == 80)
+        #expect(fronts.contains("photoreal_female_african_pear_front"))
+        #expect(BodyAvatarAsset.photorealNameCarriesShape("photoreal_female_african_pear_front"))
+        #expect(!BodyAvatarAsset.photorealNameCarriesShape("photoreal_female_african_front"))
+        #expect(!BodyAvatarAsset.photorealNameCarriesShape("photoreal_female_yaw045"))
+    }
+
     @Test func resolvePhotorealFrameDoesNotSwapIdentityForOtherPhenotypes() {
         // D69: african has own front + only generic sex yaw045 exists → do NOT use generic yaw
         let set: Set<String> = [

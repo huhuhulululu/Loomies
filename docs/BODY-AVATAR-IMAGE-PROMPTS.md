@@ -149,21 +149,53 @@ Same exact photoreal woman (same face, freckles, hair, skin texture) wearing onl
 1. 只动一张金标准 `yaw000`（写实 pass / 脸/光/乳贴/丁字裤）  
 2. 验收：脸 = 原模特；装 = 仅乳贴+丁字裤；肤质写实；灰棚一致  
 3. 再 fan-out：体型（§3）→ 角度（§4）→ 组合补缺（§5）→ 各帧 realism pass（§7）  
-4. 入库名：`croquis_{hourglass|pear|apple|rectangle|invertedTriangle}_yaw{000…315}.png`（1024×1536）  
-5. legacy 正面：`croquis_{shape}.png` = 对应 `yaw000` 拷贝  
-6. **出图可带棚灰**；入库 App 前跑 `python3 app-shell/scripts/croquis-to-alpha.py` → **RGBA 透明底**（UI 用 `AvatarBackdrop` 叠场合，不烤进 PNG） 
+4. **入库名（photoreal 轨，产品渲染路径唯一读取的命名）**：  
+   - 表型基础帧：`photoreal_{female|male}_{phenotype}_front` / `…_yaw{045…315}`  
+   - **体型专属帧（shape 维度）**：`photoreal_{sex}_{phenotype}_{hourglass|pear|apple|rectangle|invertedTriangle}_front` / `…_yaw###`  
+   - 尺寸统一 **832×1248 或 1024×1536（严格 2:3）**——`PhotorealInventoryQATests` 会拒非 2:3  
+   - ~~croquis_{shape}_yaw###~~ **已废弃**：croquis 轨是渲染死代码，勿再出此命名  
+5. **出图可带棚灰**；photoreal 轨直接入库（照片保留背景，UI 叠 `AvatarBackdrop`）
 
 ---
 
 ## 9. 资源与代码挂点
 
 - 资源：`Packages/ClosetUI/.../Resources/BodyAvatar/`  
-- 命名 API：`BodyAvatarAsset.croquisName(for:yaw:)`  
-- UI：`BodyAvatarView`（静态 8 帧，无插值动画）  
+- 命名/解析 API：`BodyAvatarAsset.photorealFrameName(sex:phenotype:shape:yaw:)` + `resolvePhotorealFrameName(sex:phenotype:shape:yaw:available:)`（shape 专属 → 表型 → 通用，D69 防换人守卫）  
+- 认证门：`NudeBodyBaseSpec.isAllowedPhotorealFrontName`（shape token 已入白名单）  
+- QA 门：`PhotorealInventoryQATests`（矩阵账本/2:3 尺寸/命名合法性）——**每落盘一批图先跑它**  
+- UI：`BodyAvatarView`（shape 帧命中时自动旁路 preset warp，用户微调仍生效）  
 - 产品：Me → Body 双轨快选 + 四围；basewear 文案标明 pasties+thong  
 
 ---
 
-## 10. 一句话记忆
+## 10. 当前出图任务清单（2026-08-11 拍板：B 方案 + 正面档）
+
+> 落盘即插即用：命名对 → 放进 Resources/BodyAvatar/ → 跑 `PhotorealInventoryQATests`
+> （账本测试会提示「landed, remove from pending」）→ 从本清单划掉。
+
+### 批次 1 · eastAsian 锁脸转角 13 张（修「转角换人」，最高优先）
+以现有 `photoreal_{sex}_eastAsian_front` 为身份金标准，走 §2 multi-image face transfer + §4 角度 prompt：
+
+```
+photoreal_female_eastAsian_yaw045 / 090 / 135 / 180 / 225 / 270 / 315   （7）
+photoreal_male_eastAsian_yaw045 / 090 / 135 / 225 / 270 / 315           （6，yaw180 已有）
+```
+
+### 批次 2 · 体型 × 表型正面档 64 张（修「每人种只有一个体型」）
+以各 `photoreal_{sex}_{phenotype}_front` 为该表型身份金标准，走 §3 体型 prompt（同人改体型，锁脸）：
+2 性 × 8 表型 × 5 体型 = 80 格，其中现有基础帧即该表型的「基准身材」，**5 体型全部单独出图**
+（基础帧保留作 shape 未知时的回退）→ 共 **80 张**；若把每表型现有身材视作 rectangle 近似可先出
+其余 4 体型 = 64 张，rectangle 后补。命名：
+
+```
+photoreal_{female|male}_{eastAsian|southeastAsian|southAsian|european|african|latinx|middleEastern|indigenous}_{hourglass|pear|apple|rectangle|invertedTriangle}_front
+```
+
+验收（每张）：脸 = 该表型金标准同人；装 = 仅乳贴+丁字裤（♂ thong）；2:3 尺寸；§3 表列比例特征可辨；灰棚一致。
+
+---
+
+## 11. 一句话记忆
 
 **装用 gen 过审 → 脸用 transfer 锁回 → 往后只 edit 同人；永远乳贴+丁字裤，永不裸 gen 新人。**

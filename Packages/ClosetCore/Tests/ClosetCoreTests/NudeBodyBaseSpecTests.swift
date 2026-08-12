@@ -68,6 +68,21 @@ struct NudeBodyBaseSpecTests {
         #expect(NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: n))
     }
 
+    /// Shape 维度（+64 正面档）：体型专属帧名必须过认证门；乱写 token 仍拒。
+    @Test func shapeTokenNamesPassCertGate() {
+        for shape in PopularShape.allCases {
+            let front = BodyAvatarAsset.photorealFrameName(
+                sex: .female, phenotype: .african, shape: shape, yaw: .deg0)
+            #expect(NudeBodyBaseSpec.mayUsePhotorealFrontAsset(named: front))
+        }
+        #expect(NudeBodyBaseSpec.mayUsePhotorealFrontAsset(
+            named: BodyAvatarAsset.photorealFrameName(
+                sex: .male, phenotype: .eastAsian, shape: .pear, yaw: .deg90)))
+        // 非法名仍拒：乱造 token / 禁用词
+        #expect(!NudeBodyBaseSpec.isAllowedPhotorealFrontName("photoreal_female_african_bogus_front"))
+        #expect(!NudeBodyBaseSpec.isAllowedPhotorealFrontName("photoreal_female_african_pear_bra"))
+    }
+
     @Test func meshCatalogNamesAreNudePrefixed() {
         #expect(MannequinMeshCatalog.usdzResourceName(for: .female).hasPrefix("nude_"))
         #expect(MannequinMeshCatalog.usdzResourceName(for: .male).hasPrefix("nude_"))

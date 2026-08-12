@@ -170,6 +170,21 @@ public struct BodyMorphParams: Equatable, Sendable {
         }
     }
 
+    /// 真体型图命中时旁路 preset：从合成 morph 中除去 shape preset 分量
+    ///（照片已编码该体型，再叠 preset warp 会双重效果），仅保留用户微调/实测偏差。
+    public func removingShapePreset(_ shape: PopularShape?) -> BodyMorphParams {
+        guard let shape else { return self }
+        let p = Self.preset(for: shape)
+        func div(_ a: Double, _ b: Double) -> Double { b == 0 ? a : a / b }
+        return BodyMorphParams(
+            chest: div(chest, p.chest),
+            waist: div(waist, p.waist),
+            hip: div(hip, p.hip),
+            shoulder: div(shoulder, p.shoulder),
+            height: div(height, p.height)
+        ).clamped()
+    }
+
     /// 测量优先；否则体型预设；再否则中性。
     public static func resolve(
         measurements: BodyMeasurements?,

@@ -166,6 +166,13 @@ public enum NudeBodyBaseSpec: Sendable {
         for sex in AvatarBodySex.allCases {
             for p in AvatarBodyPhenotype.allCases {
                 if name == photorealFrontName(sex: sex, phenotype: p) { return true }
+                // Shape 维度（+64 正面档起）：photoreal_{sex}_{phenotype}_{shape}_{front|yaw###}
+                for shape in PopularShape.allCases {
+                    for yaw in BodyAvatarYaw.allCases {
+                        if name == BodyAvatarAsset.photorealFrameName(
+                            sex: sex, phenotype: p, shape: shape, yaw: yaw) { return true }
+                    }
+                }
             }
             for yaw in [0, 45, 90, 135, 180, 225, 270, 315] {
                 let y = String(format: "yaw%03d", yaw)
