@@ -52,7 +52,7 @@ struct SearchViewModelTests {
         try ctx.save()
 
         let vm = SearchViewModel()
-        vm.wardrobeID = w.id
+        vm.homeWardrobeID = w.id
         #expect(!vm.isFiltering)
         #expect(vm.emptyStateTitle == "No pieces here")
         #expect(vm.emptyStateDescription.localizedCaseInsensitiveContains("add a piece"))
@@ -67,10 +67,10 @@ struct SearchViewModelTests {
 
         vm.slotRaw = "shoes"
         #expect(vm.isFiltering)
-        vm.clearFiltersKeepingWardrobe()
+        vm.clearFiltersKeepingScope()
         #expect(vm.text.isEmpty)
         #expect(vm.slotRaw == nil)
-        #expect(vm.wardrobeID == w.id)
+        #expect(vm.homeWardrobeID == w.id)
         #expect(vm.emptyStateTitle == "No pieces here")
         vm.run(in: ctx)
         #expect(vm.results.count == 1)
@@ -92,7 +92,7 @@ struct SearchViewModelTests {
         #expect(Set(GarmentSlot.allCases.map(\.rawValue)).count == GarmentSlot.allCases.count)
 
         let vm = SearchViewModel()
-        vm.wardrobeID = w.id
+        vm.homeWardrobeID = w.id
         vm.slotRaw = GarmentSlot.accessory.rawValue
         vm.run(in: ctx)
         #expect(vm.results.map(\.name) == ["Leather Belt"])
@@ -116,7 +116,7 @@ struct SearchViewModelTests {
         #expect(ItemStatusService.allowed.contains("inWash"))
 
         let vm = SearchViewModel()
-        vm.wardrobeID = w.id
+        vm.homeWardrobeID = w.id
         vm.statusRaw = "inWash"
         #expect(vm.isFiltering)
         vm.run(in: ctx)
@@ -127,10 +127,10 @@ struct SearchViewModelTests {
         vm.run(in: ctx)
         #expect(vm.results.map(\.name) == ["Weekend Tee"])
 
-        vm.clearFiltersKeepingWardrobe()
+        vm.clearFiltersKeepingScope()
         #expect(vm.statusRaw == nil)
         #expect(vm.slotRaw == nil)
-        #expect(vm.wardrobeID == w.id)
+        #expect(vm.homeWardrobeID == w.id)
         #expect(!vm.isFiltering)
         vm.run(in: ctx)
         #expect(Set(vm.results.map(\.name)) == Set(["Office Shirt", "Weekend Tee"]))
@@ -235,7 +235,7 @@ struct SearchViewModelTests {
         try ctx.save()
 
         let vm = SearchViewModel()
-        vm.wardrobeID = w.id
+        vm.homeWardrobeID = w.id
         vm.occasion = "work"
         #expect(vm.isFiltering)
         vm.run(in: ctx)
@@ -245,9 +245,9 @@ struct SearchViewModelTests {
         vm.run(in: ctx)
         #expect(vm.results.map(\.name) == ["Tee"])
 
-        vm.clearFiltersKeepingWardrobe()
+        vm.clearFiltersKeepingScope()
         #expect(vm.occasion == nil)
-        #expect(vm.wardrobeID == w.id)
+        #expect(vm.homeWardrobeID == w.id)
         #expect(!vm.isFiltering)
         vm.run(in: ctx)
         #expect(Set(vm.results.map(\.name)) == Set(["Blazer", "Tee"]))

@@ -66,15 +66,19 @@ struct AvatarCinematicLookbookTests {
 
     /// tmp 扫尾：历史导出的 loomies-cinematic-*.mp4 可清（分享后无人清理会线性积累）。
     @Test func sweepRemovesStaleCinematicExports() throws {
+        // 私有扫描目录：并行套件（含真导出测试）也在真 tmp 里写 loomies-cinematic-*，
+        // 按共享 tmp 扫会互删对方正在用的文件（实测发生过）。
         let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("sweep-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
         let stale1 = tmp.appendingPathComponent("loomies-cinematic-\(UUID().uuidString).mp4")
         let stale2 = tmp.appendingPathComponent("loomies-cinematic-\(UUID().uuidString).mp4")
         let unrelated = tmp.appendingPathComponent("keep-\(UUID().uuidString).mp4")
         try Data([0x1]).write(to: stale1)
         try Data([0x1]).write(to: stale2)
         try Data([0x1]).write(to: unrelated)
-        defer { try? FileManager.default.removeItem(at: unrelated) }
-        AvatarCinematicExporter.sweepTemporaryExports()
+        AvatarCinematicExporter.sweepTemporaryExports(in: tmp)
         #expect(!FileManager.default.fileExists(atPath: stale1.path))
         #expect(!FileManager.default.fileExists(atPath: stale2.path))
         #expect(FileManager.default.fileExists(atPath: unrelated.path))

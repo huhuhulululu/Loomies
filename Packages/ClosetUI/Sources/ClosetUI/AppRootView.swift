@@ -295,6 +295,8 @@ public struct ClosetGridView: View {
     @State private var showSearch = false
     @State private var showFittingRoom = false
     @State private var searchVM = SearchViewModel()
+    /// 作用域切换器只在多柜时出现；跨柜结果行需按各自衣柜主人取 body profile
+    @Query(sort: \Wardrobe.name) private var allWardrobes: [Wardrobe]
     @State private var statusFilter: String = "all"
     /// nil = all types; chips use GarmentSlot + displaySlot name correction.
     @State private var slotFilter: String? = nil
@@ -308,6 +310,12 @@ public struct ClosetGridView: View {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     /// Owner body profile for FitMark (same person as wardrobe.owner).
+    /// 按单品所属衣柜的主人取身体档案（跨柜结果里各柜主人可能不同）。
+    private func bodyProfile(for item: Item) -> PersonBodyProfile? {
+        guard let pid = item.wardrobe?.owner?.id else { return ownerBodyProfile }
+        return bodyProfiles.first { $0.personID == pid }
+    }
+
     private var ownerBodyProfile: PersonBodyProfile? {
         guard let pid = wardrobe.owner?.id else { return nil }
         return bodyProfiles.first { $0.personID == pid }
@@ -349,7 +357,10 @@ public struct ClosetGridView: View {
                         showSearch.toggle()
                         if showSearch {
                             // Carry grid status/type facets into search so laundry/status filters stick.
-                            searchVM.wardrobeID = wardrobe.id
+                            searchVM.homeWardrobeID = wardrobe.id
+                            searchVM.hasOtherClosets = allWardrobes.count > 1
+                            // 每次打开搜索回到本柜（安全默认：跨柜需显式选择）
+                            searchVM.scope = .thisCloset
                             searchVM.statusRaw = statusFilter == "all" ? nil : statusFilter
                             searchVM.slotRaw = slotFilter
                             searchVM.run(in: context)
@@ -593,9 +604,22 @@ public struct ClosetGridView: View {
                 .padding(.top, 12)
                 .accessibilityLabel("Search name or brand")
                 .onChange(of: searchVM.text) { _, _ in
-                    searchVM.wardrobeID = wardrobe.id
+                    searchVM.homeWardrobeID = wardrobe.id
                     searchVM.run(in: context)
                 }
+            // 作用域切换（DESIGN §2.3 全局检索）；单柜用户不显示无用控件
+            if allWardrobes.count > 1 {
+                Picker("Scope", selection: $searchVM.scope) {
+                    ForEach(SearchScope.allCases, id: \.rawValue) { s in
+                        Text(s.displayTitle).tag(s)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .accessibilityLabel("Search scope")
+                .onChange(of: searchVM.scope) { _, _ in searchVM.run(in: context) }
+            }
             // 槽位快捷过滤 — full GarmentSlot set (incl. accessory) + displayTitle, never raw dump.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
@@ -642,21 +666,23 @@ public struct ClosetGridView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(searchVM.results, id: \.id) { item in
+                    let meta = ClosetItemRowCopy.metaLine(
+                        for: item, includesCloset: searchVM.isCrossCloset)
                     NavigationLink {
-                        ItemDetailView(item: item, bodyProfile: ownerBodyProfile)
+                        // 跨柜结果：合身标记须用该单品所属衣柜主人的身体档案，不能用当前柜主人
+                        ItemDetailView(item: item, bodyProfile: bodyProfile(for: item))
                     } label: {
                         HStack(spacing: 12) {
                             ItemThumbnailView(item: item, height: 48)
                                 .frame(width: 48)
                             VStack(alignment: .leading) {
                                 Text(item.name).font(.headline)
-                                Text(ClosetItemRowCopy.metaLine(for: item))
+                                Text(meta)
                                     .font(.caption).foregroundStyle(DS.muted)
                             }
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel(
-                            "\(item.name). \(ClosetItemRowCopy.metaLine(for: item))")
+                        .accessibilityLabel("\(item.name). \(meta)")
                     }
                 }
                 .listStyle(.plain)
@@ -685,7 +711,7 @@ public struct ClosetGridView: View {
         } actions: {
             if searchVM.isFiltering {
                 Button("Clear search") {
-                    searchVM.clearFiltersKeepingWardrobe()
+                    searchVM.clearFiltersKeepingScope()
                     searchVM.run(in: context)
                 }
                 .buttonStyle(.borderedProminent)
@@ -703,7 +729,7 @@ public struct ClosetGridView: View {
         let on = searchVM.slotRaw == slot
         return Button {
             searchVM.slotRaw = slot
-            searchVM.wardrobeID = wardrobe.id
+            searchVM.homeWardrobeID = wardrobe.id
             searchVM.run(in: context)
         } label: {
             Text(title)
@@ -722,7 +748,7 @@ public struct ClosetGridView: View {
         let on = searchVM.statusRaw == status
         return Button {
             searchVM.statusRaw = status
-            searchVM.wardrobeID = wardrobe.id
+            searchVM.homeWardrobeID = wardrobe.id
             searchVM.run(in: context)
         } label: {
             Text(title)
@@ -744,7 +770,7 @@ public struct ClosetGridView: View {
         let on = searchVM.occasion == occasion
         return Button {
             searchVM.occasion = occasion
-            searchVM.wardrobeID = wardrobe.id
+            searchVM.homeWardrobeID = wardrobe.id
             searchVM.run(in: context)
         } label: {
             Text(title)

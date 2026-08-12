@@ -104,9 +104,11 @@ public enum AvatarCinematicExporter {
 
     /// 历史导出扫尾：分享面板关闭即删当次文件，此处兜底清残留
     /// （崩溃/低存储回收前的旧文件；启动/进 Today 时调用，正在导出的文件不可能存在）。
-    public static func sweepTemporaryExports() {
+    /// - Parameter directory: 扫描目录（默认真 tmp）。测试注入私有目录——
+    ///   共享 tmp 上并行套件会互删对方正在用的导出文件（实测过一次真 race）。
+    public static func sweepTemporaryExports(in directory: URL? = nil) {
         let fm = FileManager.default
-        let tmp = fm.temporaryDirectory
+        let tmp = directory ?? fm.temporaryDirectory
         guard let entries = try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)
         else { return }
         for url in entries where url.lastPathComponent.hasPrefix("loomies-cinematic-") {

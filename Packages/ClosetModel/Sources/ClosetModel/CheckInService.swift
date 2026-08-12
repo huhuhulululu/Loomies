@@ -33,6 +33,37 @@ public enum CheckInService {
         AppLog.info("checkIn \(items.count) items wardrobe=\(AppLog.ref(wardrobe.id))", .data)
         return rec
     }
+
+    /// Customer toast when the follow-up fit note fails to save.
+    public static let fitFeedbackSaveFailedMessage = "Couldn't save fit feedback — try again"
+
+    /// 合身反馈的**唯一**写入入口（打卡后追问 + 手动打卡共用）：
+    /// 空白 = 清除；非 `FitVerdict` 的脏值拒绝（`recordWear` 的宽松签名保留给历史用例，
+    /// 合法性守卫收敛在这里）；失败还原内存值 + rollback。
+    @discardableResult
+    public static func setFitFeedback(
+        _ raw: String?, on record: WearRecord, in context: ModelContext
+    ) -> Bool {
+        let normalized: String?
+        if let key = TextNormalize.blankToNil(raw)?.lowercased() {
+            guard let verdict = FitVerdict(rawValue: key) else {
+                AppLog.error("rejected unknown fit feedback for record=\(AppLog.ref(record.id))", .data)
+                return false
+            }
+            normalized = verdict.rawValue
+        } else {
+            normalized = nil   // 空白 = 清除
+        }
+        let previous = record.fitFeedback
+        record.fitFeedback = normalized
+        guard ModelSave.save(context, label: "fitFeedback") else {
+            record.fitFeedback = previous
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("fitFeedback save failed record=\(AppLog.ref(record.id))", .data)
+            return false
+        }
+        return true
+    }
 }
 
 /// 穿着历史查询：喂 RecommendationService 的防重复（gate #3）。

@@ -83,7 +83,7 @@ struct FeatureJourneyTests {
         #expect(checkIn.selectedIDs.isEmpty)
 
         let search = SearchViewModel()
-        search.wardrobeID = w.id
+        search.homeWardrobeID = w.id
         search.text = "tee"
         search.run(in: ctx)
         #expect(search.results.contains(where: { $0.name.localizedCaseInsensitiveContains("tee") }))

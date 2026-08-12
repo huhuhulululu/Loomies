@@ -594,3 +594,23 @@ app-shell 手搓 `Schema([...])`）。本次落地并经对抗审查（3 簇蓝�
     「Couldn't add — try again」升级为诚实的「A location with that name already exists here.」
   - 审查 LOW 修复：父层判定必须显式分支，`parent?.children ?? 根层` 在 children 为 nil 时会拿
     根层当兄弟 → 「父节点下新建与某根节点同名」被误报重名（客户可见的谎）。有测试锁。
+
+## D85 波 C/D [2026-08-11] 跨柜检索 · 合身反馈与手动打卡
+
+- **跨柜检索**（Closet 搜索栏分段控件，仅多柜时出现）：`SearchScope` 本柜/全部。
+  - 跨柜结果行显示所属衣柜（可见 + VoiceOver 同源）；**合身标记按该单品所属柜主人**取
+    身体档案——此前固定用当前柜主人，跨柜结果的 FitMark 是错配的。
+  - `clear()` 一并复位 scope 与 hasOtherClosets（审查 MEDIUM：清空后仍停在跨柜而无提示，
+    与「安全默认」的自述矛盾）；`clearFiltersKeepingScope()` 供 chips 用；
+    每次打开搜索显式回到本柜——描述与实现必须一致（UI 诚实同源）。
+- **合身反馈 + 手动打卡**：只保留**一套**打卡语义。
+  - `CheckInService.setFitFeedback` 是合身反馈的唯一写入入口（FitVerdict 校验 + 快照回滚 +
+    空白即清除）；`CheckInViewModel.checkIn` 不再把 fitFeedback 透传给 `recordWear`
+    （审查 LOW：两条写路径只有一条有校验，UI 一改就能让脏值绕过守卫）。
+  - `CheckInView`（Today 控制卡次级入口「Log what I wore」）复活了此前零调用点的
+    `CheckInViewModel.toggle/isSelected/checkIn`；可选包含洗衣/外借件；只记今天
+    （DESIGN §F5 措辞；补记过去日期是 v1.x）。关闭后刷新防重复窗口。
+  - v1.0 **只采集不消费**：不喂 FitEngine、不改推荐，文案不得暗示会改变推荐；
+    但会随 Export my data 导出（`WearRecord.fitFeedback` 在导出快照里），`exportDisclosure` 如实告知。
+- 顺带修一个真 race：`sweepTemporaryExports` 扫共享 tmp，与并行的导出测试互删文件
+  （实测触发一次失败）→ 扫描目录改为可注入，测试用私有目录。

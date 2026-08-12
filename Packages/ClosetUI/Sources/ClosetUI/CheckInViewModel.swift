@@ -21,8 +21,24 @@ public final class CheckInViewModel {
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
+    /// 洗衣/外借件默认不在可选列表（打卡的是「今天穿了」）；用户可显式包含。
+    public var includesUnavailableItems: Bool = false
+
+    /// 类型安全的合身反馈桥接（Picker 绑定用；脏 raw 读作 nil，不编造）。
+    public var fitVerdict: FitVerdict? {
+        get { FitFeedbackCopy.parse(fitFeedback) }
+        set { fitFeedback = newValue?.rawValue }
+    }
+
     public var availableItems: [Item] {
         (wardrobe.items ?? []).filter { $0.statusRaw == "available" }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+    }
+
+    /// 手动打卡的可选列表（含/不含非可用件）。
+    public var selectableItems: [Item] {
+        guard includesUnavailableItems else { return availableItems }
+        return (wardrobe.items ?? [])
             .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
@@ -52,12 +68,17 @@ public final class CheckInViewModel {
             AppLog.notice("check-in skipped: selection resolved to zero items", .app)
             return nil
         }
+        // 合身反馈不随 recordWear 传入：统一走 setFitFeedback 的校验 + 原子路径
+        //（两条 UI 路径共用同一守卫，脏值不会绕过）。
         guard let rec = CheckInService.recordWear(
-            items: items, on: date, in: wardrobe,
-            fitFeedback: fitFeedback, in: context)
+            items: items, on: date, in: wardrobe, in: context)
         else {
             message = Self.saveFailedMessage
             return nil
+        }
+        if fitFeedback != nil {
+            // 反馈写失败不回滚打卡本身（打卡已成功，谎报失败反而不诚实）
+            _ = CheckInService.setFitFeedback(fitFeedback, on: rec, in: context)
         }
         lastRecord = rec
         selectedIDs = []

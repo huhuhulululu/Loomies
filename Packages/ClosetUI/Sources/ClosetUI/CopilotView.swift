@@ -12,6 +12,7 @@ public struct CopilotView: View {
     @State private var checkInNote: String?
     /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast（按值判等无法区分代）。
     @State private var flashToken = 0
+    @State private var showCheckInSheet = false
     @State private var cinematicFailureToken = 0
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
@@ -60,6 +61,15 @@ public struct CopilotView: View {
                     }
                 }
                 .task { await runBootstrapOnce() }
+                .sheet(isPresented: $showCheckInSheet) {
+                    CheckInView(wardrobe: vm.wardrobe)
+                } // 关闭后刷新：防重复窗口立即生效
+                .onChange(of: showCheckInSheet) { _, open in
+                    if !open {
+                        vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+                        runRefresh()
+                    }
+                }
                 .onChange(of: vm.wardrobe.locationCity) { _, _ in
                     Task { await reapplyWeatherAfterCityChange() }
                 }
@@ -525,6 +535,14 @@ public struct CopilotView: View {
             }
             .buttonStyle(.plain)
             .disabled(vm.isRefreshing)
+
+            // 手动打卡次级入口（D85 波 D）：copilot 建议之外，用户自己挑今天穿了什么
+            Button(CheckInView.entryButtonTitle) { showCheckInSheet = true }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DS.accent)
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .accessibilityHint("Pick pieces you wore today")
 
             if debug.showEmptyReason, !vm.statusMessage.isEmpty {
                 Text(vm.statusMessage)

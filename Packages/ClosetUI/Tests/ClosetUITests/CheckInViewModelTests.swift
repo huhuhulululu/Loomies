@@ -172,6 +172,67 @@ struct CheckInViewModelTests {
         #expect(!missFlash.localizedCaseInsensitiveContains("de-prioritized"))
     }
 
+    /// D85 波 D：手动选件打卡（此前 toggle/isSelected/checkIn 是零调用点死 VM）。
+    @Test func manualCheckInSelectsAndRecords() throws {
+        let (ctx, w, item, _) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        #expect(!vm.canCheckIn)
+        vm.toggle(item)
+        #expect(vm.isSelected(item))
+        #expect(vm.canCheckIn)
+        let rec = vm.checkIn(in: ctx)
+        #expect(rec != nil)
+        #expect(rec?.wornItemIDs == [item.id.uuidString])
+        #expect(vm.selectedIDs.isEmpty)   // 成功后清空选区
+    }
+
+    /// 洗衣/外借件默认不在可选列表（打卡的是「今天穿了」），但可显式包含。
+    @Test func selectableItemsHonorsUnavailableToggle() throws {
+        let (ctx, w, available, _) = try setup()
+        let washing = Item(name: "Muddy Tee"); washing.slotRaw = "top"
+        washing.wardrobe = w; washing.statusRaw = "inWash"
+        ctx.insert(washing)
+        try ctx.save()
+        let vm = CheckInViewModel(wardrobe: w)
+        #expect(!vm.selectableItems.contains { $0.id == washing.id })
+        #expect(vm.selectableItems.contains { $0.id == available.id })
+        vm.includesUnavailableItems = true
+        #expect(vm.selectableItems.contains { $0.id == washing.id })
+        // 排序确定（(name, id) 双键）
+        #expect(vm.selectableItems.map(\.name) == vm.selectableItems.map(\.name).sorted())
+    }
+
+    /// 合身反馈走 setFitFeedback 唯一校验路径：非法值不落库，且不阻断打卡本身。
+    @Test func checkInRoutesFitFeedbackThroughValidatingPath() throws {
+        let (ctx, w, item, _) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        vm.toggle(item)
+        vm.fitVerdict = .loose
+        let rec = try #require(vm.checkIn(in: ctx))
+        #expect(rec.fitFeedback == "loose")
+        #expect(vm.fitVerdict == nil)   // 成功后复位
+
+        // 脏值（历史/外部写入）不得落库，打卡仍成功
+        let vm2 = CheckInViewModel(wardrobe: w)
+        vm2.toggle(item)
+        vm2.fitFeedback = "snug-ish"
+        let rec2 = try #require(vm2.checkIn(in: ctx))
+        #expect(rec2.fitFeedback == nil)
+    }
+
+    @Test func fitVerdictBridgesRawString() throws {
+        let (_, w, _, _) = try setup()
+        let vm = CheckInViewModel(wardrobe: w)
+        vm.fitVerdict = .tight
+        #expect(vm.fitFeedback == "tight")
+        vm.fitFeedback = "loose"
+        #expect(vm.fitVerdict == .loose)
+        vm.fitFeedback = "garbage"
+        #expect(vm.fitVerdict == nil)
+        vm.fitVerdict = nil
+        #expect(vm.fitFeedback == nil)
+    }
+
     @Test func applyWeatherUpdatesTemp() async throws {
         let (_, w, _, _) = try setup()
         let vm = CopilotViewModel(wardrobe: w, daytimeTempF: 70)

@@ -105,6 +105,37 @@ struct CheckInServiceTests {
         #expect(WearHistory.recentlyWornItemIDs(within: -3, asOf: today, in: ctx).isEmpty)
     }
 
+    /// D85 波 D：合身反馈是打卡后的**追问**（同一条 WearRecord 的 update），
+    /// 不是第二种打卡语义。校验 + 快照回滚收敛在这一个入口。
+    @Test(.serialized) func setFitFeedbackValidatesAndRollsBack() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        let top = mk(ctx, w, "top", "top")
+        try ctx.save()
+        let rec = try #require(CheckInService.recordWear(items: [top], on: today, in: w, in: ctx))
+        #expect(rec.fitFeedback == nil)
+
+        // 合法值写入
+        #expect(CheckInService.setFitFeedback(FitVerdict.tight.rawValue, on: rec, in: ctx))
+        #expect(rec.fitFeedback == "tight")
+        // 空白 = 清除（用户改主意）
+        #expect(CheckInService.setFitFeedback("  ", on: rec, in: ctx))
+        #expect(rec.fitFeedback == nil)
+        // 非法值拒绝（不落库、不静默接受）
+        #expect(!CheckInService.setFitFeedback("snug-ish", on: rec, in: ctx))
+        #expect(rec.fitFeedback == nil)
+        // 大小写容错
+        #expect(CheckInService.setFitFeedback("LOOSE", on: rec, in: ctx))
+        #expect(rec.fitFeedback == "loose")
+        // save 失败：内存值还原 + 无脏标记
+        ModelSave.forceFailure(on: ctx)
+        #expect(!CheckInService.setFitFeedback("tight", on: rec, in: ctx))
+        #expect(rec.fitFeedback == "loose")
+        #expect(!ctx.hasChanges)
+        ModelSave.clearForcedFailure(on: ctx)
+        #expect(!CheckInService.fitFeedbackSaveFailedMessage.isEmpty)
+    }
+
     /// 闭环：打卡 → 穿着历史 → 推荐防重复。
     @Test func closedLoopSuppressesRecentlyWorn() throws {
         let ctx = try makeContext()
