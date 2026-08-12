@@ -107,7 +107,7 @@ struct ItemAttributeEntryTests {
         var draft = QuickAddDraft(name: "Wool Coat", slotRaw: "outerwear")
         draft.warmthRaw = Warmth.veryWarm.rawValue
         draft.colorPaletteID = "navy"
-        draft.occasion = "work"
+        draft.occasions = ["work"]
         let item = draft.commit(into: w, context: ctx)
         #expect(item != nil)
         #expect(item?.warmthRaw == Warmth.veryWarm.rawValue)
@@ -116,7 +116,7 @@ struct ItemAttributeEntryTests {
         #expect(item?.occasionsRaw.contains("work") == true)
         // 未选温区 → 未知（nil），不得替用户假设成 light
         var bare = QuickAddDraft(name: "Mystery Tee", slotRaw: "top")
-        bare.occasion = "casual"
+        bare.occasions = ["casual"]
         let bareItem = bare.commit(into: w, context: ctx)
         #expect(bareItem?.warmthRaw == nil)
     }
@@ -125,12 +125,12 @@ struct ItemAttributeEntryTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
         var blank = QuickAddDraft(name: "   ", slotRaw: "top")
-        blank.occasion = "casual"
+        blank.occasions = ["casual"]
         #expect(blank.commit(into: w, context: ctx) == nil)
         #expect(try ctx.fetch(FetchDescriptor<Item>()).isEmpty)
 
         var ok = QuickAddDraft(name: "Tee", slotRaw: "top")
-        ok.occasion = "casual"
+        ok.occasions = ["casual"]
         ModelSave.forceFailure(on: ctx)
         #expect(ok.commit(into: w, context: ctx) == nil)
         #expect(!ctx.hasChanges)              // 断关系 + rollback，无幻影
@@ -389,7 +389,7 @@ struct OccasionNotSilentlyWidenedTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
         var draft = QuickAddDraft(name: "Gown", slotRaw: "dress")
-        draft.occasion = "gala"
+        draft.occasions = ["gala"]
         let item = try #require(draft.commit(into: w, context: ctx))
         #expect(item.occasionsRaw == ["gala"], "偷偷追加了 casual：\(item.occasionsRaw)")
     }
@@ -399,7 +399,7 @@ struct OccasionNotSilentlyWidenedTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
         var draft = QuickAddDraft(name: "Tee", slotRaw: "top")
-        draft.occasion = "casual"
+        draft.occasions = ["casual"]
         let item = try #require(draft.commit(into: w, context: ctx))
         #expect(item.occasionsRaw == ["casual"])
     }
@@ -409,7 +409,7 @@ struct OccasionNotSilentlyWidenedTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
         var draft = QuickAddDraft(name: "Gown", slotRaw: "dress")
-        draft.occasion = "gala"
+        draft.occasions = ["gala"]
         let item = try #require(draft.commit(into: w, context: ctx))
         let candidates = [item.toCandidateItem()]
         let casual = CandidateFilter.filter(

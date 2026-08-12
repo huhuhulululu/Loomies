@@ -124,3 +124,44 @@ struct TestIsolationLintTests {
             "逐用例 serialized 对非参数化用例无效，应挂 @Suite：\(violations)"))
     }
 }
+
+/// D114 结构门：**删搭配前必须先解绑它的日历计划**。
+///
+/// `CalendarPlan.outfit` 是 schema 里唯一没有反向关系的引用，SwiftData 不会
+/// 替我们置空（`DanglingPlanTests.aBareDeleteDoesLeaveADanglingReference` 是取证）。
+/// 加反向端被 golden 门判为破坏性变更，所以这条不变式只能由服务层维持——
+/// 那就必须有门盯着，否则下一个人写一行 `context.delete(outfit)` 就破了它，
+/// 而症状要到用户翻到那一天才出现。
+struct PlanUnbindLintTests {
+
+    private var sourcesDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetModel")
+    }
+
+    @Test func everyOutfitDeletionUnbindsItsPlansFirst() throws {
+        var violations: [String] = []
+        let fm = FileManager.default
+        for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            for (i, line) in lines.enumerated() {
+                // 只认删「搭配」的那种：变量名或参数名里带 outfit
+                let s = line.trimmingCharacters(in: .whitespaces)
+                guard s.contains("context.delete("), s.lowercased().contains("outfit") else { continue }
+                // 同一函数内、这一行之前必须出现解绑调用（回看 40 行足够覆盖本仓最长的失败善后段）
+                let from = max(0, i - 40)
+                let before = lines[from..<i].joined(separator: "\n")
+                if !before.contains("unbindPlans(referencing:") {
+                    violations.append("\(url.lastPathComponent):\(i + 1)")
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue:
+            "删搭配前没解绑日历计划，会留下指向已删行的悬挂引用：\(violations)"))
+    }
+}

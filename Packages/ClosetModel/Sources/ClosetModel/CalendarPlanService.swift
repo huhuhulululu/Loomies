@@ -110,6 +110,29 @@ public enum CalendarPlanService {
         allPlans(in: context).filter(\.needsAttention)
     }
 
+    /// 删除一条搭配**之前**必须先解绑它的计划（D114）。
+    ///
+    /// `CalendarPlan.outfit` 是 schema 里唯一没有反向关系的引用——SwiftData
+    /// 因此不会在搭配被删时置空它，实测会留下一条指向已删行的悬挂引用。
+    /// 加反向端是**破坏性** schema 变更（golden 门判定；且 TestFlight 上已有
+    /// 真实安装数据，为一条当前不可达的隐患冒开不了库的风险不划算，见 ADR D114），
+    /// 所以不变式由这里统一维持，`PlanUnbindLintTests` 守住每个删除点都调它。
+    ///
+    /// 不落库：调用方在自己的那次 save 里一并提交（失败也一起回滚）。
+    /// 返回解绑的条数，供收据如实说话。
+    @discardableResult
+    public static func unbindPlans(referencing outfit: Outfit, in context: ModelContext) -> Int {
+        let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
+        let targetID = outfit.id
+        var unbound = 0
+        for plan in all where plan.outfit?.id == targetID {
+            plan.outfit = nil
+            plan.needsAttention = true   // 这条计划现在没有搭配可穿，须让用户看见
+            unbound += 1
+        }
+        return unbound
+    }
+
     /// 删除计划。 Returns `false` when ModelSave fails.
     @discardableResult
     public static func remove(_ plan: CalendarPlan, in context: ModelContext) -> Bool {

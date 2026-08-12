@@ -411,11 +411,9 @@ public struct AddPieceSheet: View {
                     Text(s.displayTitle).tag(s.rawValue)
                 }
             }
-            Picker("Occasion", selection: $draft.occasion) {
-                ForEach(["work", "casual", "date", "gala"], id: \.self) {
-                    Text($0.capitalized).tag($0)
-                }
-            }
+            // D114：与详情页同一控件、同一语义（多选，空集 = 未知不硬过滤）。
+            // 单选让一条黑裤子只能在「上班」和「约会」里二选一。
+            Section("Occasion") { OccasionChips(selection: $draft.occasions) }
             // 温区/颜色必须在**入库当场**可填：此前这里硬写 light + 中性，
             // 冷天推荐必空、配色打分恒中性，用户还得逐件进详情页纠正。
             Section("Warmth") { WarmthPicker(warmthRaw: $draft.warmthRaw) }
@@ -495,12 +493,10 @@ public struct AddPieceSheet: View {
                                 Text($0.displayTitle).tag($0)
                             }
                         }
-                        // Same occasion set as manual add — empty tags still get a Today-matchable default.
-                        Picker("Occasion", selection: occasionBinding(draft)) {
-                            ForEach(["work", "casual", "date", "gala"], id: \.self) {
-                                Text($0.capitalized).tag($0)
-                            }
-                        }
+                        // D114：与手动新增、详情页同一控件。此前是单选，且空集时
+                        // 绑定的 get 返回 "casual" —— 控件显示成已选，用户以为设过了，
+                        // 库里其实是空集，两种状态在界面上无法区分。
+                        OccasionChips(selection: occasionSetBinding(draft))
                         TextField("Brand", text: brandBinding(draft))
                         TextField("Size", text: sizeBinding(draft))
                         if let sizeHint = PublicSizeReference.displayHint(
@@ -727,20 +723,13 @@ public struct AddPieceSheet: View {
     }
 
     /// Primary occasion for photo confirm (manual add parity). Prefer existing tag/user pick.
-    private func occasionBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {
-        let known = ["work", "casual", "date", "gala"]
-        return Binding(
-            get: {
-                let set = draft.wrappedValue.occasions
-                if let hit = known.first(where: { set.contains($0) }) { return hit }
-                return set.sorted().first ?? "casual"
-            },
-            set: { primary in
-                // D103：不再偷偷补 "casual"——用户选了什么就是什么
-                var next = draft.wrappedValue.occasions.filter { !known.contains($0) }
-                next.insert(primary)
-                draft.wrappedValue.occasions = next
-            })
+    /// D114：直通多选集合。`IntakeDraft.occasions` 本来就是集合，
+    /// 此前被一个单选绑定压成一个值——识别给出的多个场合会被静默丢掉，
+    /// 空集还会被显示成「Casual 已选」。
+    private func occasionSetBinding(_ draft: Binding<IntakeDraft>) -> Binding<Set<String>> {
+        Binding(
+            get: { Set(draft.wrappedValue.occasions) },
+            set: { draft.wrappedValue.occasions = $0 })
     }
 
     private func primaryLabel(_ title: String, systemImage: String) -> some View {

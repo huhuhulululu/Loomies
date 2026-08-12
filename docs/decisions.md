@@ -1336,3 +1336,27 @@ trait，挂在单个非参数化 `@Test` 上什么都不做。于是那五个套
 但第一条 guard 是 `decoded == nil` → 立刻返回，而 `@State decoded` 里留着上一张。
 判定抽成纯函数 `shouldDropStaleDecoded` 才测得到（SwiftUI 的状态行为在
 `swift test` 里观察不到，同 D101/D110 的处理）。
+
+## D114 — 入库场合与详情页对齐 + 日历悬挂引用（2026-08-12）
+
+**D108 改了详情页，两条入库路径原样留着**：场合是 `CandidateFilter` 的硬过滤输入，
+详情页早已改成多选，而拍照确认与手动新增仍是单选 `Picker`——
+一件衣服从入库那一刻起最多只能带**一个**场合，可现实里一条黑裤子既能上班也能约会。
+更隐蔽的是拍照路径那个绑定：空集时 `get` 返回 `"casual"`，控件**显示成已选 Casual**，
+用户以为设过了，库里其实是空集。两种状态在界面上无法区分，识别给出的多个场合也被压成一个。
+后果与 D108 要消灭的完全同类，只是换了入口：拍照批量建起来的衣柜每件只带一个场合，
+换个场合就被硬门筛成零，而用户看不到任何异样。三处统一用 `OccasionChips`。
+
+**`CalendarPlan.outfit` 是 schema 里唯一没有反向关系的引用**，实测确认：
+裸删搭配后计划仍指着已删的行（`aBareDeleteDoesLeaveADanglingReference` 是取证用例）。
+
+加反向端本是机器保证，但 golden 门把它判为**破坏性**——关系形态变了，不是加字段，
+旧指纹行整条消失。而 TestFlight 上 build 31-39 已有真实安装数据，
+**为一条当前不可达的隐患冒「存量用户开不了库」的风险不划算**
+（今天没有活的悬挂路径：`deletePerson` 名下有柜直接拒绝，`deleteWardrobe` 先手删计划，
+`discardOrphan` 的孤儿还没有计划）。取服务层维持 + 源码级门：
+`CalendarPlanService.unbindPlans(referencing:)` 解绑并置 `needsAttention`
+（没了搭配的计划必须让用户看见，而不是那天早上才发现），
+`PlanUnbindLintTests` 守住每个 `context.delete(outfit)` 之前都调过它，
+失败分支连解绑一起还原（同 D112 的 rollback 纪律）。
+取证用例还兼作**行为哨兵**：哪天 SwiftData 自己开始置空，那条会红，届时重新评估。

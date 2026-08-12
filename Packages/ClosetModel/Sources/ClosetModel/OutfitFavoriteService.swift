@@ -43,12 +43,18 @@ public enum OutfitFavoriteService {
         // 样板见 `DeleteService.deleteLocation`。
         let previousWardrobe = outfit.wardrobe
         let previousItems = outfit.items ?? []
+        // D114：先解绑日历计划。`CalendarPlan.outfit` 没有反向关系，
+        // SwiftData 不会替我们置空——不解绑就留下一条指向已删行的悬挂引用。
+        let unboundPlans = (try? context.fetch(FetchDescriptor<CalendarPlan>()))?
+            .filter { $0.outfit?.id == outfit.id } ?? []
+        CalendarPlanService.unbindPlans(referencing: outfit, in: context)
         outfit.wardrobe = nil
         outfit.items = []
         context.delete(outfit)
         guard ModelSave.save(context, label: "discardOrphanOutfit") else {
             outfit.wardrobe = previousWardrobe
             outfit.items = previousItems
+            for plan in unboundPlans { plan.outfit = outfit }   // 解绑也要还原（同一条纪律）
             context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
             AppLog.error("orphan outfit discard failed \(AppLog.ref(outfit.id))", .data)
             return false

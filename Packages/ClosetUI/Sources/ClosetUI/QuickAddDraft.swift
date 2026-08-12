@@ -17,7 +17,10 @@ public struct QuickAddDraft: Equatable, Sendable {
     @MainActor public static let saveFailedMessage = IntakeViewModel.confirmSaveFailedMessage
     public var name: String
     public var slotRaw: String
-    public var occasion: String
+    /// D114：场合是**多选**（与详情页同一控件/同一语义）。空集 = 未知，不硬过滤。
+    /// 此前是单个 `String`，一条黑裤子只能二选一「上班」或「约会」，
+    /// 而拍照批量建的衣柜每件只带一个场合，换个场合就被硬门筛成零。
+    public var occasions: Set<String>
     /// nil = 温区未知（不硬过滤）
     public var warmthRaw: Int?
     /// nil = 颜色未知
@@ -26,13 +29,13 @@ public struct QuickAddDraft: Equatable, Sendable {
     public init(
         name: String = "",
         slotRaw: String = GarmentSlot.top.rawValue,
-        occasion: String = "work",
+        occasions: Set<String> = [],
         warmthRaw: Int? = nil,
         colorPaletteID: String? = nil
     ) {
         self.name = name
         self.slotRaw = slotRaw
-        self.occasion = occasion
+        self.occasions = occasions
         self.warmthRaw = warmthRaw
         self.colorPaletteID = colorPaletteID
     }
@@ -56,7 +59,7 @@ public struct QuickAddDraft: Equatable, Sendable {
         // D103：此前这里偷偷追加 "casual"，晚宴礼服因此成了休闲日的合法候选
         //（场合硬门被架空），详情页还显示一个用户没选过的场合。
         // 用户选了什么就是什么；没选由三值语义处理（空集 = 未知 = 不硬过滤）。
-        item.occasionsRaw = Self.dedupOccasions([occasion])
+        item.occasionsRaw = occasions.sorted()   // 确定顺序（导出快照可复现）
         item.warmthRaw = warmthRaw
         item.statusRaw = "available"
         if let swatch = GarmentColorPalette.entry(id: colorPaletteID) {
