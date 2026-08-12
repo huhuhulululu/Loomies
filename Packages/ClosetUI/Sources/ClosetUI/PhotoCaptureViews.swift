@@ -139,12 +139,18 @@ public struct ItemThumbnailView: View {
     /// 高度 ≥ 200pt 的用途（详情/试衣间预览）取 detail 档。
     private var variant: ItemImageVariant { ItemImageVariant.forDisplayHeight(height) }
 
+    /// 已解码图。命中缓存直接用；未命中则 `.task` 里后台解码（D109）——
+    /// 此前是在 body 里同步读盘 + 解码，SwiftUI 每次求值都重来一遍。
+    @State private var decoded: PlatformImage?
+
+    private var cached: PlatformImage? {
+        decoded ?? ThumbnailImageCache.shared.image(
+            path: item.localImageRelativePath, variant: variant)
+    }
+
     public var body: some View {
         Group {
-            if let data = ItemImageStore.derivedData(
-                relativePath: item.localImageRelativePath, variant: variant)
-                ?? ItemImageStore.loadData(relativePath: item.localImageRelativePath),
-               let ui = platformImage(data) {
+            if let ui = cached.map(imageView) {
                 ui
                     .resizable()
                     .scaledToFill()
@@ -178,6 +184,34 @@ public struct ItemThumbnailView: View {
         .frame(height: height)
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+        .task(id: cacheKey) {
+            // 命中缓存就不做任何事；未命中才后台解码（首次还会生成派生图，
+            // 那是几十毫秒的活儿，绝不能卡在滑到该格的那一帧上）
+            guard decoded == nil,
+                  ThumbnailImageCache.shared.image(
+                    path: item.localImageRelativePath, variant: variant) == nil,
+                  let path = item.localImageRelativePath, !path.isEmpty
+            else { return }
+            guard let image = await ThumbnailImageCache.decode(path: path, variant: variant)
+            else { return }
+            ThumbnailImageCache.shared.store(image, path: path, variant: variant)
+            decoded = image
+        }
+    }
+
+    /// 重解码的触发键：换了图或换了档才重来。
+    private var cacheKey: String {
+        "\(item.localImageRelativePath ?? "")|\(variant.rawValue)"
+    }
+
+    private func imageView(_ image: PlatformImage) -> Image {
+        #if canImport(UIKit)
+        return Image(uiImage: image)
+        #elseif canImport(AppKit)
+        return Image(nsImage: image)
+        #else
+        return Image(systemName: "photo")
+        #endif
     }
 
     private func slotWash(_ slot: GarmentSlot) -> Color {

@@ -249,6 +249,8 @@ public final class ItemDetailViewModel {
         let ok = DeleteService.deleteItem(item, in: context)
         if ok {
             ItemImageStore.deleteAll(relativePath: path)
+            // 缓存里还留着已删的图会继续显示（D109）
+            ThumbnailImageCache.shared.evict(path: path)
             didDelete = true
             message = "Deleted."
             AppLog.info("ItemDetail delete \(label)", .app)
