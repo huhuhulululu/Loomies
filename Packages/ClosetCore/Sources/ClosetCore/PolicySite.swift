@@ -66,9 +66,17 @@ public enum ReleaseReadiness {
     public static func blockers(
         privacyPolicyURL: String?,
         supportURL: String?,
-        supportContact: String?
+        supportContact: String?,
+        telemetrySinkConnected: Bool = true
     ) -> [String] {
         var out: [String] = []
+        if !telemetrySinkConnected {
+            // D116：MARKET §8.1 的预注册判定（GO/PIVOT/KILL）是 D20 跳过真人验证
+            // 之后**唯一**的裁决装置。没接 sink 就提审 = 上线第 6 周一个数都读不到。
+            out.append("Analytics sink — no analytics service is connected, so every "
+                + "launch-protocol metric is a no-op. Connect one via "
+                + "TelemetryGate.shared.configure(sink:) before submitting.")
+        }
         if !isUsableHTTPSURL(privacyPolicyURL) {
             out.append("Privacy Policy URL — App Store Connect requires a reachable https URL "
                 + "before a version can be submitted. Host preview/landing/privacy.html and "

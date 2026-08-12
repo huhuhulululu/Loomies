@@ -78,6 +78,7 @@ public struct CopilotView: View {
                 .onChange(of: showCheckInSheet) { _, open in
                     if !open {
                         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+        vm.reloadToday(in: context)   // D116：重开 App 也记得今天定过什么
                         runRefresh()
                     }
                 }
@@ -98,9 +99,43 @@ public struct CopilotView: View {
     nonisolated static let lookPagerChevronVisualSize: CGFloat = 28
     nonisolated static let lookPagerChevronHitArea: CGFloat = 44
 
+    /// D116：今天已经定了穿什么。
+    ///
+    /// 此前打完卡只有一条 3.5 秒的 flash chip，随后 Today 立刻摆回**一套你没穿的**衣服——
+    /// 用户当天最后一个动作被当场抹掉，中午再打开完全看不出自己定过了。
+    /// 数据从库里回读（`reloadToday`），所以它扛得住重启。
+    private var settledBand: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.seal.fill")
+                .foregroundStyle(DS.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Today: settled")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DS.ink)
+                Text(vm.todayWornNames.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(DS.muted)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(DS.surface)
+        .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DS.radius)
+                .strokeBorder(DS.hairline, lineWidth: 1))
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Today settled. Wearing \(vm.todayWornNames.joined(separator: ", "))")
+    }
+
     private var todayScrollContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                if !vm.todayWornNames.isEmpty { settledBand }
                 heroCard
                 if vm.isColdStart { coldStartBanner }
                 controlsCard
@@ -275,7 +310,8 @@ public struct CopilotView: View {
             HStack(spacing: 12) {
                 metaPill(
                     icon: "cloud.sun",
-                    text: String(format: "%.0f°F", vm.daytimeTempF))
+                    text: CopilotViewModel.tempPillText(
+                        resolved: vm.hasResolvedWeather, temp: vm.daytimeTempF))
                 metaPill(icon: "tag", text: vm.occasion.capitalized)
                 if vm.lookCount > 1 {
                     lookPager
@@ -920,10 +956,11 @@ public struct CopilotView: View {
     }
 
     private func checkIn(_ scored: ScoredOutfit) {
-        let result = CopilotWoreIt.perform(
-            itemIDs: scored.outfit.itemIDs,
-            wardrobe: vm.wardrobe,
-            context: context)
+        // D116：走 VM 的唯一路径——采纳信号（§8.1 判定协议量的那件事）
+        // 与「今天穿了什么」的回读都在里面，绕过去两样都会丢。
+        // wearAsIs：用户没换过任何一件时才算「原样穿」。
+        let asIs = vm.anchorIDs.isEmpty
+        let result = vm.recordWearDetailed(scored, in: context, wearAsIs: asIs)
         switch result {
         case .checkedIn(let n):
             // Re-score so anti-repeat actually applies (toast must not lie).
@@ -960,6 +997,7 @@ public struct CopilotView: View {
         // 图片目录 ↔ DB 对账：回收崩溃窗口孤儿文件、清死路径（UI 回到诚实无照片态）
         ImageReconcileService.reconcile(in: context)
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+        vm.reloadToday(in: context)   // D116：重开 App 也记得今天定过什么
         await vm.applyWeather(CompositeWeatherProvider.production)
         // Prefer live @Query profile; fall back to context fetch for first paint.
         if let p = ownerProfile {

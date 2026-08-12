@@ -75,6 +75,18 @@ struct PolicySiteTests {
         }
     }
 
+    /// D116：没接分析服务也是提审阻断项——判定协议全是 no-op 的 build
+    /// 不得悄悄走到提审。
+    @Test func aMissingAnalyticsSinkBlocksSubmission() {
+        let blockers = ReleaseReadiness.blockers(
+            privacyPolicyURL: "https://example.com/p.html",
+            supportURL: "https://example.com/s.html",
+            supportContact: "help@example.com",
+            telemetrySinkConnected: false)
+        #expect(blockers.count == 1)
+        #expect(blockers[0].localizedCaseInsensitiveContains("analytics"))
+    }
+
     /// 提审清单必须**点名**尚未填的真实世界事实，不得静默通过。
     @Test func releaseReadinessNamesTheUnfilledFacts() {
         let blockers = ReleaseReadiness.blockers(

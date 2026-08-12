@@ -43,10 +43,11 @@ public final class CopilotViewModel {
 
     public var lookCount: Int { suggestions.count }
 
-    /// 用户选定某个候选（wear-as-is 路径入口）。
+    /// 用户翻看候选。**不是采纳**——D116：这里此前发 `copilotAccepted`，
+    /// 于是「翻一下轮播」就被记成「照着穿了」。MARKET §8.1 的上线判定
+    /// （GO/PIVOT/KILL）建立在这个数上，而 D20 跳过真人验证之后它是唯一的裁决装置：
+    /// 量错等于没量。采纳只在 `recordWear` 发。
     public func selectSuggestion(at index: Int) {
-        TelemetryGate.shared.track(.copilotAccepted,
-                                   payload: ["mode": fullAuto ? "auto" : "anchored"])
         guard !suggestions.isEmpty else {
             selectedSuggestionIndex = 0
             return
@@ -146,6 +147,7 @@ public final class CopilotViewModel {
             }
             guard generation == weatherGeneration else { return }  // 已被更新调用取代
             daytimeTempF = snap.daytimeTempF
+            hasResolvedWeather = true          // D116：只有成功分支才算取到
             weatherSourceLabel = snap.sourceLabel
             precipProbabilityPercent = snap.precipProbabilityPercent
             AppLog.info(
@@ -181,6 +183,74 @@ public final class CopilotViewModel {
         return nil
     }
 
+    // MARK: - 今天穿了什么（D116）
+
+    /// 今天已打卡的单品名。空 = 今天还没定。
+    ///
+    /// 此前打完卡只有一条 3.5 秒的 flash chip，然后 `runRefresh()` 立刻把
+    /// **一套你没穿的**衣服摆回 Today——用户当天最后一个动作被当场抹掉，
+    /// 中午再打开更是完全看不出自己已经定过了。
+    /// 从库里回读，所以它扛得住重启，而不是活在一个计时器里。
+    public private(set) var todayWornNames: [String] = []
+
+    /// 是否真的取到过天气。
+    ///
+    /// `daytimeTempF` 有个 70 的默认值供打分用，但那不是「今天 70 度」——
+    /// 没取到就印 70°F，用户会拿这个数决定要不要带外套。
+    public private(set) var hasResolvedWeather = false
+
+    /// 温度 pill 文案（纯函数，可断言）。
+    public static func tempPillText(resolved: Bool, temp: Double) -> String {
+        resolved ? "\(Int(temp.rounded()))°F" : "—°F"
+    }
+
+    /// 回读今天的打卡（本柜、当天）。
+    public func reloadToday(in context: ModelContext) {
+        let all = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
+        let cal = Calendar.current
+        let ids = Set(all
+            .filter { $0.wardrobeSnapshotID == wardrobe.id && cal.isDateInToday($0.date) }
+            .flatMap(\.wornItemIDs))
+        guard !ids.isEmpty else { todayWornNames = []; return }
+        todayWornNames = (wardrobe.items ?? [])
+            .filter { ids.contains($0.id.uuidString) }
+            .map(\.name)
+            .sorted()
+    }
+
+    /// 真的穿了这套（唯一的「采纳」信号，也是 §8.1 判定协议量的那件事）。
+    ///
+    /// `wearAsIs` 区分「原样穿」与「改过再穿」——copilot 机制成立与否
+    /// 靠的正是这个区分，只数「打了卡」量不出来。
+    @discardableResult
+    func recordWearDetailed(
+        _ scored: ScoredOutfit, in context: ModelContext, wearAsIs: Bool = true
+    ) -> CopilotWoreIt.Result {
+        let result = CopilotWoreIt.perform(
+            itemIDs: scored.outfit.itemIDs, wardrobe: wardrobe, context: context)
+        guard case .checkedIn = result else {
+            AppLog.notice("recordWear not committed \(result)", .copilot)
+            return result
+        }
+        TelemetryGate.shared.track(.copilotAccepted, payload: [
+            "mode": fullAuto ? "auto" : "anchored",
+            "wear_as_is": String(wearAsIs),
+        ])
+        reloadToday(in: context)
+        return result
+    }
+
+    /// 便利包装（测试与非 Today 入口用）。
+    @discardableResult
+    public func recordWear(
+        _ scored: ScoredOutfit, in context: ModelContext, wearAsIs: Bool = true
+    ) -> Bool {
+        if case .checkedIn = recordWearDetailed(scored, in: context, wearAsIs: wearAsIs) {
+            return true
+        }
+        return false
+    }
+
     public func refresh() {
         isRefreshing = true
         defer {
@@ -203,8 +273,8 @@ public final class CopilotViewModel {
                 suggestions = []
                 selectedSuggestionIndex = 0
                 statusMessage = availableItems.isEmpty
-                    ? "Empty closet — load samples in Closet or Me."
-                    : "Cold start: anchor at least one piece first."
+                    ? CopilotColdStartCopy.emptyClosetPrompt
+                    : CopilotColdStartCopy.pickOnePrompt
                 lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
                 lastRefreshAt = Date()
                 AppLog.notice("refresh empty: \(statusMessage)", .copilot)

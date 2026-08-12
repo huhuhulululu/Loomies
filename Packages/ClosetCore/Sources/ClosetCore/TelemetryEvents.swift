@@ -26,10 +26,14 @@ public enum TelemetryEvent: String, CaseIterable, Sendable {
             return ["schema_version", "slot"]
         case .copilotRefresh:
             return ["schema_version", "mode", "occasion", "suggestion_count"]
-        case .copilotAccepted, .copilotTweaked:
+        case .copilotAccepted:
+            // D116：`wear_as_is` 区分「原样穿」与「改过再穿」——
+            // MARKET §8.1 判定 copilot 机制成立与否靠的正是这个区分。
+            return ["schema_version", "mode", "wear_as_is"]
+        case .copilotTweaked:
             return ["schema_version", "mode"]
         case .checkInRecorded:
-            return ["schema_version", "item_count", "has_fit_feedback"]
+            return ["schema_version", "item_count", "has_fit_feedback", "wear_as_is"]
         case .searchPerformed:
             return ["schema_version", "has_text", "result_count"]
         case .wardrobeSwitched:

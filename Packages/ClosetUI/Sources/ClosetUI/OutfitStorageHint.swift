@@ -58,4 +58,15 @@ public enum CopilotColdStartCopy {
     public static let realStartTitle = "Add 3 pieces — about 30 seconds"
     public static let realStartAccessibilityHint =
         "Opens the add-piece sheet: choose photos, take one, or type details"
+
+    /// D116：衣柜还太小、又没挑定任何一件时说的话。
+    /// 此前这里是 `"Cold start: anchor at least one piece first."`——
+    /// 「cold start」「anchor」是**引擎的词**，不是用户的词；
+    /// 而这句话出现在第一次真正用 App 的那一刻，是整个产品的第一印象。
+    public static let pickOnePrompt =
+        "Pick a piece you feel like wearing — I'll build the rest around it."
+
+    /// 一件都没有时。指出去哪拿衣服，而不是陈述一个状态。
+    public static let emptyClosetPrompt =
+        "Your closet is empty. Add a few pieces, or load samples to look around first."
 }

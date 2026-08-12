@@ -128,7 +128,9 @@ struct CopilotViewModelTests {
         let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 75)
         vm.refresh()
         #expect(vm.suggestions.isEmpty)
-        #expect(vm.statusMessage.contains("Cold start") || vm.statusMessage.contains("anchor"))
+        // D116：断言改成「说的是用户的话且给了出路」——旧断言写的正是
+        // 被换掉的开发者用语（"Cold start" / "anchor"），留着等于把它焊回去。
+        #expect(vm.statusMessage == CopilotColdStartCopy.pickOnePrompt)
         #expect(vm.lastRefreshMS >= 0)
     }
 
@@ -145,7 +147,7 @@ struct CopilotViewModelTests {
         try ctx.save()
         vm.refresh()
         #expect(vm.suggestions.isEmpty)
-        #expect(vm.statusMessage.contains("Cold start") || vm.statusMessage.contains("anchor"))
+        #expect(vm.statusMessage == CopilotColdStartCopy.pickOnePrompt)
         // Still anchored in the set (user intent kept), just filtered out.
         #expect(vm.isAnchored(top))
     }

@@ -20,7 +20,7 @@ public final class TelemetryGate: @unchecked Sendable {
     /// App 侧唯一实例。生产无 sink——真机接 SDK 时在此注入。
     public static let shared = TelemetryGate()
 
-    private let sink: (any TelemetrySink)?
+    private var sink: (any TelemetrySink)?
     private let defaults: UserDefaults
     private let lock = NSLock()
 
@@ -29,8 +29,22 @@ public final class TelemetryGate: @unchecked Sendable {
         self.defaults = defaults
     }
 
+    /// D116：接线口。`shared` 是 `let sink`，于是「接上 SDK」这件事在类型层
+    /// 根本做不到——上线日只能改这个文件重新发版。改成可注入，
+    /// 同时让「没接 sink」成为提审阻断项（`ReleaseReadiness`），
+    /// 免得没接分析的 build 悄悄走到提审、而 §8.1 的判定协议一个数都读不到。
+    public func configure(sink: (any TelemetrySink)?) {
+        lock.lock()
+        self.sink = sink
+        lock.unlock()
+        AppLog.notice("telemetry sink connected=\(sink != nil)", .telemetry)
+    }
+
     /// 是否已连接分析服务（文案据此说「Nothing is sent yet」）。
-    public var hasSink: Bool { sink != nil }
+    public var hasSink: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return sink != nil
+    }
 
     /// opt-in：默认关闭。
     public var isEnabled: Bool {
@@ -47,6 +61,7 @@ public final class TelemetryGate: @unchecked Sendable {
 
     /// 唯一发送入口。未同意 / 载荷含红线键 / 无 sink → 什么都不发。
     public func track(_ event: TelemetryEvent, payload: [String: String] = [:]) {
+        lock.lock(); let sink = self.sink; lock.unlock()
         guard isEnabled, let sink else { return }
         guard let clean = TelemetryPayload.sanitize(event, payload: payload) else {
             AppLog.notice("telemetry event dropped (forbidden key) \(event.rawValue)", .telemetry)
