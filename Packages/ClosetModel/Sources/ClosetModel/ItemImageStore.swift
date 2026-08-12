@@ -101,4 +101,58 @@ public enum ItemImageStore {
         guard let url = absoluteURL(relativePath: relativePath) else { return }
         try? FileManager.default.removeItem(at: url)
     }
+
+    // MARK: - 派生缩略图（D95，缺口 #11）
+
+    /// 派生文件的相对路径：`ItemImages/<stem>@grid.jpg`（与原图同目录）。
+    public static func derivedRelativePath(
+        relativePath: String?, variant: ItemImageVariant
+    ) -> String? {
+        guard let relativePath, !relativePath.isEmpty else { return nil }
+        // 纯字符串处理：`URL(fileURLWithPath:)` 会把相对路径按 cwd 解析成**绝对**路径，
+        // 拼回 base 就成了错的位置（本波实测踩到）。
+        var components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        guard let last = components.popLast(), !last.isEmpty else { return nil }
+        let stem = last.contains(".")
+            ? String(last[last.startIndex..<last.lastIndex(of: ".")!])
+            : String(last)
+        // 派生一律 jpg（源可能是 png 层图；网格不需要透明通道）
+        let name = "\(stem)\(variant.suffix).jpg"
+        return components.isEmpty ? name : (components.joined(separator: "/") + "/" + name)
+    }
+
+    public static func derivedFileExists(
+        relativePath: String?, variant: ItemImageVariant
+    ) -> Bool {
+        fileExists(relativePath: derivedRelativePath(
+            relativePath: relativePath, variant: variant))
+    }
+
+    /// 派生数据：**已生成则直接读盘**，没有才从原图生成并落盘复用——
+    /// 滚动时每帧重算缩放正是百件网格卡顿的来源。
+    /// 原图缺失或损坏 → nil（不造占位图冒充）。
+    public static func derivedData(
+        relativePath: String?, variant: ItemImageVariant
+    ) -> Data? {
+        guard let derivedRel = derivedRelativePath(
+            relativePath: relativePath, variant: variant) else { return nil }
+        if let cached = loadData(relativePath: derivedRel) { return cached }
+        guard let original = loadData(relativePath: relativePath),
+              let scaled = ItemImageDerivatives.downscaledJPEG(
+                original, maxPixel: variant.maxPixel)
+        else { return nil }
+        if let url = absoluteURL(relativePath: derivedRel) {
+            try? scaled.write(to: url, options: .atomic)
+        }
+        return scaled
+    }
+
+    /// 删原图**连同全部派生**——否则派生成了删不掉的孤儿，占着磁盘。
+    public static func deleteAll(relativePath: String?) {
+        delete(relativePath: relativePath)
+        for variant in ItemImageVariant.allCases {
+            delete(relativePath: derivedRelativePath(
+                relativePath: relativePath, variant: variant))
+        }
+    }
 }

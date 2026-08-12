@@ -48,7 +48,7 @@ public enum DeleteService {
             throw DeleteError.saveFailed
         }
         for path in imagePaths {
-            ItemImageStore.delete(relativePath: path)
+            ItemImageStore.deleteAll(relativePath: path)
         }
     }
 
@@ -100,7 +100,7 @@ public enum DeleteService {
             AppLog.error("deleteItem save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
-        ItemImageStore.delete(relativePath: imagePath)
+        ItemImageStore.deleteAll(relativePath: imagePath)
         return true
     }
 

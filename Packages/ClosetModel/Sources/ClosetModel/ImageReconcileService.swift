@@ -23,7 +23,18 @@ public enum ImageReconcileService {
         directory: URL? = ItemImageStore.rootDirectory
     ) -> Receipt {
         let items = (try? context.fetch(FetchDescriptor<Item>())) ?? []
-        let referenced = Set(items.compactMap(\.localImageRelativePath).filter { !$0.isEmpty })
+        let originals = Set(items.compactMap(\.localImageRelativePath).filter { !$0.isEmpty })
+        // 派生缩略图（D95）也算「被引用」——否则每次对账把它们当孤儿扫掉，
+        // 下次滚动全部重算，并且回执里的孤儿数会虚高得离谱。
+        var referenced = originals
+        for rel in originals {
+            for variant in ItemImageVariant.allCases {
+                if let derived = ItemImageStore.derivedRelativePath(
+                    relativePath: rel, variant: variant) {
+                    referenced.insert(derived)
+                }
+            }
+        }
 
         // 孤儿文件：目录扫描减去 DB 引用集（纯文件操作，无 DB 依赖）
         var orphansRemoved = 0

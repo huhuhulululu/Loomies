@@ -108,7 +108,7 @@ public enum DemoSeedService {
             // 剪影文件先于 rollback 清理——回滚只还上下文状态，磁盘文件须手动删
             for item in inserted {
                 if let path = item.localImageRelativePath {
-                    ItemImageStore.delete(relativePath: path)
+                    ItemImageStore.deleteAll(relativePath: path)
                 }
             }
             // rollback 一并丢弃 pending inserts（delete 只删行，脏标记会滞留）

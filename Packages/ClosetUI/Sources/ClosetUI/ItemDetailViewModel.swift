@@ -216,7 +216,7 @@ public final class ItemDetailViewModel {
         let label = AppLog.ref(item.id)   // 日志安全标识：删除日志不携带用户命名
         let ok = DeleteService.deleteItem(item, in: context)
         if ok {
-            ItemImageStore.delete(relativePath: path)
+            ItemImageStore.deleteAll(relativePath: path)
             didDelete = true
             message = "Deleted."
             AppLog.info("ItemDetail delete \(label)", .app)
