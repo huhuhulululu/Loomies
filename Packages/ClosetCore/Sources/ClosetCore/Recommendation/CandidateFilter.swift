@@ -16,6 +16,62 @@ public struct FilterContext: Sendable {
 /// 候选硬过滤（DESIGN §F4 四条正确性 gate；三值属性未知不硬过滤）。
 public enum CandidateFilter {
 
+    /// 过滤结果 + 防重复是否被降级（D89）。
+    public struct Outcome: Sendable, Equatable {
+        public let items: [CandidateItem]
+        /// 硬门会清空候选 → 已降级为「降权」。UI 必须如实说明，
+        /// 否则用户看到的建议与「de-prioritized 7 days」的打卡回执自相矛盾。
+        public let repeatGateRelaxed: Bool
+        /// 降级时传给排序层的「最近穿过」集合（排后而不是排除）。
+        public let recentlyWornIDs: Set<String>
+    }
+
+    /// 放宽后的诚实文案（说清为什么这几件又出现了）。
+    public static let repeatRelaxedCaption =
+        "Everything that fits today was worn recently — showing your best options anyway."
+
+    /// 防重复的**定夺语义**（D89）。DESIGN 自相矛盾：§193/§379 写「近期重复降权」，
+    /// §200 把它列为硬门。取「默认硬门 + 会清空时降级为降权」——
+    /// 硬门来自竞品差评实证（有真实价值），但小衣柜里三件上装本周都穿过时
+    /// 交出空结果是更糟的产品行为（DESIGN §199 对同类问题已给同一处方：
+    /// 覆盖率低于门槛就自动切模式）。
+    ///
+    /// 降级**只放宽防重复**——场合、天气、可用状态仍是硬门（那三条无分歧）。
+    public static func filterWithRepeatFallback(
+        _ items: [CandidateItem], context: FilterContext
+    ) -> Outcome {
+        let strict = filter(items, context: context)
+        guard strict.isEmpty, !context.wornWithin7DaysIDs.isEmpty else {
+            return Outcome(items: strict, repeatGateRelaxed: false, recentlyWornIDs: [])
+        }
+        // 只摘掉防重复这一条，其余门原样
+        let relaxedContext = FilterContext(
+            occasion: context.occasion,
+            daytimeTempF: context.daytimeTempF,
+            wornWithin7DaysIDs: [])
+        let relaxed = filter(items, context: relaxedContext)
+        guard !relaxed.isEmpty else {
+            // 放宽了也没有 → 空结果的原因不是防重复，别对用户说反话
+            return Outcome(items: [], repeatGateRelaxed: false, recentlyWornIDs: [])
+        }
+        return Outcome(
+            items: relaxed,
+            repeatGateRelaxed: true,
+            recentlyWornIDs: Set(relaxed.map(\.id)).intersection(context.wornWithin7DaysIDs))
+    }
+
+    /// 降权 = **排序**影响，不是二次排除：最近穿过的排在没穿过的后面。
+    /// 同类内部按 id 决胜（排序确定性，禁止依赖数组偶然顺序）。
+    public static func rankByRecency(
+        _ items: [CandidateItem], recentlyWornIDs: Set<String>
+    ) -> [CandidateItem] {
+        items.sorted { a, b in
+            let aWorn = recentlyWornIDs.contains(a.id)
+            let bWorn = recentlyWornIDs.contains(b.id)
+            return aWorn != bWorn ? (!aWorn && bWorn) : a.id < b.id
+        }
+    }
+
     public static func filter(_ items: [CandidateItem], context: FilterContext) -> [CandidateItem] {
         let band = WeatherFit.acceptableWarmth(daytimeTempF: context.daytimeTempF)
         // 场合在过滤边界归一化（trim + 小写）：写入端大小写不一致（intake 小写、编辑器仅 trim）。

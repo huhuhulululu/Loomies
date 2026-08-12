@@ -18,6 +18,8 @@ public final class CopilotViewModel {
     public private(set) var precipProbabilityPercent: Int?
     public var fullAuto: Bool = false
     public var wornWithin7DaysIDs: Set<String> = []
+    /// 上次刷新时防重复硬门是否被降级为降权（UI 出诚实说明）。
+    public private(set) var repeatGateRelaxed: Bool = false
     public var bodyShape: BodyShape?
     public var coldStartThreshold: Int = 8
     public private(set) var anchorIDs: Set<UUID> = []
@@ -198,14 +200,18 @@ public final class CopilotViewModel {
         }
 
         let worn: Set<String> = dbg.disableAntiRepeat ? [] : wornWithin7DaysIDs
-        suggestions = AppLog.timed("copilot.refresh", .copilot) {
-            RecommendationService.suggestions(
+        let result = AppLog.timed("copilot.refresh", .copilot) {
+            RecommendationService.detailed(
                 for: wardrobe, anchors: anchors, occasion: occasion,
                 daytimeTempF: daytimeTempF,
                 wornWithin7DaysIDs: worn,
                 bodyShape: bodyShape,
                 maxSuggestions: 3)
         }
+        suggestions = result.suggestions
+        // 防重复被降级（本柜今天能穿的都在近 7 天穿过）→ 必须说出来，
+        // 否则建议与「de-prioritized 7 days」的打卡回执自相矛盾
+        repeatGateRelaxed = result.repeatGateRelaxed
         lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         lastRefreshAt = Date()
 

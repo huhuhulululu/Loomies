@@ -15,6 +15,22 @@ public enum RecommendationService {
         bodyShape: BodyShape? = nil,
         maxSuggestions: Int = 3
     ) -> [ScoredOutfit] {
+        detailed(for: wardrobe, anchors: anchors, occasion: occasion,
+                 daytimeTempF: daytimeTempF, wornWithin7DaysIDs: wornWithin7DaysIDs,
+                 bodyShape: bodyShape, maxSuggestions: maxSuggestions).suggestions
+    }
+
+    /// 带降级事实的版本（D89）：防重复硬门若会清空候选，会降级为降权，
+    /// UI 必须据此说明「这些最近都穿过」，不得静默给出与打卡回执矛盾的结果。
+    public static func detailed(
+        for wardrobe: Wardrobe,
+        anchors: [Item] = [],
+        occasion: String,
+        daytimeTempF: Double,
+        wornWithin7DaysIDs: Set<String> = [],
+        bodyShape: BodyShape? = nil,
+        maxSuggestions: Int = 3
+    ) -> OutfitCompleter.Result {
         // 锚定项同样强制同柜：外来衣柜的锚定直接丢弃，绝不流入建议（跨柜硬约束）
         let validAnchors = anchors.filter { $0.wardrobe?.id == wardrobe.id }
         let anchorIDs = Set(validAnchors.map(\.id))
@@ -24,7 +40,7 @@ public enum RecommendationService {
             .map { $0.toCandidateItem() }
         let anchorCandidates = validAnchors.map { $0.toCandidateItem() }
 
-        return OutfitCompleter.complete(
+        return OutfitCompleter.completeDetailed(
             anchors: anchorCandidates,
             pool: pool,
             context: FilterContext(occasion: occasion, daytimeTempF: daytimeTempF,

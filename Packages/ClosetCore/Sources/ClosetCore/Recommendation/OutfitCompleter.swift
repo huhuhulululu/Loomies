@@ -21,6 +21,12 @@ public enum OutfitCompleter {
     /// （拆枝前 [nil] 并列全乘是 13⁴×12 ≈ 34 万，93% 必废）；prefix 截断保证确定性。
     public static let maxOptionsPerSlot = 12
 
+    /// 建议 + 防重复是否被降级（D89）。UI 靠后者出诚实说明。
+    public struct Result: Sendable {
+        public let suggestions: [ScoredOutfit]
+        public let repeatGateRelaxed: Bool
+    }
+
     public static func complete(
         anchors: [CandidateItem],
         pool: [CandidateItem],
@@ -28,9 +34,23 @@ public enum OutfitCompleter {
         scoring: ScoringContext,
         maxSuggestions: Int
     ) -> [ScoredOutfit] {
+        completeDetailed(anchors: anchors, pool: pool, context: context,
+                         scoring: scoring, maxSuggestions: maxSuggestions).suggestions
+    }
+
+    public static func completeDetailed(
+        anchors: [CandidateItem],
+        pool: [CandidateItem],
+        context: FilterContext,
+        scoring: ScoringContext,
+        maxSuggestions: Int
+    ) -> Result {
         let anchorIDs = Set(anchors.map(\.id))
-        // 候选池：过四条正确性 + 去掉已锚定项（防重复用）
-        let filtered = CandidateFilter.filter(pool, context: context).filter { !anchorIDs.contains($0.id) }
+        // 候选池：过四条正确性 + 去掉已锚定项（防重复用）。
+        // D89：硬门会清空候选时降级为降权（小衣柜本周都穿过 → 给建议而不是空屏），
+        // 降级事实由 `lastOutcome` 上报给 UI，不得静默。
+        let outcome = CandidateFilter.filterWithRepeatFallback(pool, context: context)
+        let filtered = outcome.items.filter { !anchorIDs.contains($0.id) }
         // 截断前廉价预打分（体型 affinity）：纯 id 前缀截断等于打分前随机抽样
         //（Item.id 是随机 UUID），大衣柜最合体型的单品可能从未进入枚举。
         // (预分降序, id 升序) 保确定性；无体型上下文时退化为原 id 序。
@@ -39,10 +59,14 @@ public enum OutfitCompleter {
             let scored = filtered.filter { $0.slot == slot }.map { it in
                 (item: it, pre: preShape.map { BodyShapeStyling.affinity(items: [it], shape: $0) } ?? 0)
             }
-            return Array(
-                scored.sorted { $0.pre != $1.pre ? $0.pre > $1.pre : $0.item.id < $1.item.id }
-                    .prefix(Self.maxOptionsPerSlot)
-                    .map(\.item))
+            // 降级时最近穿过的排在后面（降权 = 排序影响，不是二次排除）
+            let ordered = scored.sorted { a, b in
+                let aWorn = outcome.recentlyWornIDs.contains(a.item.id)
+                let bWorn = outcome.recentlyWornIDs.contains(b.item.id)
+                if aWorn != bWorn { return !aWorn && bWorn }
+                return a.pre != b.pre ? a.pre > b.pre : a.item.id < b.item.id
+            }
+            return Array(ordered.prefix(Self.maxOptionsPerSlot).map(\.item))
         }
 
         let hasDress  = anchors.contains { $0.slot == .dress }
@@ -98,6 +122,8 @@ public enum OutfitCompleter {
                 ? $0.score.value > $1.score.value
                 : $0.outfit.itemIDs.joined(separator: ",") < $1.outfit.itemIDs.joined(separator: ",")
         }
-        return Array(results.prefix(max(0, maxSuggestions)))
+        return Result(
+            suggestions: Array(results.prefix(max(0, maxSuggestions))),
+            repeatGateRelaxed: outcome.repeatGateRelaxed)
     }
 }

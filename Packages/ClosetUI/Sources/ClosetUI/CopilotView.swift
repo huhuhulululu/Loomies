@@ -284,6 +284,15 @@ public struct CopilotView: View {
                         .foregroundStyle(DS.ink.opacity(0.75))
                         .multilineTextAlignment(.center)
                 }
+                // D89：防重复硬门被降级时必须说明——否则这几件刚穿过的又出现在
+                // 建议里，与「de-prioritized 7 days」的打卡回执自相矛盾
+                if vm.repeatGateRelaxed {
+                    Text(CandidateFilter.repeatRelaxedCaption)
+                        .font(.caption2)
+                        .foregroundStyle(DS.ink.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .accessibilityLabel(CandidateFilter.repeatRelaxedCaption)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, 4)

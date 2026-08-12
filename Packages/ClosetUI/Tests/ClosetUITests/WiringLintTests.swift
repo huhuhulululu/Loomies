@@ -99,6 +99,42 @@ struct WiringLintTests {
                         + "清单已过期 \(knownDead.subtracting(orphans).sorted())"))
     }
 
+    /// ViewModel 也必须有呈现方。D88 补了 View 的门，但 `WardrobeSwitcherViewModel`
+    /// 从这张网底下漏了过去：app-shell 自己写了一套切换 Menu，VM 零调用点——
+    /// 于是它的重名守卫、(name, id) 排序、owner 归属校验全部形同虚设，
+    /// 连我接进它的 `.wardrobeSwitched` 遥测都发不出来。
+    @Test func everyViewModelHasAProductionCallSite() throws {
+        var texts: [URL: String] = [:]
+        for url in Self.productionSources() {
+            texts[url] = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        }
+        var declared: [(name: String, file: URL)] = []
+        for (url, text) in texts {
+            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                guard s.hasSuffix("ViewModel {"),
+                      s.contains("final class") || s.contains("class ")
+                else { continue }
+                guard let name = s.split(separator: " ").last(where: { $0.hasSuffix("ViewModel") })
+                        .map(String.init) else { continue }
+                declared.append((name, url))
+            }
+        }
+        #expect(declared.count >= 8, "VM 扫描器失效（只找到 \(declared.count) 个）")
+
+        var orphans: [String] = []
+        for (name, declFile) in declared {
+            let used = texts.contains { url, text in
+                guard url != declFile else { return false }   // 自己文件里的初始化不算接线
+                return text.contains("\(name)(")
+            }
+            // 同文件内的 View 持有它也算（WearHistoryViewModel 与其 View 同文件）
+            let selfHosted = texts[declFile]?.contains("State(initialValue: \(name)(") == true
+            if !used, !selfHosted { orphans.append(name) }
+        }
+        #expect(orphans.isEmpty, Comment(rawValue: "零呈现方的 ViewModel：\(orphans.sorted())"))
+    }
+
     /// 入库路径不得**替用户假设**温区与颜色。未选 = 未知（nil），
     /// 冷天硬过滤与配色打分都按未知处理，而不是伪造「薄款 + 中性」。
     @Test func addPathsDoNotFabricateWarmthOrNeutralColor() throws {

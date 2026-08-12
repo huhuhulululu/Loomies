@@ -37,14 +37,16 @@ struct ClosetApp: App {
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Wardrobe.name) private var wardrobes: [Wardrobe]
+    // 不带 sort：单键排序下同名衣柜的菜单顺序会随 fetch 漂移。
+    // 排序/显示名/active 解析统一走 ClosetUI 的 WardrobeSwitcher（唯一真相）。
+    @Query private var allWardrobes: [Wardrobe]
+    private var wardrobes: [Wardrobe] { WardrobeSwitcher.ordered(allWardrobes) }
     @State private var onboarding = OnboardingViewModel()
     @State private var activeID: UUID?
     @State private var showSwitcher = false
 
     private var activeWardrobe: Wardrobe? {
-        if let id = activeID, let w = wardrobes.first(where: { $0.id == id }) { return w }
-        return wardrobes.first
+        WardrobeSwitcher.resolveActive(id: activeID, among: allWardrobes)
     }
 
     var body: some View {
@@ -56,13 +58,15 @@ struct RootView: View {
                             HStack {
                                 Menu {
                                     ForEach(wardrobes, id: \.id) { w in
-                                        Button(w.name.isEmpty ? "Closet" : w.name) {
+                                        // 同名衣柜靠城市/主人区分——菜单里两行一模一样时用户无从选择
+                                        Button(WardrobeSwitcher.menuTitle(w, among: wardrobes)) {
                                             activeID = w.id
+                                            WardrobeSwitcher.trackSwitch()
                                             AppLog.info("switch wardrobe \(AppLog.ref(w.id))", .app)
                                         }
                                     }
                                 } label: {
-                                    Label(wardrobe.name.isEmpty ? "Closet" : wardrobe.name,
+                                    Label(WardrobeSwitcher.menuTitle(wardrobe, among: wardrobes),
                                           systemImage: "cabinet")
                                         .font(.subheadline.weight(.semibold))
                                         .padding(.horizontal, 12)
@@ -84,8 +88,11 @@ struct RootView: View {
                 }
             }
         }
-        .onChange(of: wardrobes.count) { _, _ in
-            if activeID == nil { activeID = wardrobes.first?.id }
+        .onChange(of: allWardrobes.count) { _, _ in
+            // 删掉当前柜后 activeID 会失效——回落排序首位而不是留在空屏
+            if WardrobeSwitcher.resolveActive(id: activeID, among: allWardrobes)?.id != activeID {
+                activeID = WardrobeSwitcher.resolveActive(id: nil, among: allWardrobes)?.id
+            }
         }
     }
 }
