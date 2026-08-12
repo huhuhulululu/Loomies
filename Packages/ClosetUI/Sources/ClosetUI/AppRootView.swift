@@ -132,6 +132,15 @@ public struct MeView: View {
                     // Body / Personal-color need a real owner id — an ownerless
                     // wardrobe must not persist an orphan PersonBodyProfile keyed
                     // to a random UUID (parity with the gated PersonNameEditView).
+                    if let person = wardrobe.owner {
+                        // D90：冷热偏置此前有字段无入口——同样 60°F，怕冷的人要更厚那档
+                        NavigationLink {
+                            ColdBiasEditView(person: person)
+                        } label: {
+                            LabeledContent(ColdBiasEditView.title,
+                                           value: ColdBias.title(person.coldBias))
+                        }
+                    }
                     if let person = MeView.profileOwner(of: wardrobe) {
                         NavigationLink {
                             BodyProfileView(personID: person.id)

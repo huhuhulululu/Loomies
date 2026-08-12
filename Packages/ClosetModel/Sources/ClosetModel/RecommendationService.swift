@@ -13,11 +13,13 @@ public enum RecommendationService {
         daytimeTempF: Double,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
+        coldBias: Int = 0,
         maxSuggestions: Int = 3
     ) -> [ScoredOutfit] {
         detailed(for: wardrobe, anchors: anchors, occasion: occasion,
                  daytimeTempF: daytimeTempF, wornWithin7DaysIDs: wornWithin7DaysIDs,
-                 bodyShape: bodyShape, maxSuggestions: maxSuggestions).suggestions
+                 bodyShape: bodyShape, coldBias: coldBias,
+                 maxSuggestions: maxSuggestions).suggestions
     }
 
     /// 带降级事实的版本（D89）：防重复硬门若会清空候选，会降级为降权，
@@ -29,6 +31,7 @@ public enum RecommendationService {
         daytimeTempF: Double,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
+        coldBias: Int = 0,
         maxSuggestions: Int = 3
     ) -> OutfitCompleter.Result {
         // 锚定项同样强制同柜：外来衣柜的锚定直接丢弃，绝不流入建议（跨柜硬约束）
@@ -44,7 +47,8 @@ public enum RecommendationService {
             anchors: anchorCandidates,
             pool: pool,
             context: FilterContext(occasion: occasion, daytimeTempF: daytimeTempF,
-                                   wornWithin7DaysIDs: wornWithin7DaysIDs),
+                                   wornWithin7DaysIDs: wornWithin7DaysIDs,
+                                   coldBias: coldBias),
             scoring: ScoringContext(bodyShape: bodyShape),
             maxSuggestions: maxSuggestions)
     }

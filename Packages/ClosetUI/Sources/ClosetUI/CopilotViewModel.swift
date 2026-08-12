@@ -206,6 +206,7 @@ public final class CopilotViewModel {
                 daytimeTempF: daytimeTempF,
                 wornWithin7DaysIDs: worn,
                 bodyShape: bodyShape,
+                coldBias: wardrobe.owner?.coldBias ?? 0,
                 maxSuggestions: 3)
         }
         suggestions = result.suggestions

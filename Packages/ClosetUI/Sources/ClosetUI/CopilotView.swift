@@ -723,6 +723,14 @@ public struct CopilotView: View {
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
                     }
+                    // 决定穿这套之后的下一个动作是去拿——省一次逐件跳详情（§10.3）
+                    if let where_ = storageHint(for: scored) {
+                        Label(where_, systemImage: "shippingbox")
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
+                            .lineLimit(1)
+                            .accessibilityLabel("Stored: \(where_)")
+                    }
                 }
                 Spacer(minLength: 0)
                 if selected {
@@ -844,6 +852,12 @@ public struct CopilotView: View {
             return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
         }
         return BodyMorphParams.preset(for: vm.bodyShape?.popularCategory ?? .rectangle)
+    }
+
+    /// 「去哪拿」提示（D90）。无一件标了位置 → nil，不显示空行。
+    private func storageHint(for scored: ScoredOutfit) -> String? {
+        OutfitStorageHint.text(
+            forItemIDs: scored.outfit.itemIDs, in: vm.wardrobe.items ?? [])
     }
 
     private func itemNames(for scored: ScoredOutfit) -> [String] {

@@ -32,6 +32,20 @@ public enum ItemImageStore {
         return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
     }
 
+    /// iCloud 备份策略裁决（D90，缺口 #19）。**不排除备份。**
+    ///
+    /// 两难：排除 → 换机后整柜照片全丢，用户得把衣橱重拍一遍；不排除 → 照片进备份。
+    /// 取不排除：隐私承诺是「我们没有你的副本、不运营账号」，这条不受影响——
+    /// iCloud 备份是**用户自己的**加密备份，不是把数据交给我们或第三方。
+    /// 代价是必须如实告知（`backupDisclosure`，已进 FAQ 与隐私政策）。
+    ///
+    /// 身体维度不在此列：独立本地 store + D5 明令不同步（另有 schema 门守着）。
+    public static let excludesFromBackup = false
+
+    public static let backupDisclosure =
+        "Your item photos are stored on this device and are included in your device "
+        + "backup, so a new phone can restore them. We never receive a copy."
+
     /// nil = 基目录不可用（fail-closed；调用方按「目录空」处理）。
     public static var rootDirectory: URL? {
         guard let base = baseDirectory else { return nil }

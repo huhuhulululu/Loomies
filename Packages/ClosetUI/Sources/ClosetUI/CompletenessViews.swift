@@ -637,6 +637,51 @@ public struct PersonNameEditView: View {
     }
 }
 
+/// 冷热偏置编辑面（D90）：Me → Profile → Temperature preference。
+public struct ColdBiasEditView: View {
+    let person: Person
+    @Environment(\.modelContext) private var context
+    @State private var bias: Int = 0
+    @State private var message = ""
+
+    public init(person: Person) { self.person = person }
+
+    public static let title = "Temperature preference"
+
+    public var body: some View {
+        Form {
+            Section {
+                Picker(Self.title, selection: $bias) {
+                    ForEach(Array(ColdBias.allowedRange), id: \.self) { b in
+                        Text(ColdBias.title(b)).tag(b)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } footer: {
+                Text(ColdBias.explainer)
+            }
+            if !message.isEmpty {
+                Section {
+                    Text(message).font(.caption).foregroundStyle(Color.orange)
+                        .accessibilityLabel(message)
+                }
+            }
+        }
+        .navigationTitle(Self.title)
+        .onAppear { bias = ColdBias.clamp(person.coldBias) }
+        .onChange(of: bias) { _, next in
+            // 选中即落库；失败不静默——回滚到实际值并说明
+            guard ProfileLabels.applyColdBias(next, to: person, in: context) else {
+                message = ProfileLabels.saveFailedMessage
+                bias = ColdBias.clamp(person.coldBias)
+                return
+            }
+            message = ""
+        }
+    }
+}
+
 /// Pure Me-profile helpers (testable without SwiftUI). ModelSave false → return false (no silent OK).
 public enum ProfileLabels {
     public static let saveFailedMessage = "Couldn't save — try again"
@@ -662,6 +707,26 @@ public enum ProfileLabels {
             return false
         }
         AppLog.notice("person renamed", .data)
+        return true
+    }
+
+    /// 冷热偏置落库（D90）。此前 `Person.coldBias` 有字段、进导出、无 UI 无消费者——
+    /// 用户永远设不了它，而导出里躺着一个恒为 0 的「个人偏好」。
+    @discardableResult
+    public static func applyColdBias(
+        _ raw: Int, to person: Person, in context: ModelContext
+    ) -> Bool {
+        let clamped = ColdBias.clamp(raw)
+        let old = person.coldBias
+        guard clamped != old else { return true }
+        person.coldBias = clamped
+        guard ModelSave.save(context, label: "coldBias") else {
+            person.coldBias = old
+            context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
+            AppLog.error("cold bias save failed", .data)
+            return false
+        }
+        AppLog.notice("cold bias set \(clamped)", .data)
         return true
     }
 

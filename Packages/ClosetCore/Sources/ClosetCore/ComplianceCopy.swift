@@ -124,6 +124,11 @@ public enum ComplianceCopy {
                 + "plans, body measurements, and local photos from this device. It also resets "
                 + "your body-data and analytics choices. Uninstalling the app alone does not."),
         FAQEntry(
+            question: "If I get a new phone, do my photos come with me?",
+            answer: "Yes, as long as you use a device backup — your item photos are stored "
+                + "on this device and are included in it. We never receive a copy. Body "
+                + "measurements live in a separate local store that is excluded from cloud sync."),
+        FAQEntry(
             question: "Where are my body measurements stored?",
             answer: "In a separate local store on this device that is excluded from cloud sync. "
                 + "They are left out of data exports unless you explicitly include them."),
@@ -137,9 +142,11 @@ public enum ComplianceCopy {
                 PolicySection(
                     heading: "What we store",
                     body: "Your closets, pieces, photos, looks, wear history, and plans are stored "
-                        + "on this device. Body measurements live in a separate local store that is "
-                        + "excluded from cloud sync. We do not operate an account system and we do "
-                        + "not have a copy of your closet."),
+                        + "on this device, and are included in your own device backup so a new "
+                        + "phone can restore them — that backup is yours, not ours. Body "
+                        + "measurements live in a separate local store that is excluded from cloud "
+                        + "sync. We do not operate an account system and we do not have a copy of "
+                        + "your closet."),
                 PolicySection(
                     heading: "What leaves this device",
                     body: "Two features make network requests. The weather forecast sends the city "

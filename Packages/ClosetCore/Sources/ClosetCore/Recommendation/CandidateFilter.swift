@@ -5,11 +5,15 @@ public struct FilterContext: Sendable {
     public let occasion: String
     public let daytimeTempF: Double
     public let wornWithin7DaysIDs: Set<String>
+    /// 个人冷热偏置（D90）：平移可接受温区，不放宽它。
+    public let coldBias: Int
 
-    public init(occasion: String, daytimeTempF: Double, wornWithin7DaysIDs: Set<String> = []) {
+    public init(occasion: String, daytimeTempF: Double,
+                wornWithin7DaysIDs: Set<String> = [], coldBias: Int = 0) {
         self.occasion = occasion
         self.daytimeTempF = daytimeTempF
         self.wornWithin7DaysIDs = wornWithin7DaysIDs
+        self.coldBias = ColdBias.clamp(coldBias)
     }
 }
 
@@ -48,7 +52,8 @@ public enum CandidateFilter {
         let relaxedContext = FilterContext(
             occasion: context.occasion,
             daytimeTempF: context.daytimeTempF,
-            wornWithin7DaysIDs: [])
+            wornWithin7DaysIDs: [],
+            coldBias: context.coldBias)
         let relaxed = filter(items, context: relaxedContext)
         guard !relaxed.isEmpty else {
             // 放宽了也没有 → 空结果的原因不是防重复，别对用户说反话
@@ -73,7 +78,8 @@ public enum CandidateFilter {
     }
 
     public static func filter(_ items: [CandidateItem], context: FilterContext) -> [CandidateItem] {
-        let band = WeatherFit.acceptableWarmth(daytimeTempF: context.daytimeTempF)
+        let band = WeatherFit.acceptableWarmth(
+            daytimeTempF: context.daytimeTempF, coldBias: context.coldBias)
         // 场合在过滤边界归一化（trim + 小写）：写入端大小写不一致（intake 小写、编辑器仅 trim）。
         let wanted = context.occasion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return items.filter { item in
