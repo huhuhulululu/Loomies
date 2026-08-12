@@ -107,10 +107,21 @@ public struct FittingRoomView: View {
                     .font(.caption2)
                     .lineLimit(1)
                     .frame(width: 72)
+                // D117：试衣间的字面问题就是「这件穿在我身上怎么样」，
+                // 而合身结论此前在这里零引用。
+                if let fit = OutfitFitMark.mark(for: item, profile: ownerProfile) {
+                    Text(fit)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(DS.accent)
+                        .lineLimit(1)
+                        .frame(width: 72)
+                }
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(item.name)
+        .accessibilityLabel(
+            OutfitFitMark.mark(for: item, profile: ownerProfile)
+                .map { "\(item.name), \($0)" } ?? item.name)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityHint(selected ? "Double tap to take off" : "Double tap to try on")
     }

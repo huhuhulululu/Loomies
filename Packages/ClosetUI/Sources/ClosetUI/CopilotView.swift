@@ -141,6 +141,7 @@ public struct CopilotView: View {
                 controlsCard
                 if shouldShowAnchors { anchorSection }
                 if !vm.suggestions.isEmpty { otherLooksSection }
+                if showMeasureInvite { measureInviteRow }
                 else if !vm.statusMessage.isEmpty && !vm.isColdStart && !vm.isRefreshing {
                     emptyLooksNote
                 }
@@ -196,6 +197,10 @@ public struct CopilotView: View {
                 .padding(.top, 4)
                 .padding(.horizontal, 4)
                 .frame(minHeight: DS.heroMinHeight)
+                // D117：第一屏那个模特是**陌生人**，而从 Today 没有任何路径把它
+                // 变成「像我」——用户得自己翻到 Me → Body 才发现能改。
+                // BODY-AVATAR-USER-FLOW §5.3 本来就规定「一步到 Me → Body」。
+                .overlay(alignment: .topLeading) { editBodyAffordance }
                 // 场合切换：只重建 backdrop 层（BodyAvatarView 内 .id），勿整卡 remount
                 // （.id 整树会丢 yaw/orbit/@State — WWDC identity）
 
@@ -810,6 +815,16 @@ public struct CopilotView: View {
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
                     }
+                    // D117：合身结论进决策现场。MARKET §2 判定这是竞品都没占的
+                    // 唯一纵深，而它此前只挂在网格徽章和详情页上——用户决定
+                    // 「今天穿不穿这套」的那一刻，屏幕上没有这条信息。
+                    if let fit = fitMark(for: scored) {
+                        Label(fit.summary, systemImage: "ruler")
+                            .font(.caption2)
+                            .foregroundStyle(fit.verdict == .fitted ? DS.muted : .orange)
+                            .lineLimit(1)
+                            .accessibilityLabel("Fit: \(fit.summary)")
+                    }
                     // 决定穿这套之后的下一个动作是去拿——省一次逐件跳详情（§10.3）
                     if let where_ = storageHint(for: scored) {
                         Label(where_, systemImage: "shippingbox")
@@ -939,6 +954,71 @@ public struct CopilotView: View {
             return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
         }
         return BodyMorphParams.preset(for: vm.bodyShape?.popularCategory ?? .rectangle)
+    }
+
+    /// 头像上的「这不像我」入口。做成小而明确的可点区域而不是整块可点——
+    /// 整块可点会跟已有的 orbit 手势打架（转身也会被当成点击）。
+    @ViewBuilder
+    private var editBodyAffordance: some View {
+        if let person = vm.wardrobe.owner {
+            NavigationLink {
+                BodyProfileView(personID: person.id)
+            } label: {
+                Label("Make it look like me", systemImage: "person.crop.circle.badge.plus")
+                    .font(.caption2.weight(.medium))
+                    .labelStyle(.titleAndIcon)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .foregroundStyle(DS.ink)
+            }
+            .buttonStyle(.plain)
+            .padding(12)
+            .accessibilityLabel("Edit your body shape and measurements")
+        }
+    }
+
+    /// 有建议、有身体档案，却一条合身结论都给不出 = 全套没有实测。
+    /// 此时给**入口**而不是留白：走快速添加建库的用户否则永远不知道
+    /// 这条差异化能力存在（MARKET §2：合身是竞品都没占的唯一纵深）。
+    private var showMeasureInvite: Bool {
+        !vm.suggestions.isEmpty
+            && ownerProfile != nil
+            && vm.suggestions.allSatisfy { fitMark(for: $0) == nil }
+    }
+
+    private var measureInviteRow: some View {
+        NavigationLink {
+            // 不另建页面：现有衣柜网格点进详情就能填实测
+            ClosetGridView(wardrobe: vm.wardrobe)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "ruler")
+                Text(OutfitFitMark.measureInvite)
+                    .font(.caption)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.caption2)
+            }
+            .foregroundStyle(DS.muted)
+            .padding(12)
+            .background(DS.surface)
+            .clipShape(RoundedRectangle(cornerRadius: DS.radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.radius)
+                    .strokeBorder(DS.hairline, lineWidth: 1))
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(OutfitFitMark.measureInvite)
+    }
+
+    /// 整套的合身结论（D117）。取最紧那件——决定穿不穿的是最勒的那一件。
+    /// 无身体档案 / 全套无实测 → nil（不编）。
+    private func fitMark(for scored: ScoredOutfit) -> OutfitFitMark.Mark? {
+        let ids = Set(scored.outfit.itemIDs)
+        let items = (vm.wardrobe.items ?? []).filter { ids.contains($0.id.uuidString) }
+        return OutfitFitMark.tightest(items: items, profile: ownerProfile)
     }
 
     /// 「去哪拿」提示（D90）。无一件标了位置 → nil，不显示空行。
