@@ -53,7 +53,10 @@ public struct QuickAddDraft: Equatable, Sendable {
         let item = Item(name: trimmed)
         let draftSlot = GarmentSlot(rawValue: slotRaw) ?? .top
         item.slotRaw = IntakeViewModel.persistSlot(draftSlot: draftSlot, name: trimmed).rawValue
-        item.occasionsRaw = Self.dedupOccasions([occasion, "casual"])
+        // D103：此前这里偷偷追加 "casual"，晚宴礼服因此成了休闲日的合法候选
+        //（场合硬门被架空），详情页还显示一个用户没选过的场合。
+        // 用户选了什么就是什么；没选由三值语义处理（空集 = 未知 = 不硬过滤）。
+        item.occasionsRaw = Self.dedupOccasions([occasion])
         item.warmthRaw = warmthRaw
         item.statusRaw = "available"
         if let swatch = GarmentColorPalette.entry(id: colorPaletteID) {

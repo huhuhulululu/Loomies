@@ -1100,3 +1100,24 @@ D84 装配变更」的证据，但它两侧都用 `Schema(LoomiesSchemaV1.mainMo
 确认页据实渲染；接上真服务时改一个常量，披露自动收起。
 DESIGN §F2 快速层已标注 v1.0 未接 + 指向本条——**把 mock 说成已交付才是真问题**，
 端侧 `RecognizeTextRequest` 不需要 Worker 也不需要配额，是 v1.x 第一优先。
+
+## D103 — 第二轮审计 medium 批之一：数据损坏与隐藏副作用（2026-08-12）
+
+**删一个衣柜会残害别柜的搭配**（本条实为数据损坏，审计标 medium 保守了）：
+删柜级联删掉它的 Item，而**转移进来**的那些件仍是**原柜**某些 Outfit 的成员——
+`TransferService.transfer` 只改 `item.wardrobe`，从不动 `outfit.items`。
+于是别柜的搭配悄悄少一件：既没标 `permanentlyMissing`，日历也没重算 attention。
+而同文件的 `deleteItem` 早就把这套做对了。现在 `deleteWardrobe` 照同一纪律办，
+失败时还原标记。
+
+**Today 的「Plan」顺手建了个收藏**：提示只说「Added to calendar.」，
+收藏列表却凭空多出一条「Plan Aug 12」——隐瞒做了的事。更糟的是日历那步失败时，
+那个多出来的搭配**仍然留着**，而文案报纯失败，用户以为什么都没发生。
+`saveFavorite` 加 `isFavorite` 参数（计划路径传 false），日历失败则连搭配一并丢弃。
+丢弃逻辑下沉到 `OutfitFavoriteService.discardOrphan`——我第一版直接在 VM 里写
+`context.delete`，**被自己的表现层门当场抓住**，正确做法是移动逻辑而不是给门开豁免。
+
+**每件衣服被偷偷打上 "casual"**：`dedupOccasions([occasion, "casual"])` 让
+晚宴礼服在休闲日成为合法候选——**场合硬门（DESIGN §F4 第二条）被架空**，
+详情页还显示一个用户从没选过的场合。三条入库路径都去掉了这个追加。
+「没选场合」本就由三值语义处理（空集 = 未知 = 不硬过滤），不需要偷塞一个具体值。

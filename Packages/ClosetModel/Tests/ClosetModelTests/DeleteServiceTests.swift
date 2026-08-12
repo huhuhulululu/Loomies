@@ -159,3 +159,87 @@ struct DeleteServiceTests {
         #expect(try ctx.fetch(FetchDescriptor<Item>()).count == 1)
     }
 }
+
+/// D103（审计 MEDIUM，实为数据损坏）：删一个衣柜会**静默残害别柜的搭配**。
+/// 删柜会级联删掉它的 Item，而**转移进来**的那些 Item 仍然是**原柜**某些 Outfit 的成员
+/// （`TransferService.transfer` 只改 `item.wardrobe`，不动 `outfit.items`）。
+/// 于是别柜的搭配悄悄少了一件，既没标 `permanentlyMissing`，日历也没重算——
+/// 而同文件的 `deleteItem` 早就把这件事做对了。
+@MainActor
+struct DeleteWardrobeCrossClosetTests {
+
+    func setup() throws -> (ModelContext, Wardrobe, Wardrobe) {
+        let ctx = try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+        let home = Wardrobe(name: "Home"); ctx.insert(home)
+        let lake = Wardrobe(name: "Lake"); ctx.insert(lake)
+        try ctx.save()
+        return (ctx, home, lake)
+    }
+
+    /// 别柜的搭配引用了被级联删掉的件 → 必须标 permanentlyMissing，不得静默少一件。
+    @Test func outfitsInOtherClosetsAreMarkedNotSilentlyThinned() throws {
+        let (ctx, home, lake) = try setup()
+        // Home 的搭配用了两件 Home 的衣服
+        let shirt = Item(name: "Shirt"); shirt.slotRaw = "top"; shirt.wardrobe = home
+        let pants = Item(name: "Pants"); pants.slotRaw = "bottom"; pants.wardrobe = home
+        ctx.insert(shirt); ctx.insert(pants)
+        let homeLook = Outfit(name: "Home look"); homeLook.wardrobe = home
+        homeLook.items = [shirt, pants]
+        ctx.insert(homeLook)
+        try ctx.save()
+
+        // 把 shirt 转到 Lake：它仍是 Home 那套搭配的成员（转移只改归属）
+        #expect(TransferService.transfer(shirt, to: lake, in: ctx))
+        #expect((homeLook.items ?? []).contains { $0.id == shirt.id })
+
+        // 删掉 Lake → shirt 被级联删除
+        try DeleteService.deleteWardrobe(lake, force: true, in: ctx)
+
+        let survivors = try ctx.fetch(FetchDescriptor<Outfit>())
+        let look = try #require(survivors.first { $0.id == homeLook.id })
+        #expect(look.permanentlyMissing,
+                "别柜的搭配被抽走一件却没标记——用户会看到一套悄悄少件的搭配")
+    }
+
+    /// 日历上引用该搭配的计划要跟着重算 attention（与 deleteItem 同纪律）。
+    @Test func calendarPlansOfAffectedOutfitsAreRecomputed() throws {
+        let (ctx, home, lake) = try setup()
+        let shirt = Item(name: "Shirt"); shirt.slotRaw = "top"; shirt.wardrobe = home
+        ctx.insert(shirt)
+        let look = Outfit(name: "Look"); look.wardrobe = home; look.items = [shirt]
+        ctx.insert(look)
+        let plan = CalendarPlan(date: Date()); plan.outfit = look
+        ctx.insert(plan)
+        try ctx.save()
+
+        #expect(TransferService.transfer(shirt, to: lake, in: ctx))
+        try DeleteService.deleteWardrobe(lake, force: true, in: ctx)
+
+        let plans = try ctx.fetch(FetchDescriptor<CalendarPlan>())
+        let p = try #require(plans.first { $0.id == plan.id })
+        #expect(p.needsAttention, "计划仍指向一套缺件的搭配，却没标 attention")
+    }
+
+    /// 保存失败时标记要还原（不得留下「以为缺件」的假状态）。
+    @Test func saveFailureRestoresTheMarks() throws {
+        let (ctx, home, lake) = try setup()
+        let shirt = Item(name: "Shirt"); shirt.slotRaw = "top"; shirt.wardrobe = home
+        ctx.insert(shirt)
+        let look = Outfit(name: "Look"); look.wardrobe = home; look.items = [shirt]
+        ctx.insert(look)
+        try ctx.save()
+        #expect(TransferService.transfer(shirt, to: lake, in: ctx))
+
+        ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }
+        #expect(throws: (any Error).self) {
+            try DeleteService.deleteWardrobe(lake, force: true, in: ctx)
+        }
+        #expect(!look.permanentlyMissing)
+        #expect(!ctx.hasChanges)
+    }
+}

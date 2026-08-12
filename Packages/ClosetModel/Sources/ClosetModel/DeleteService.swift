@@ -40,10 +40,30 @@ public enum DeleteService {
                 context.delete(plan)
             }
         }
+        // D103：级联删本柜 Item 时，**转移进来**的那些件仍是原柜某些 Outfit 的成员
+        //（transfer 只改 item.wardrobe，不动 outfit.items）。不标记的话，
+        // 别柜的搭配会悄悄少一件——同文件的 deleteItem 早就把这件事做对了。
+        let doomedItems = wardrobe.items ?? []
+        let foreignOutfits = doomedItems
+            .flatMap { $0.outfits ?? [] }
+            .filter { $0.wardrobe?.id != wardrobe.id }
+        // 去重（同一搭配可能引用多件将被删的衣服）
+        var seenOutfitIDs = Set<UUID>()
+        let affectedForeign = foreignOutfits.filter { seenOutfitIDs.insert($0.id).inserted }
+        let previousForeignFlags = affectedForeign.map(\.permanentlyMissing)
+        for outfit in affectedForeign { outfit.permanentlyMissing = true }
+        for outfit in affectedForeign {
+            CalendarPlanService.recomputeAttention(for: outfit, in: context)
+        }
+
         // 先收集团片相对路径——save 提交后才删文件（失败回滚时单品仍在，图须保留）。
-        let imagePaths = (wardrobe.items ?? []).compactMap(\.localImageRelativePath)
+        let imagePaths = doomedItems.compactMap(\.localImageRelativePath)
         context.delete(wardrobe)
         guard ModelSave.save(context, label: "deleteWardrobe") else {
+            // 内存值还原（rollback 不回写已置的内存属性）+ rollback 清脏标记
+            for (index, outfit) in affectedForeign.enumerated() {
+                outfit.permanentlyMissing = previousForeignFlags[index]
+            }
             context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
             throw DeleteError.saveFailed
         }

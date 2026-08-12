@@ -367,3 +367,56 @@ struct FitMarkSurfaceAgreementTests {
         #expect(vm.fitLabel != waistOnly, "臀宽没参与详情页的合身计算")
     }
 }
+
+/// D103（审计 MEDIUM）：入库时每件衣服都被**偷偷追加** "casual"。
+/// 后果有二：①晚宴礼服在休闲日成为合法候选——场合硬门（DESIGN §F4 第二条）被架空；
+/// ②详情页显示一个用户从没选过的场合。
+/// 用户选了什么就是什么；「没选场合」由三值语义处理（空集 = 未知 = 不硬过滤），
+/// 不需要偷偷塞一个具体值进去。
+@MainActor
+struct OccasionNotSilentlyWidenedTests {
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 手动新增：选了 gala 就只有 gala。
+    @Test func manualAddKeepsExactlyTheChosenOccasion() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
+        var draft = QuickAddDraft(name: "Gown", slotRaw: "dress")
+        draft.occasion = "gala"
+        let item = try #require(draft.commit(into: w, context: ctx))
+        #expect(item.occasionsRaw == ["gala"], "偷偷追加了 casual：\(item.occasionsRaw)")
+    }
+
+    /// 选 casual 就是 casual（不重复、不多塞）。
+    @Test func choosingCasualStoresCasualOnce() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
+        var draft = QuickAddDraft(name: "Tee", slotRaw: "top")
+        draft.occasion = "casual"
+        let item = try #require(draft.commit(into: w, context: ctx))
+        #expect(item.occasionsRaw == ["casual"])
+    }
+
+    /// 场合硬门因此恢复效力：晚宴礼服不再是休闲日的合法候选。
+    @Test func galaPieceIsNotACasualCandidate() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w); try ctx.save()
+        var draft = QuickAddDraft(name: "Gown", slotRaw: "dress")
+        draft.occasion = "gala"
+        let item = try #require(draft.commit(into: w, context: ctx))
+        let candidates = [item.toCandidateItem()]
+        let casual = CandidateFilter.filter(
+            candidates, context: FilterContext(occasion: "casual", daytimeTempF: 70))
+        #expect(casual.isEmpty, "晚宴礼服出现在休闲日的候选里——场合硬门被架空")
+        let gala = CandidateFilter.filter(
+            candidates, context: FilterContext(occasion: "gala", daytimeTempF: 70))
+        #expect(gala.count == 1)
+    }
+}

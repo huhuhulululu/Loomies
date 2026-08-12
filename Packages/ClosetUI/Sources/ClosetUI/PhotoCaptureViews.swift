@@ -684,9 +684,9 @@ public struct AddPieceSheet: View {
                 return set.sorted().first ?? "casual"
             },
             set: { primary in
+                // D103：不再偷偷补 "casual"——用户选了什么就是什么
                 var next = draft.wrappedValue.occasions.filter { !known.contains($0) }
                 next.insert(primary)
-                if primary != "casual" { next.insert("casual") }
                 draft.wrappedValue.occasions = next
             })
     }

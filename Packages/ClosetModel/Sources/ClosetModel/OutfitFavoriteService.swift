@@ -7,12 +7,15 @@ public enum OutfitFavoriteService {
 
     /// 用本柜单品 id 列表建收藏搭配（强制同柜）。
     @discardableResult
+    /// `isFavorite` 可关（D103）：Today 的「Plan」需要一个搭配实体来挂日历，
+    /// 但用户没要求收藏——顺手标成收藏会让收藏列表凭空多出「Plan Aug 12」。
     public static func saveFavorite(
         name: String,
         itemIDs: [String],
         occasion: String?,
         in wardrobe: Wardrobe,
         source: String = "copilot",
+        isFavorite: Bool = true,
         context: ModelContext
     ) throws -> Outfit {
         let all = wardrobe.items ?? []
@@ -22,9 +25,27 @@ public enum OutfitFavoriteService {
         // 不得第二次 save（中途失败会残留非收藏 outfit 而 UI 报失败）。
         let outfit = try OutfitDraftService.create(
             name: name, items: items, in: wardrobe,
-            isFavorite: true, occasion: occasion, source: source, context: context)
+            isFavorite: isFavorite, occasion: occasion, source: source, context: context)
         AppLog.notice("favorite outfit=\(AppLog.ref(outfit.id)) items=\(items.count)", .data)
         return outfit
+    }
+
+    /// 丢弃一个刚建出来、结果没人引用的搭配（D103）。
+    /// Today 的「Plan」先建搭配再挂日历；日历没落库时那个搭配就是孤儿，
+    /// 必须一并回滚，否则「失败」之后库里仍多一条没人引用的搭配。
+    /// 删除住在服务层——表现层出现 `context.delete` 只可能是 create 失败的错误善后
+    ///（`WiringLintTests` 守着这条）。
+    @discardableResult
+    public static func discardOrphan(_ outfit: Outfit, in context: ModelContext) -> Bool {
+        outfit.wardrobe = nil
+        outfit.items = []
+        context.delete(outfit)
+        guard ModelSave.save(context, label: "discardOrphanOutfit") else {
+            context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
+            AppLog.error("orphan outfit discard failed \(AppLog.ref(outfit.id))", .data)
+            return false
+        }
+        return true
     }
 
     /// Customer toast when ModelSave fails on favorite toggle (list must not drop the row).

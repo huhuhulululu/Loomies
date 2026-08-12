@@ -34,15 +34,20 @@ public final class OutfitActionsViewModel {
     ) {
         do {
             let name = "Plan \(Date().formatted(date: .abbreviated, time: .omitted))"
+            // D103：计划需要一个搭配实体来挂日历，但用户点的是「Plan」不是「Favorite」——
+            // 顺手标成收藏会让收藏列表凭空多出「Plan Aug 12」（隐瞒做了的事）。
             let outfit = try OutfitFavoriteService.saveFavorite(
                 name: name,
                 itemIDs: scored.outfit.itemIDs,
                 occasion: occasion,
                 in: wardrobe,
                 source: "copilot-plan",
+                isFavorite: false,
                 context: context)
             guard CalendarPlanService.plan(outfit: outfit, on: Date(), in: context) != nil else {
-                // Look is saved as favorite; calendar row did not commit — do not claim “Added”.
+                // 日历没落库 → 那个只为挂日历而建的搭配是孤儿，必须一并回滚，
+                // 否则「失败」之后库里仍多了一条没人引用的搭配（D103）。
+                OutfitFavoriteService.discardOrphan(outfit, in: context)
                 message = CalendarPlanService.saveFailedMessage
                 AppLog.error("planToday calendar ModelSave failed", .app)
                 return
