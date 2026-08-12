@@ -49,3 +49,11 @@ public enum OutfitStorageHint {
         return text(pairs: pairs)
     }
 }
+
+/// 冷启动双路径文案（D91，DESIGN §475）。真实起步那条要给**具体到能立刻做**的动作，
+/// 不是「去 Closet 加点东西」这种没有下一步的句子。
+public enum CopilotColdStartCopy {
+    public static let realStartTitle = "Shoot today's outfit — 3 pieces, about 30 seconds"
+    public static let realStartAccessibilityHint =
+        "Opens the camera or photo picker to add pieces you are wearing today"
+}

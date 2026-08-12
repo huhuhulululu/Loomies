@@ -13,6 +13,8 @@ public struct CopilotView: View {
     /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast（按值判等无法区分代）。
     @State private var flashToken = 0
     @State private var showCheckInSheet = false
+    /// 冷启动「真实起步」路径：直接开入库面（DESIGN §475 双路径之一）
+    @State private var showAddPieceSheet = false
     @State private var cinematicFailureToken = 0
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
@@ -64,6 +66,13 @@ public struct CopilotView: View {
                 .sheet(isPresented: $showCheckInSheet) {
                     CheckInView(wardrobe: vm.wardrobe) { note in flash(note) }
                 } // 关闭后刷新：防重复窗口立即生效
+                .sheet(isPresented: $showAddPieceSheet) {
+                    AddPieceSheet(wardrobe: vm.wardrobe) { note in flash(note) }
+                }
+                .onChange(of: showAddPieceSheet) { _, open in
+                    // 关闭后立即重算：新入库的件应当马上体现在进度与里程碑上
+                    if !open { runRefresh() }
+                }
                 .onChange(of: showCheckInSheet) { _, open in
                     if !open {
                         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
@@ -473,14 +482,64 @@ public struct CopilotView: View {
 
     // MARK: - Cold start / controls
 
+    /// 冷启动横幅（D91，缺口 #14）。DESIGN §475 要的三件：**双路径空状态**
+    /// （真实起步 / 先看效果）、**预赋进度**（答完引导即 20%）、**场合里程碑即时兑现**。
+    /// 里程碑文案是承诺——`ActivationProgress` 只让它说挣来的那部分。
     private var coldStartBanner: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let items = (vm.wardrobe.items ?? [])
+        let candidates = items.map { $0.toCandidateItem() }
+        let count = items.count
+        // 能走到 Today 就说明引导已完成（app-shell 无 active 衣柜时呈现 Onboarding）
+        let fraction = ActivationProgress.fraction(itemCount: count, onboarded: true)
+        let milestone = ActivationProgress.headlineMilestone(items: candidates)
+
+        return VStack(alignment: .leading, spacing: 10) {
             Text("Get a full look in a minute")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(DS.ink)
-            Text("Load samples, or add from Closet. Then anchor one item or use full-auto.")
-                .font(.caption)
-                .foregroundStyle(DS.muted)
+
+            // 预赋进度：零件也不是 0%，但文案不得暗示「完成了」
+            VStack(alignment: .leading, spacing: 4) {
+                ProgressView(value: fraction)
+                    .tint(DS.accent)
+                Text(ActivationProgress.caption(itemCount: count, onboarded: true))
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                "Closet setup \(Int(fraction * 100)) percent. "
+                + ActivationProgress.caption(itemCount: count, onboarded: true))
+
+            // 场合里程碑：兑现了就说兑现，没兑现就点名还缺什么槽位
+            if let milestone {
+                VStack(alignment: .leading, spacing: 2) {
+                    Label(milestone.headline, systemImage: milestone.canDressOnce
+                          ? "checkmark.seal.fill" : "circle.dashed")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(milestone.canDressOnce ? DS.accent : DS.muted)
+                    Text(milestone.nextStep)
+                        .font(.caption2)
+                        .foregroundStyle(DS.muted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(milestone.headline). \(milestone.nextStep)")
+            }
+
+            // 路径一：真实起步（DESIGN §475「拍下今天这身，30 秒入库 3 件」）
+            Button { showAddPieceSheet = true } label: {
+                Text(CopilotColdStartCopy.realStartTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(DS.accent)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(CopilotColdStartCopy.realStartAccessibilityHint)
+
+            // 路径二：先看效果（示例衣橱，不是用户的照片——VO 与 Me → Demo 同口径）
             Button {
                 let outcome = DemoSeedService.seedIfEmpty(vm.wardrobe, in: context)
                 flash(outcome.flashMessage)
@@ -491,15 +550,14 @@ public struct CopilotView: View {
                 }
             } label: {
                 Text("Load samples")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.subheadline.weight(.medium))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .background(DS.accent)
-                    .foregroundStyle(.white)
+                    .padding(.vertical, 9)
+                    .background(DS.accent.opacity(0.12))
+                    .foregroundStyle(DS.accent)
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
             }
             .buttonStyle(.plain)
-            // Same demo-not-photos VO as Me → Demo / Closet empty Load samples.
             .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
         }
         .padding(14)
