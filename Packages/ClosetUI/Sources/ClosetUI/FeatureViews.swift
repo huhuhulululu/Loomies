@@ -18,29 +18,81 @@ public struct ItemDetailView: View {
         self.bodyProfile = bodyProfile
     }
 
+    /// 拆成子视图：整个 Form 放在一个表达式里会让类型检查超时（本波实测）。
+    @ViewBuilder
+    private var detailsSection: some View {
+        Section("Details") {
+            TextField("Name", text: $vm.name)
+                .wordsCapitalized()
+            Picker("Type", selection: $vm.slotRaw) {
+                ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
+                    Text(slot.displayTitle).tag(slot.rawValue)
+                }
+            }
+            TextField("Brand", text: $vm.brand)
+                .wordsCapitalized()
+                .autocorrectionDisabled()
+            TextField("Size", text: $vm.sizeLabel)
+                .charactersCapitalized()   // M / XL / 8
+                .autocorrectionDisabled()
+            if let sizeHint = PublicSizeReference.displayHint(forLabel: vm.sizeLabel),
+               !vm.sizeLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(sizeHint)
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+            }
+            // D108：场合是**硬过滤**输入，引擎只认固定几个值。
+            // 此前是逗号分隔自由文本——打错一个字母这件衣服就永远不再被推荐，
+            // 而用户看不到任何异样。
+            OccasionChips(selection: $vm.occasions, custom: vm.customOccasions)
+        }
+    }
+
+    @ViewBuilder
+    private var fitMeasuresSection: some View {
+            Section("Fit measures (flat)") {
+                // D108：单位可切（此前写死英寸），数值走小数键盘（此前默认字母键盘），
+                // 解析失败当场提示（此前静默丢弃，保存后字段变空）
+                Picker("Unit", selection: $vm.measureUnit) {
+                    ForEach(MeasurementEntry.Unit.allCases, id: \.rawValue) { unit in
+                        Text(unit.suffix).tag(unit)
+                    }
+                }
+                .pickerStyle(.segmented)
+                TextField(MeasurementEntry.placeholder("Chest flat width", unit: vm.measureUnit),
+                          text: $vm.chestFlat)
+                    .decimalKeyboard()
+                TextField(MeasurementEntry.placeholder("Waist flat width", unit: vm.measureUnit),
+                          text: $vm.waistFlat)
+                    .decimalKeyboard()
+                TextField(MeasurementEntry.placeholder("Hip flat width", unit: vm.measureUnit),
+                          text: $vm.hipFlat)
+                    .decimalKeyboard()
+                if let warning = vm.measurementInputWarning {
+                    Text(warning).font(.caption2).foregroundStyle(.orange)
+                        .accessibilityLabel(warning)
+                }
+                if let fit = vm.fitLabel {
+                    LabeledContent("Fit mark", value: fit)
+                    if let detail = vm.fitDetail {
+                        Text(detail)
+                            .font(.caption2)
+                            .foregroundStyle(DS.muted)
+                    }
+                } else {
+                    Text("Enter body profile + flat widths for fit mark.")
+                        .font(.caption).foregroundStyle(DS.muted)
+                }
+            }
+    }
+
     public var body: some View {
         Form {
             Section {
                 ItemThumbnailView(item: vm.item, height: 200)
                     .listRowInsets(EdgeInsets())
             }
-            Section("Details") {
-                TextField("Name", text: $vm.name)
-                Picker("Type", selection: $vm.slotRaw) {
-                    ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
-                        Text(slot.displayTitle).tag(slot.rawValue)
-                    }
-                }
-                TextField("Brand", text: $vm.brand)
-                TextField("Size", text: $vm.sizeLabel)
-                if let sizeHint = PublicSizeReference.displayHint(forLabel: vm.sizeLabel),
-                   !vm.sizeLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(sizeHint)
-                        .font(.caption2)
-                        .foregroundStyle(DS.muted)
-                }
-                TextField("Occasions (comma)", text: $vm.occasionsText)
-            }
+            detailsSection
             Section("Status") {
                 Picker("Status", selection: $vm.statusRaw) {
                     ForEach(vm.statuses, id: \.self) {
@@ -113,22 +165,7 @@ public struct ItemDetailView: View {
                     }
                 }
             }
-            Section("Fit measures (inches, flat)") {
-                TextField("Chest flat width", text: $vm.chestFlat)
-                TextField("Waist flat width", text: $vm.waistFlat)
-                TextField("Hip flat width", text: $vm.hipFlat)
-                if let fit = vm.fitLabel {
-                    LabeledContent("Fit mark", value: fit)
-                    if let detail = vm.fitDetail {
-                        Text(detail)
-                            .font(.caption2)
-                            .foregroundStyle(DS.muted)
-                    }
-                } else {
-                    Text("Enter body profile + flat widths for fit mark.")
-                        .font(.caption).foregroundStyle(DS.muted)
-                }
-            }
+            fitMeasuresSection
             Section {
                 Button("Delete piece", role: .destructive) {
                     confirmDelete = true

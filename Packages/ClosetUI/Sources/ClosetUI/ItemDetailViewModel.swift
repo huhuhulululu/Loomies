@@ -14,7 +14,12 @@ public final class ItemDetailViewModel {
     public var brand: String
     public var sizeLabel: String
     public var statusRaw: String
-    public var occasionsText: String  // comma-separated
+    /// 场合。**引擎只认固定几个值**（`CandidateFilter` 硬过滤），
+    /// 此前这里是逗号分隔的自由文本——打错一个字母，这件衣服就永远不再被推荐，
+    /// 而用户看不到任何异样（D108）。改为多选，同时保留用户已存的自定义值不丢。
+    public var occasions: Set<String>
+    /// 用户历史上存过、但不在标准集里的值（不静默删除别人的数据）。
+    public private(set) var customOccasions: [String]
     public var chestFlat: String
     public var waistFlat: String
     /// 适穿温区（天气硬过滤输入）；nil = 未知（不硬过滤，不替用户假设）。
@@ -26,6 +31,16 @@ public final class ItemDetailViewModel {
     /// 护理符号（结构化，D93）
     /// 臀宽（D100）：下装的真约束——腰上合、臀上卡的裤子太常见了
     public var hipFlat: String = ""
+    /// 录入单位（D108）。存储层一律英寸，只在录入/显示处换算；
+    /// 此前详情页写死「inches」，而身体档案那边早有公制偏好。
+    public var measureUnit: MeasurementEntry.Unit = .inches
+    /// 三个尺寸框里有没有「输入了但解析不出来」的——此前静默丢弃，保存后字段变空。
+    public var measurementInputWarning: String? {
+        let bad = [chestFlat, waistFlat, hipFlat].contains {
+            MeasurementEntry.isUnparseable($0)
+        }
+        return bad ? MeasurementEntry.unparseableMessage : nil
+    }
     public var care: Set<CareSymbol> = []
     /// 自由备注（不可信输入；落库前过 ItemNotes.sanitize）
     public var notes: String = ""
@@ -64,10 +79,17 @@ public final class ItemDetailViewModel {
         self.brand = item.brand ?? ""
         self.sizeLabel = item.sizeLabel ?? ""
         self.statusRaw = item.statusRaw
-        self.occasionsText = item.occasionsRaw.joined(separator: ", ")
-        self.chestFlat = item.chestFlatWidthInches.map { String($0) } ?? ""
-        self.waistFlat = item.waistFlatWidthInches.map { String($0) } ?? ""
-        self.hipFlat = item.hipFlatWidthInches.map { String($0) } ?? ""
+        let stored = Set(item.occasionsRaw.map {
+            $0.trimmingCharacters(in: .whitespaces).lowercased()
+        }.filter { !$0.isEmpty })
+        self.occasions = stored
+        // 标准集之外的存量值原样保留——不静默删掉用户的数据
+        self.customOccasions = stored.subtracting(OccasionMix.choices).sorted()
+        // D108：按录入单位回显，且不带浮点噪音（此前 String(15.000000000000002)）
+        let unit = MeasurementEntry.Unit.inches
+        self.chestFlat = MeasurementEntry.text(fromInches: item.chestFlatWidthInches, unit: unit)
+        self.waistFlat = MeasurementEntry.text(fromInches: item.waistFlatWidthInches, unit: unit)
+        self.hipFlat = MeasurementEntry.text(fromInches: item.hipFlatWidthInches, unit: unit)
         self.locationID = item.location?.id
         self.warmthRaw = item.warmthRaw
         // 已存颜色 → 最近色板选中态；中性无 hue 时也能回读（hue nil → 用 0 参与中性匹配）
@@ -126,11 +148,11 @@ public final class ItemDetailViewModel {
         if let v = FitMarkService.mark(
             slotRaw: slotRaw,
             name: name,
-            chestFlatWidthInches: Double(chestFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
-            waistFlatWidthInches: Double(waistFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
+            chestFlatWidthInches: MeasurementEntry.inches(from: chestFlat, unit: measureUnit),
+            waistFlatWidthInches: MeasurementEntry.inches(from: waistFlat, unit: measureUnit),
             // D101：此前这里漏传臀宽，于是网格徽章（走 mark(item:)，带臀宽）
             // 与详情页对同一件衣服给出不同判定
-            hipFlatWidthInches: Double(hipFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
+            hipFlatWidthInches: MeasurementEntry.inches(from: hipFlat, unit: measureUnit),
             profile: profile
         ) {
             fitLabel = FitMarkCopy.label(v)
@@ -152,17 +174,16 @@ public final class ItemDetailViewModel {
         DeleteError.saveFailed.errorDescription ?? "Couldn't delete — try again"
 
     public func save(in context: ModelContext) {
-        let occ = occasionsText.split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        // 确定顺序（导出快照可复现；与 attributesRaw / careRaw 同约定）
+        let occ = occasions.sorted()
         let swatch = GarmentColorPalette.entry(id: colorPaletteID)
         let edited = ItemEditorService.apply(
             .init(name: name, slotRaw: slotRaw, occasionsRaw: occ,
                   brand: brand, sizeLabel: sizeLabel,
                   warmthRaw: warmthRaw,
-                  chestFlatWidthInches: Double(chestFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  waistFlatWidthInches: Double(waistFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  hipFlatWidthInches: Double(hipFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  chestFlatWidthInches: MeasurementEntry.inches(from: chestFlat, unit: measureUnit),
+                  waistFlatWidthInches: MeasurementEntry.inches(from: waistFlat, unit: measureUnit),
+                  hipFlatWidthInches: MeasurementEntry.inches(from: hipFlat, unit: measureUnit),
                   replaceFlatWidths: true,
                   replaceWarmth: true,
                   attributesRaw: attributes.map(\.rawValue).sorted(),

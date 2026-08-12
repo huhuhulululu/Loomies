@@ -182,3 +182,90 @@ public struct CareSymbolPicker: View {
         }
     }
 }
+
+/// 场合多选（D108）。场合是 `CandidateFilter` 的**硬过滤**输入，引擎只认固定几个值；
+/// 此前详情页是逗号分隔的自由文本——打错一个字母，这件衣服就永远不再被推荐，
+/// 而用户看不到任何异样。
+///
+/// 存量的自定义值原样列出并可取消，**不静默删掉用户的数据**。
+public struct OccasionChips: View {
+    @Binding var selection: Set<String>
+    let custom: [String]
+
+    public init(selection: Binding<Set<String>>, custom: [String] = []) {
+        _selection = selection
+        self.custom = custom
+    }
+
+    public static let hint =
+        "Used to filter what gets suggested. Leave all off if it works for anything."
+
+    private var values: [String] { OccasionMix.choices + custom }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(values, id: \.self) { value in
+                        let isOn = selection.contains(value)
+                        Button {
+                            if isOn { selection.remove(value) } else { selection.insert(value) }
+                        } label: {
+                            Text(OccasionMix.displayTitle(value))
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .frame(height: 32)
+                                .background(isOn ? DS.accent.opacity(0.22) : Color.white.opacity(0.06))
+                                .foregroundStyle(isOn ? DS.accent : DS.ink)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule().strokeBorder(
+                                        isOn ? DS.accent : Color.white.opacity(0.12), lineWidth: 1))
+                                .frame(minHeight: 44)   // 命中区，不是视觉高度
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isOn ? .isSelected : [])
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Text(Self.hint).font(.caption2).foregroundStyle(DS.muted)
+        }
+    }
+}
+
+/// 输入辅助修饰符（D108）。`keyboardType` / `textInputAutocapitalization` 是
+/// iOS 专属 API——直接写在共享 View 里 macOS 编不过（而 `swift test` 跑在 macOS，
+/// 这类问题只有 xcodebuild 才报，见 CLAUDE.md 的验证条款）。
+extension View {
+    /// 数值字段用小数键盘：此前尺寸框弹的是默认字母键盘。
+    @ViewBuilder
+    func decimalKeyboard() -> some View {
+        #if os(iOS)
+        self.keyboardType(.decimalPad)
+        #else
+        self
+        #endif
+    }
+
+    /// 名称/品牌：按词首大写（不是句首）。
+    @ViewBuilder
+    func wordsCapitalized() -> some View {
+        #if os(iOS)
+        self.textInputAutocapitalization(.words)
+        #else
+        self
+        #endif
+    }
+
+    /// 尺码：全大写（M / XL / 8），且不该被自动纠正。
+    @ViewBuilder
+    func charactersCapitalized() -> some View {
+        #if os(iOS)
+        self.textInputAutocapitalization(.characters)
+        #else
+        self
+        #endif
+    }
+}
