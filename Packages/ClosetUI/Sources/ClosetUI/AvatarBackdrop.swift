@@ -93,16 +93,37 @@ struct AvatarBackdropView: View {
 
     // MARK: - Bundle
 
+    static func cacheKey(for name: String) -> String { "backdrop|\(name)" }
+
+    /// 背景图（768×1152 PNG，盘上最大 961KB、解码约 3.5MB）。
+    ///
+    /// D112：此前每次 `body` 求值都重探 Bundle 并重新解码——而它出现在
+    /// 收藏行 / 日历行 / Today 建议行的**每一行**里，只为填 56×84pt。
+    /// 同模块的 `BodyAvatarView.bundleUIImage` 早已接了缓存（"每 tick 不再打 Bundle"），
+    /// 这里复用同一个（含负缓存：不存在的资源也记住，免得每帧再探一次）。
     static func bundleImage(named name: String) -> Image? {
-        if let url = Bundle.module.url(forResource: name, withExtension: "png", subdirectory: "Backdrops")
-            ?? Bundle.module.url(forResource: name, withExtension: "png") {
-            #if canImport(UIKit)
-            if let ui = UIImage(contentsOfFile: url.path) { return Image(uiImage: ui) }
-            #elseif canImport(AppKit) && !os(iOS)
-            if let ns = NSImage(contentsOf: url) { return Image(nsImage: ns) }
-            #endif
+        let key = cacheKey(for: name)
+        if let cached = BodyAvatarImageCache.shared.cachedImage(forKey: key) { return cached }
+        let (image, cost) = loadBundleImage(named: name)
+        BodyAvatarImageCache.shared.storeImage(image, forKey: key, cost: cost)
+        return image
+    }
+
+    private static func loadBundleImage(named name: String) -> (image: Image?, cost: Int) {
+        guard let url = Bundle.module.url(
+                forResource: name, withExtension: "png", subdirectory: "Backdrops")
+                ?? Bundle.module.url(forResource: name, withExtension: "png")
+        else { return (nil, 1) }
+        #if canImport(UIKit)
+        if let ui = UIImage(contentsOfFile: url.path) {
+            return (Image(uiImage: ui), Int(ui.size.width * ui.size.height * 4))
         }
-        return nil
+        #elseif canImport(AppKit) && !os(iOS)
+        if let ns = NSImage(contentsOf: url) {
+            return (Image(nsImage: ns), Int(ns.size.width * ns.size.height * 4))
+        }
+        #endif
+        return (nil, 1)
     }
 
     // MARK: - Layers

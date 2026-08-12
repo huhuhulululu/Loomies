@@ -461,16 +461,43 @@ struct IntakeTests {
         private var blocked: [CheckedContinuation<Void, Never>] = []
         private var entered = 0
         var enteredCount: Int { lock.lock(); defer { lock.unlock() }; return entered }
-        /// 轮询直到第 count 次 tag() 确实挂起（此刻 process 必在途）。
+        /// 等到第 count 次 tag() 确实挂起（此刻 process 必在途）。
+        ///
+        /// 曾是有界自旋（10 万次 `Task.yield()` 后放弃），CPU 争用时会走完计数
+        /// 还没等到对方被调度，于是随后的 `#require(enteredCount == N)` 偶发失败——
+        /// 那是**测试脚手架**的缺陷，不是生产并发的缺陷（单跑必过）。
+        /// 改成真正会挂起的信号：够数即唤醒，不够就一直等，没有上限。
+        private var waiters: [(threshold: Int, c: CheckedContinuation<Void, Never>)] = []
+
         func waitUntilEntered(_ count: Int) async {
-            for _ in 0..<100_000 where enteredCount < count { await Task.yield() }
+            await withCheckedContinuation { c in
+                lock.lock()
+                if entered >= count {
+                    lock.unlock()
+                    c.resume()
+                    return
+                }
+                waiters.append((count, c))
+                lock.unlock()
+            }
         }
+
+        /// 唤醒阈值已满足的等待者（在锁外 resume，避免重入死锁）。
+        private func signal() {
+            lock.lock()
+            let ready = waiters.filter { entered >= $0.threshold }
+            waiters.removeAll { entered >= $0.threshold }
+            lock.unlock()
+            for w in ready { w.c.resume() }
+        }
+
         func tag(_ imageData: Data) async throws -> ItemTags {
             await withCheckedContinuation { c in
                 lock.lock()
                 blocked.append(c)
                 entered += 1
                 lock.unlock()
+                signal()
             }
             let slot: GarmentSlot = imageData.first == 0x2 ? .dress : .top
             return ItemTags(slot: slot)

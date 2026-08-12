@@ -123,6 +123,11 @@ public enum StorageLocationService {
         loc.parent = parent
         context.insert(loc)
         guard ModelSave.save(context, label: "locationCreate") else {
+            // D112：先断关系再 rollback。不断的话幻影位置留在 `wardrobe.locations` /
+            // `parent.children` 里——`list()` 照列它，更伤人的是
+            // **同名重试会被判重名拒绝**，用户被一个库里并不存在的位置挡住。
+            loc.wardrobe = nil
+            loc.parent = nil
             // rollback 一并丢弃 pending insert（delete 只删行，脏标记会滞留）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("locationCreate save failed", .data)

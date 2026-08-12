@@ -111,6 +111,11 @@ public enum DemoSeedService {
                     ItemImageStore.deleteAll(relativePath: path)
                 }
             }
+            // D112：断关系再 rollback。九件都已 `item.wardrobe = wardrobe`，
+            // 不断的话 `wardrobe.items` 里留着九个幻影——冷启动横幅按件数算，
+            // 下一次 seed 的去重序号也按 `existing` 算，两处都会被幻影带偏。
+            // 与 `OutfitDraftService.create` / `IntakeViewModel.confirm` 同一条纪律。
+            for item in inserted { item.wardrobe = nil }
             // rollback 一并丢弃 pending inserts（delete 只删行，脏标记会滞留）
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("demoSeed save failed wardrobe=\(AppLog.ref(wardrobe.id))", .data)

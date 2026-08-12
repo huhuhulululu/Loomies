@@ -37,10 +37,18 @@ public enum OutfitFavoriteService {
     ///（`WiringLintTests` 守着这条）。
     @discardableResult
     public static func discardOrphan(_ outfit: Outfit, in context: ModelContext) -> Bool {
+        // D112：断关系前先快照。`rollback()` 撤得掉未落库的**行**，撤不掉已被改过的
+        // 内存**关系**——不还原的话这条搭配会带着「零件 / 无主柜」活下来，
+        // 并被**下一次无关的成功 save** 永久写进库里（实测：一次 setStatus 就够了）。
+        // 样板见 `DeleteService.deleteLocation`。
+        let previousWardrobe = outfit.wardrobe
+        let previousItems = outfit.items ?? []
         outfit.wardrobe = nil
         outfit.items = []
         context.delete(outfit)
         guard ModelSave.save(context, label: "discardOrphanOutfit") else {
+            outfit.wardrobe = previousWardrobe
+            outfit.items = previousItems
             context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
             AppLog.error("orphan outfit discard failed \(AppLog.ref(outfit.id))", .data)
             return false

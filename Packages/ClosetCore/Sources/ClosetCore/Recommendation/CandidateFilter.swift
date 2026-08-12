@@ -28,6 +28,12 @@ public enum CandidateFilter {
         public let repeatGateRelaxed: Bool
         /// 降级时传给排序层的「最近穿过」集合（排后而不是排除）。
         public let recentlyWornIDs: Set<String>
+
+        public init(items: [CandidateItem], repeatGateRelaxed: Bool, recentlyWornIDs: Set<String>) {
+            self.items = items
+            self.repeatGateRelaxed = repeatGateRelaxed
+            self.recentlyWornIDs = recentlyWornIDs
+        }
     }
 
     /// 放宽后的诚实文案（说清为什么这几件又出现了）。

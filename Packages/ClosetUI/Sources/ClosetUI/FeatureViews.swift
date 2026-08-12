@@ -735,6 +735,9 @@ public enum FavoritesEmptyCopy {
 }
 
 public struct FavoritesView: View {
+    /// 身体档案走 @Query（活查询）：切柜/改体型即刷新，且行构建器里是纯内存查找。
+    @Query private var bodyProfiles: [PersonBodyProfile]
+
     @Environment(\.modelContext) private var context
     let wardrobe: Wardrobe
     @State private var outfits: [ClosetModel.Outfit] = []
@@ -878,10 +881,13 @@ public struct FavoritesView: View {
         }
     }
 
+    /// D112：这里原本是**计算属性里发全表 fetch**——而它在行构建器里被读 4-5 次
+    /// （shape / morph / sex / phenotype 各一次），于是每滚进一行就是一把主线程 SQLite 往返。
+    /// 同模块的 `ClosetGridView` 早就是 `@Query` + 内存 `first {}`（实测约快两个数量级），
+    /// 这里收编成同一种写法，不另造。
     private var ownerProfile: PersonBodyProfile? {
         guard let pid = wardrobe.owner?.id else { return nil }
-        let profiles = (try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? []
-        return profiles.first(where: { $0.personID == pid })
+        return bodyProfiles.first { $0.personID == pid }
     }
 
     private var ownerShape: PopularShape {

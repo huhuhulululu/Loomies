@@ -25,6 +25,10 @@ struct ThumbnailImageCacheTests {
     }
 
     /// 解码一次后命中缓存——第二次不再碰磁盘。
+    ///
+    /// ⚠️ 这条**不断言 NSCache 一定留着**：NSCache 是自主逐出的（内存压力下随时可清），
+    /// 断言保留的测试按构造就是 flaky（本波实测：单跑必过、全量并发时偶挂）。
+    /// 该守的是另一件事——缓存没了必须能重新解码出来，见 `cacheLossIsRecoverable`。
     @Test func decodedImageIsCachedAndReused() async throws {
         let id = UUID()
         let rel = try #require(ItemImageStore.save(data: try makeJPEG(), for: id))
@@ -37,11 +41,28 @@ struct ThumbnailImageCacheTests {
 
         let decoded = try #require(await ThumbnailImageCache.decode(path: rel, variant: .grid))
         ThumbnailImageCache.shared.store(decoded, path: rel, variant: .grid)
-        #expect(ThumbnailImageCache.shared.image(path: rel, variant: .grid) != nil)
+        // 读得回就必须是同一张（存进去的和取出来的不能是两张图）；
+        // 取不回来只可能是 NSCache 自主逐出，那不是缺陷。
+        if let hit = ThumbnailImageCache.shared.image(path: rel, variant: .grid) {
+            #expect(hit === decoded)
+        }
+    }
 
-        // 原图删掉后仍能从缓存拿到（证明第二次没有走磁盘）
-        ItemImageStore.deleteAll(relativePath: rel)
-        #expect(ThumbnailImageCache.shared.image(path: rel, variant: .grid) != nil)
+    /// 缓存被逐出（内存压力）后必须还能从盘上重新解码——
+    /// 这才是生产真正依赖的契约：`ItemThumbnailView` 的 `.task` 命中 miss 会重解。
+    @Test func cacheLossIsRecoverable() async throws {
+        let id = UUID()
+        let rel = try #require(ItemImageStore.save(data: try makeJPEG(), for: id))
+        defer {
+            ItemImageStore.deleteAll(relativePath: rel)
+            ThumbnailImageCache.shared.evict(path: rel)
+        }
+        let first = try #require(await ThumbnailImageCache.decode(path: rel, variant: .grid))
+        ThumbnailImageCache.shared.store(first, path: rel, variant: .grid)
+        ThumbnailImageCache.shared.removeAll()
+        #expect(ThumbnailImageCache.shared.image(path: rel, variant: .grid) == nil)
+        #expect(await ThumbnailImageCache.decode(path: rel, variant: .grid) != nil,
+                "缓存丢了就再也拿不到图 —— 内存压力后网格会整片空白")
     }
 
     /// 键含 variant——grid 与 detail 是两张不同的图，混用会显示错档。

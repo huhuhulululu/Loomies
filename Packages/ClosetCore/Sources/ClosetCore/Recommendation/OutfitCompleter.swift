@@ -47,10 +47,17 @@ public enum OutfitCompleter {
     ) -> Result {
         let anchorIDs = Set(anchors.map(\.id))
         // 候选池：过四条正确性 + 去掉已锚定项（防重复用）。
-        // D89：硬门会清空候选时降级为降权（小衣柜本周都穿过 → 给建议而不是空屏），
-        // 降级事实由 `lastOutcome` 上报给 UI，不得静默。
-        let outcome = CandidateFilter.filterWithRepeatFallback(pool, context: context)
-        let filtered = outcome.items.filter { !anchorIDs.contains($0.id) }
+        //
+        // D112：D89 的降级判在**单品层**（一件都不剩才放宽），而空屏发生在**搭配层**。
+        // 只要任一槽位被穿光——小衣柜里通常是那双唯一的鞋——其余槽位的件仍在，
+        // 单品集非空 → 不降级 → grammar 拼不出整身 → 0 建议。
+        // 触发点正是 App 的主动作：穿着窗口含今天，第一次点「Wore it」当场空屏，
+        // 且要等整个衣柜都穿过一遍（单品集终于空了）才自愈，与 D89 本意相反。
+        // 所以判定移到这里：**先按严格通道拼，拼不出整身且确有近期穿着记录才放宽**。
+        let strictItems = CandidateFilter.filter(pool, context: context)
+        var outcome = CandidateFilter.Outcome(
+            items: strictItems, repeatGateRelaxed: false, recentlyWornIDs: [])
+        var filtered = outcome.items.filter { !anchorIDs.contains($0.id) }
         // 截断前廉价预打分（体型 affinity）：纯 id 前缀截断等于打分前随机抽样
         //（Item.id 是随机 UUID），大衣柜最合体型的单品可能从未进入枚举。
         // (预分降序, id 升序) 保确定性；无体型上下文时退化为原 id 序。
@@ -72,6 +79,9 @@ public enum OutfitCompleter {
             return Array(ordered.prefix(Self.maxOptionsPerSlot).map(\.item))
         }
 
+        /// 组装一遍：按当前 `filtered` 枚举出全部合法搭配并排好序。
+        /// 严格通道拼不出整身时会被再调一次（放宽防重复后）。
+        func assemble() -> [ScoredOutfit] {
         let hasDress  = anchors.contains { $0.slot == .dress }
         let hasTop    = anchors.contains { $0.slot == .top }
         let hasBottom = anchors.contains { $0.slot == .bottom }
@@ -119,14 +129,51 @@ public enum OutfitCompleter {
             }}}}
         }
 
-        // 按分降序；同分按 itemIDs 稳定排序
-        results.sort {
-            $0.score.value != $1.score.value
-                ? $0.score.value > $1.score.value
-                : $0.outfit.itemIDs.joined(separator: ",") < $1.outfit.itemIDs.joined(separator: ",")
+        // 按分降序；分同则**近期穿过的件更少**的排前；再同则按 itemIDs 稳定排序。
+        //
+        // D112：降权此前只作用在槽位候选列表内部（`options` 的首键），
+        // 而用户看到的是**搭配层**的顺序——同分时按字典序，
+        // 于是降级后第一条推荐照样可能是刚穿过的那身。
+        // 「降权」要在用户真正看到的那一层生效才算数。
+        let wornIDs = outcome.recentlyWornIDs
+        func wornCount(_ s: ScoredOutfit) -> Int {
+            wornIDs.isEmpty ? 0 : s.outfit.itemIDs.count { wornIDs.contains($0) }
+        }
+        results.sort { a, b in
+            if a.score.value != b.score.value { return a.score.value > b.score.value }
+            let (wa, wb) = (wornCount(a), wornCount(b))
+            if wa != wb { return wa < wb }
+            return a.outfit.itemIDs.joined(separator: ",") < b.outfit.itemIDs.joined(separator: ",")
+        }
+        return results
+        }
+
+        var assembled = assemble()
+        // 严格通道一身都拼不出、且确有近期穿着记录 → 只摘掉防重复这一条再拼一次。
+        // 其余三条门（场合/天气/可用状态）原样——那三条无分歧。
+        if assembled.isEmpty, !context.wornWithin7DaysIDs.isEmpty {
+            let relaxedItems = CandidateFilter.filter(pool, context: FilterContext(
+                occasion: context.occasion,
+                daytimeTempF: context.daytimeTempF,
+                wornWithin7DaysIDs: [],
+                coldBias: context.coldBias))
+            outcome = CandidateFilter.Outcome(
+                items: relaxedItems,
+                repeatGateRelaxed: true,
+                recentlyWornIDs: Set(relaxedItems.map(\.id))
+                    .intersection(context.wornWithin7DaysIDs))
+            filtered = relaxedItems.filter { !anchorIDs.contains($0.id) }
+            let retry = assemble()
+            if retry.isEmpty {
+                // 放宽了也拼不出 → 空结果的原因不是防重复，别对用户说反话（D89 纪律 #2）
+                outcome = CandidateFilter.Outcome(
+                    items: strictItems, repeatGateRelaxed: false, recentlyWornIDs: [])
+            } else {
+                assembled = retry
+            }
         }
         return Result(
-            suggestions: Array(results.prefix(max(0, maxSuggestions))),
+            suggestions: Array(assembled.prefix(max(0, maxSuggestions))),
             repeatGateRelaxed: outcome.repeatGateRelaxed)
     }
 }
