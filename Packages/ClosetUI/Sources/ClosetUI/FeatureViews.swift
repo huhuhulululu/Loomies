@@ -203,12 +203,29 @@ public struct BodyProfileView: View {
     @Environment(\.modelContext) private var context
     @State private var vm: BodyProfileViewModel
 
+    /// 身体维度单独同意（DESIGN §2.2）：未同意时先出说明卡，不直接进录入面。
+    @State private var consentGranted = BodyDataConsent.shared.isGranted
+
     public init(personID: UUID) {
         _vm = State(initialValue: BodyProfileViewModel(personID: personID))
     }
 
     public var body: some View {
         Form {
+            if !consentGranted {
+                Section {
+                    Text(BodyDataConsent.explainer)
+                        .font(.callout)
+                    Button(BodyDataConsent.grantTitle) {
+                        BodyDataConsent.shared.setGranted(true)
+                        consentGranted = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DS.accent)
+                } header: {
+                    Text(BodyDataConsent.title)
+                }
+            }
             Section {
                 BodyAvatarView(
                     shape: vm.popularShape,
@@ -573,14 +590,29 @@ public struct AboutView: View {
                 Text("Daily outfit copilot — you steer, the app assists.")
                     .font(.caption).foregroundStyle(DS.muted)
             }
-            Section("Credits") {
-                Text("Design tokens inspired by warm neutrals + single accent (DESIGN §10).")
-                Text("FFIT body-shape classification (research literature).")
-                Text("Weather: Open-Meteo (open data) when online; offline city climate fallback. Optional WeatherKit later.")
+            Section("Open source & data") {
+                // 逐项署名（§4.3 许可红线）；名称排序确定，来源单一真相在 ClosetCore
+                ForEach(ComplianceCopy.attributions) { credit in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(credit.name).font(.subheadline.weight(.semibold))
+                        Text(credit.license).font(.caption2).foregroundStyle(DS.muted)
+                        Text(credit.usage).font(.caption2).foregroundStyle(DS.muted)
+                    }
+                    .padding(.vertical, 2)
+                    .accessibilityElement(children: .combine)
+                }
             }
             Section("Privacy") {
-                Text("Body measurements stay on-device (not CloudKit). Images never leave for analytics. Telemetry is opt-in anonymous aggregate when enabled.")
+                // 只说做得到的：旧文案承诺的「telemetry opt-in when enabled」当时并不存在
+                Text(ComplianceCopy.privacySummary)
                     .font(.caption)
+                NavigationLink("Help & FAQ") { HelpView() }
+            }
+            Section("Policies") {
+                ForEach(ComplianceCopy.policyLinks) { link in
+                    Link(link.title, destination: link.url)
+                        .accessibilityHint("Opens in your browser")
+                }
             }
         }
         .navigationTitle("About")

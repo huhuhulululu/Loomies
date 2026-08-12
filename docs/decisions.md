@@ -614,3 +614,29 @@ app-shell 手搓 `Schema([...])`）。本次落地并经对抗审查（3 簇蓝�
     但会随 Export my data 导出（`WearRecord.fitFeedback` 在导出快照里），`exportDisclosure` 如实告知。
 - 顺带修一个真 race：`sweepTemporaryExports` 扫共享 tmp，与并行的导出测试互删文件
   （实测触发一次失败）→ 扫描目录改为可注入，测试用私有目录。
+
+## D86 [2026-08-11] 产品外壳合规（出网面披露 · 遥测 opt-in · 帮助/政策/署名 · 身体数据同意）
+
+§10.6 承诺的外壳未闭合项。对抗审查在本簇抓到一条**讽刺的 HIGH**：拟新增的合规文案
+自身含不实陈述——文案说「your closet contents never leave」，而 `IntakeViewModel` 的生产
+默认 `productLookup: OpenProductFactsClient()` 会把用户扫到的**条码**（= 用户拥有的具体商品
+身份）发往 Open*Facts。据此整改：
+
+- **出网面单一真相** `NetworkSurfaceCatalog`：逐条登记 host + 发什么 + 何时发 + 怎么关。
+  对账测试把「禁用词黑名单」升级为**出网面对账**——客户端实际会请求的每个 host
+  （`OpenProductFactsClient().hosts` + Open-Meteo 两个）都必须在披露清单里，
+  新增出网面而文案未更新即红。
+- **合规文案单一真相** `ComplianceCopy`：隐私摘要（不再有「never leave」这类无据绝对化）、
+  FAQ（含「What leaves my device?」）、逐项开源署名（名称排序 + 许可 + 用途，§4.3 红线）、
+  政策链接（HTTPS 断言）。新增 `HelpView`（Me → Privacy → Help & FAQ）。
+- **遥测门** `TelemetryGate`：此前 `sanitize` 是零调用点死代码，而 About 已承诺 opt-in 控件
+  存在（不实陈述）。现在：opt-in 默认关闭 + 唯一发送出口 + sink 协议只收已净化载荷
+  （「绕过白名单发事件」在类型层做不到）；生产**无 sink**，状态行如实写
+  「Nothing is sent yet — no analytics service is connected in this build」。
+- **身体数据同意** `BodyDataConsent`（DESIGN §2.2）：门在 `OnboardingViewModel.finish` 的
+  **任何 insert 之前**（审查 CRITICAL：原设计放在 `if hasMeasures || hasPick` 分支里，
+  此时 person/wardrobe 已 insert 且关系已连，return false 会留脏标记污染下一次无关 save）；
+  有 `!ctx.hasChanges` 断言守。仅**围度**受门约束，体型快选不设路障。
+  `BodyProfileView` 未同意时先出说明卡再进录入面。
+- 受契约变更影响的既有 onboarding 测试同步更新为「先授权再落围度」（审查 HIGH 点名的 7 个用例）。
+- app-shell `xcodebuild` BUILD SUCCEEDED（装配路径未变，仍作 DoD 硬条件）。

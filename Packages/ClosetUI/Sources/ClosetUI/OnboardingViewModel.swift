@@ -27,7 +27,12 @@ public final class OnboardingViewModel {
     /// Customer flash after finish (empty on success; save/validation failure is honest).
     public private(set) var message: String = ""
 
-    public init() {}
+    /// 身体维度同意门（默认未同意；DESIGN §2.2）。测试可注入独立 suite。
+    let bodyDataConsent: BodyDataConsent
+
+    public init(bodyDataConsent: BodyDataConsent = .shared) {
+        self.bodyDataConsent = bodyDataConsent
+    }
 
     /// Validation toast when name/city empty (Get started still gated by canFinish in UI).
     public static let needNameAndCityMessage = "Enter your name and city to continue."
@@ -51,6 +56,14 @@ public final class OnboardingViewModel {
             message = Self.needNameAndCityMessage
             return false
         }
+        // 身体维度同意门必须在**任何 insert 之前**：insert 之后再 return false 会留下
+        // pending insert + 关系幻影，污染下一次无关 save（保存原子性铁律）。
+        let hasMeasures = bustInches != nil || waistInches != nil
+            || hipInches != nil || highHipInches != nil
+        if hasMeasures, !bodyDataConsent.isGranted {
+            message = BodyDataConsent.requiredMessage
+            return false
+        }
         let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let cityTrim = city.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -61,7 +74,6 @@ public final class OnboardingViewModel {
         context.insert(wardrobe)
 
         var profile: PersonBodyProfile?
-        let hasMeasures = bustInches != nil || waistInches != nil || hipInches != nil || highHipInches != nil
         let hasPick = popularShapePick != nil
         if hasMeasures || hasPick {
             let p = PersonBodyProfile(personID: person.id)

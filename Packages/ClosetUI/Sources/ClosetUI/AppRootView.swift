@@ -42,6 +42,8 @@ public struct MeView: View {
     @State private var sharePayload: String?
     @State private var includeBodyInExport = false
     @State private var confirmDeleteAll = false
+    /// 遥测 opt-in（默认关闭；D86。状态行如实说明当前未接分析服务）
+    @State private var telemetryEnabled = TelemetryGate.shared.isEnabled
     @Bindable private var debug = DebugSettings.shared
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -87,6 +89,19 @@ public struct MeView: View {
                                     ? Color.orange : DS.muted)
                             .accessibilityLabel(seedMessage)
                     }
+                }
+                Section {
+                    Toggle("Anonymous usage stats", isOn: Binding(
+                        get: { telemetryEnabled },
+                        set: { on in
+                            telemetryEnabled = on
+                            TelemetryGate.shared.setEnabled(on)
+                        }))
+                    Text(ComplianceCopy.telemetryStatusLine(enabled: telemetryEnabled))
+                        .font(.caption2).foregroundStyle(DS.muted)
+                    NavigationLink("Help & FAQ") { HelpView() }
+                } header: {
+                    Text("Privacy")
                 }
                 Section("Wardrobes") {
                     NavigationLink("Closets & people") {

@@ -67,7 +67,9 @@ struct OnboardingViewModelTests {
     /// FFIT 却静默兜底假体型）；合法值经 clamp 落库。
     @Test func finishDropsNonPositiveMeasuresAndClampsValid() throws {
         let ctx = try makeContext()
-        let vm = OnboardingViewModel()
+        let (consent, cdefaults, csuite) = grantedConsent()
+        defer { cdefaults.removePersistentDomain(forName: csuite) }
+        let vm = OnboardingViewModel(bodyDataConsent: consent)
         vm.displayName = "Alex"; vm.city = "NYC"
         vm.bustInches = 0; vm.waistInches = -5
         vm.hipInches = .nan; vm.highHipInches = 38
@@ -83,7 +85,9 @@ struct OnboardingViewModelTests {
     /// Onboarding save 失败不得残留 person/wardrobe/profile 幻影与脏标记。
     @Test func finishSaveFailureLeavesNoDirtyState() throws {
         let ctx = try makeContext()
-        let vm = OnboardingViewModel()
+        let (consent, cdefaults, csuite) = grantedConsent()
+        defer { cdefaults.removePersistentDomain(forName: csuite) }
+        let vm = OnboardingViewModel(bodyDataConsent: consent)
         vm.displayName = "Alex"; vm.city = "NYC"
         vm.bustInches = 36; vm.waistInches = 28; vm.hipInches = 38; vm.highHipInches = 34
         ModelSave.forceFailure(on: ctx)
@@ -99,9 +103,60 @@ struct OnboardingViewModelTests {
         #expect(vm.finish(in: ctx))
     }
 
+    /// 独立 suite 的已授权同意门（既有用例都在测「带围度能落库」，需先授权）。
+    func grantedConsent() -> (BodyDataConsent, UserDefaults, String) {
+        let suite = "body-consent-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        let consent = BodyDataConsent(defaults: defaults)
+        consent.setGranted(true)
+        return (consent, defaults, suite)
+    }
+
+    /// D86：身体维度需单独同意（DESIGN §2.2）。门在**任何 insert 之前**——
+    /// insert 之后 return false 会留 pending insert + 关系幻影污染下一次 save。
+    @Test func bodyMeasuresRequireConsentAndLeaveNoDirtyState() throws {
+        let ctx = try makeContext()
+        let suite = "body-consent-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let consent = BodyDataConsent(defaults: defaults)
+        #expect(!consent.isGranted)   // 默认未同意
+
+        let vm = OnboardingViewModel(bodyDataConsent: consent)
+        vm.displayName = "Alex"; vm.city = "NYC"
+        vm.bustInches = 36
+        #expect(!vm.finish(in: ctx))
+        #expect(vm.message == BodyDataConsent.requiredMessage)
+        // 关键：一个 insert 都没发生
+        #expect(!ctx.hasChanges)
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+
+        // 授权后同一 VM 可完成
+        consent.setGranted(true)
+        #expect(vm.finish(in: ctx))
+        #expect(vm.bodyProfile?.bustInches == 36)
+    }
+
+    /// 无围度（仅体型快选/纯 name+city）不受同意门影响——不给用户设无谓路障。
+    @Test func finishWithoutMeasuresNeedsNoConsent() throws {
+        let ctx = try makeContext()
+        let suite = "body-consent-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = OnboardingViewModel(bodyDataConsent: BodyDataConsent(defaults: defaults))
+        vm.displayName = "Alex"; vm.city = "NYC"
+        vm.popularShapePick = .pear
+        #expect(vm.finish(in: ctx))
+        #expect(vm.bodyProfile != nil)
+        #expect(vm.bodyProfile?.bustInches == nil)
+    }
+
     @Test func finishWithPartialBodyStillNoFFIT() throws {
         let ctx = try makeContext()
-        let vm = OnboardingViewModel()
+        let (consent, cdefaults, csuite) = grantedConsent()
+        defer { cdefaults.removePersistentDomain(forName: csuite) }
+        let vm = OnboardingViewModel(bodyDataConsent: consent)
         vm.displayName = "Alex"; vm.city = "NYC"
         vm.bustInches = 36; vm.waistInches = 28  // incomplete
         #expect(vm.finish(in: ctx))
@@ -128,7 +183,9 @@ struct OnboardingViewModelTests {
 
     @Test func finishWithFullBodyActivatesFFIT() throws {
         let ctx = try makeContext()
-        let vm = OnboardingViewModel()
+        let (consent, cdefaults, csuite) = grantedConsent()
+        defer { cdefaults.removePersistentDomain(forName: csuite) }
+        let vm = OnboardingViewModel(bodyDataConsent: consent)
         vm.displayName = "Alex"; vm.city = "NYC"
         vm.bustInches = 36; vm.waistInches = 26
         vm.hipInches = 36; vm.highHipInches = 34
