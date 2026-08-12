@@ -85,8 +85,8 @@ struct SchemaGuardTests {
         }
     }
 
-    /// golden 规模 sanity check：8 实体 / 61 属性 / 15 关系（+VERSION 头 = 85 行）。
-    /// 数字变化说明 schema 动过——上面的差分门会给出具体违规，这里只防「指纹渲染器本身坏了」。
+    /// golden 规模 sanity check。**精确值由 golden 文件守**（上面的差分门给出具体违规），
+    /// 这里只防「指纹渲染器本身坏了」——故用下界而非等值，加字段不会误红。
     @Test func fingerprintShapeIsSane() {
         let lines = Self.fingerprintLines()
         #expect(lines.first?.hasPrefix("VERSION ") == true)

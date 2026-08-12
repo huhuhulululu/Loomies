@@ -23,6 +23,13 @@ public final class ItemDetailViewModel {
     public var colorPaletteID: String?
     /// 风格属性（体型加权输入）。
     public var attributes: Set<StyleAttribute> = []
+    /// 护理符号（结构化，D93）
+    public var care: Set<CareSymbol> = []
+    /// 自由备注（不可信输入；落库前过 ItemNotes.sanitize）
+    public var notes: String = ""
+
+    /// 护理组合互斥提示（不阻止——洗标本身可能印得矛盾，用户说了算）
+    public var careConflictWarning: String? { CareSymbol.conflictWarning(care) }
     /// Me Storage location — nil = unassigned. Save applies via `StorageLocationService.assign`.
     public var locationID: UUID?
     public private(set) var fitLabel: String?
@@ -52,6 +59,8 @@ public final class ItemDetailViewModel {
         self.colorPaletteID = initialPalette
         self.initialColorPaletteID = initialPalette
         self.attributes = Set(item.attributesRaw.compactMap { StyleAttribute(rawValue: $0) })
+        self.care = Set(CareSymbol.parse(item.careRaw))
+        self.notes = item.notes ?? ""
     }
 
     /// 打开详情页时的色板选中态。用户没动过色板就不带 color patch——
@@ -143,7 +152,9 @@ public final class ItemDetailViewModel {
                   // 取消选择 = 回到未知，不得回落旧值（否则中性是有进无出的单向门）
                   colorIsNeutral: colorWasEdited
                     ? (swatch?.isNeutral ?? false) : item.colorIsNeutral,
-                  replaceColor: colorWasEdited),
+                  replaceColor: colorWasEdited,
+                  careRaw: CareSymbol.persistOrder(care).map(\.rawValue),
+                  notes: notes, replaceNotes: true),
             to: item, in: context)
         let statusOk = ItemStatusService.setStatus(item, to: statusRaw, in: context)
         let locationOk = applyLocation(in: context)

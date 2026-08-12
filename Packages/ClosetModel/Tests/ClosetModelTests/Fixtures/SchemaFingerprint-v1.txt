@@ -9,6 +9,7 @@ ENTITY Item domain=main
   A attributesRaw type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1
   A barcode type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A brand type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A careRaw type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1
   A chestFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
   A colorHue type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
   A colorIsNeutral type=Bool opt=0 uniq=0 trans=0 hasDefault=1
@@ -16,6 +17,7 @@ ENTITY Item domain=main
   A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
   A localImageRelativePath type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A notes type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A occasionsRaw type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1
   A revision type=Int opt=0 uniq=0 trans=0 hasDefault=1
   A sizeLabel type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0

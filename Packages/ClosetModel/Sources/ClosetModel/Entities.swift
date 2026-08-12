@@ -102,6 +102,12 @@ public final class Item {
     public var chestFlatWidthInches: Double?     // 上装胸宽
     public var waistFlatWidthInches: Double?     // 裤/裙腰宽
     public var hipFlatWidthInches: Double?       // 臀宽（可选）
+    // 护理与备注（D93，DESIGN §90/§95）——加法 schema，不破冻
+    /// CareSymbol rawValue 数组（结构化护理，可由洗标 OCR 填充）
+    public var careRaw: [String] = []
+    /// 自由备注。**不可信输入**（DESIGN §321）：长度上限与归一在 `ItemNotes`，
+    /// 落库前必过 `ItemNotes.sanitize`。
+    public var notes: String?
     /// 本地文件相对路径（Application Support/ItemImages/…）；不进 CloudKit 也可仅本机。
     public var localImageRelativePath: String?
     public init(name: String = "") { self.name = name }

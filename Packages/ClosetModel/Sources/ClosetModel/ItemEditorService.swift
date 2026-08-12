@@ -24,6 +24,12 @@ public enum ItemEditorService {
         public var colorHue: Double?
         public var colorIsNeutral: Bool?
         public var replaceColor: Bool
+        /// 护理符号（结构化，D93）；空数组 = 清空，nil = 不动。
+        public var careRaw: [String]?
+        /// 自由备注（D93）；仅当 `replaceNotes` 为 true 时写入（含清空）。
+        /// **不可信输入**：落库前过 `ItemNotes.sanitize`（长度上限 + 控制字符归一）。
+        public var notes: String?
+        public var replaceNotes: Bool
         public init(name: String? = nil, slotRaw: String? = nil, occasionsRaw: [String]? = nil,
                     brand: String? = nil, sizeLabel: String? = nil, warmthRaw: Int? = nil,
                     chestFlatWidthInches: Double? = nil, waistFlatWidthInches: Double? = nil,
@@ -31,8 +37,13 @@ public enum ItemEditorService {
                     replaceWarmth: Bool = false,
                     attributesRaw: [String]? = nil,
                     colorHue: Double? = nil, colorIsNeutral: Bool? = nil,
-                    replaceColor: Bool = false) {
+                    replaceColor: Bool = false,
+                    careRaw: [String]? = nil,
+                    notes: String? = nil, replaceNotes: Bool = false) {
             self.replaceWarmth = replaceWarmth
+            self.careRaw = careRaw
+            self.notes = notes
+            self.replaceNotes = replaceNotes
             self.name = name; self.slotRaw = slotRaw; self.occasionsRaw = occasionsRaw
             self.brand = brand; self.sizeLabel = sizeLabel; self.warmthRaw = warmthRaw
             self.chestFlatWidthInches = chestFlatWidthInches
@@ -69,6 +80,13 @@ public enum ItemEditorService {
             AppLog.error("rejected unknown style attribute for item=\(AppLog.ref(item.id))", .data)
             return false
         }
+        // 护理符号 allowed-set 守卫（与 StyleAttribute 同款）：脏 raw 会在读回时静默丢弃，
+        // 而 UI 仍显示已勾选——两边看到的不是同一份数据。
+        if let care = patch.careRaw,
+           care.contains(where: { CareSymbol(rawValue: $0) == nil }) {
+            AppLog.error("rejected unknown care symbol for item=\(AppLog.ref(item.id))", .data)
+            return false
+        }
         // 颜色 hue 必须有限且在 [0,360)：脏值让配色关系判定失效（NaN 一律 neutral）。
         if patch.replaceColor, let h = patch.colorHue, !h.isFinite || h < 0 || h >= 360 {
             AppLog.error("rejected invalid color hue for item=\(AppLog.ref(item.id))", .data)
@@ -86,6 +104,8 @@ public enum ItemEditorService {
         let oldAttributesRaw = item.attributesRaw
         let oldColorHue = item.colorHue
         let oldColorIsNeutral = item.colorIsNeutral
+        let oldCareRaw = item.careRaw
+        let oldNotes = item.notes
         let oldRevision = item.revision
 
         if let name = patch.name {
@@ -126,6 +146,15 @@ public enum ItemEditorService {
             item.colorHue = patch.colorHue
             item.colorIsNeutral = patch.colorIsNeutral ?? item.colorIsNeutral
         }
+        if let care = patch.careRaw {
+            // 去重 + rawValue 排序：确定性（与 attributesRaw 同约定）
+            item.careRaw = CareSymbol.persistOrder(care.compactMap(CareSymbol.init(rawValue:)))
+                .map(\.rawValue)
+        }
+        if patch.replaceNotes {
+            // 不可信输入的唯一入口（DESIGN §321）：截断 + 控制字符归一
+            item.notes = ItemNotes.sanitize(patch.notes)
+        }
         item.revision += 1
         guard ModelSave.save(context, label: "itemEdit") else {
             // 还原内存值，再 rollback 清脏标记——UI 不得显示未入库的新值。
@@ -140,6 +169,8 @@ public enum ItemEditorService {
             item.attributesRaw = oldAttributesRaw
             item.colorHue = oldColorHue
             item.colorIsNeutral = oldColorIsNeutral
+            item.careRaw = oldCareRaw
+            item.notes = oldNotes
             item.revision = oldRevision
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("edited item save failed item=\(AppLog.ref(item.id))", .data)

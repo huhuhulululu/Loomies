@@ -237,3 +237,71 @@ struct ItemColorRoundTripTests {
         #expect(ItemDetailViewModel(item: item).colorPaletteID == nil)
     }
 }
+
+/// D93：护理与备注的**往返**——存下去、重开详情页读得回、并出现在数据导出里。
+/// 这是 D88 中性色单向门的同类风险：写入侧与回读侧不对称时，UI 显示「没填过」而数据仍在。
+@MainActor
+struct CareNotesRoundTripTests {
+
+    func setup() throws -> (ModelContext, Item) {
+        let ctx = try ModelContext(ModelContainer(
+            for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
+            Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let i = Item(name: "tee"); i.slotRaw = "top"; i.wardrobe = w
+        i.statusRaw = "available"; ctx.insert(i)
+        try ctx.save()
+        return (ctx, i)
+    }
+
+    @Test func careAndNotesSurviveAReopen() throws {
+        let (ctx, item) = try setup()
+        let vm = ItemDetailViewModel(item: item)
+        vm.care = [.dryCleanOnly, .noTumbleDry]
+        vm.notes = "needs a belt"
+        vm.save(in: ctx)
+
+        let reopened = ItemDetailViewModel(item: item)
+        #expect(reopened.care == [.dryCleanOnly, .noTumbleDry])
+        #expect(reopened.notes == "needs a belt")
+    }
+
+    /// 清空要真能清（不得像中性色那样有进无出）。
+    @Test func clearingCareAndNotesReallyClears() throws {
+        let (ctx, item) = try setup()
+        let vm = ItemDetailViewModel(item: item)
+        vm.care = [.handWash]; vm.notes = "temp"
+        vm.save(in: ctx)
+
+        let second = ItemDetailViewModel(item: item)
+        second.care = []; second.notes = "  "
+        second.save(in: ctx)
+        #expect(item.careRaw.isEmpty)
+        #expect(item.notes == nil)
+        #expect(ItemDetailViewModel(item: item).notes.isEmpty)
+    }
+
+    /// 冲突组合被指出但**不阻止**保存（洗标本身可能印得矛盾，用户说了算）。
+    @Test func conflictIsSurfacedWithoutBlocking() throws {
+        let (ctx, item) = try setup()
+        let vm = ItemDetailViewModel(item: item)
+        vm.care = [.dryCleanOnly, .machineWash]
+        #expect(vm.careConflictWarning != nil)
+        vm.save(in: ctx)
+        #expect(item.careRaw.count == 2)
+    }
+
+    /// 导出必须带上——否则「带走你的全部数据」不成立。
+    @Test func careAndNotesAppearInExport() throws {
+        let (ctx, item) = try setup()
+        let vm = ItemDetailViewModel(item: item)
+        vm.care = [.lineDry]; vm.notes = "wrinkles easily"
+        vm.save(in: ctx)
+        let json = try DataLifecycleService.exportJSONString(
+            in: ctx, includeBodyDimensions: false)
+        #expect(json.contains("lineDry"))
+        #expect(json.contains("wrinkles easily"))
+        _ = item
+    }
+}

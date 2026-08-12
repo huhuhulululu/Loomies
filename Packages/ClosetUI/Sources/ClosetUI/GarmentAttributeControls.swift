@@ -141,3 +141,44 @@ struct FlowChips: View {
         }
     }
 }
+
+
+/// 护理符号多选（D93）。视觉语言与 `FlowChips` 一致（后者是 StyleAttribute 专用，
+/// 不去为复用而改动它——外科手术）；命中区 44pt。
+public struct CareSymbolPicker: View {
+    @Binding var selection: Set<CareSymbol>
+    public init(selection: Binding<Set<CareSymbol>>) { _selection = selection }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(CareSymbol.allCases, id: \.rawValue) { symbol in
+                        let isOn = selection.contains(symbol)
+                        Button {
+                            if isOn { selection.remove(symbol) } else { selection.insert(symbol) }
+                        } label: {
+                            Text(symbol.displayTitle)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .frame(height: 32)
+                                .background(isOn ? DS.accent.opacity(0.22) : Color.white.opacity(0.06))
+                                .foregroundStyle(isOn ? DS.accent : DS.ink)
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule().strokeBorder(
+                                        isOn ? DS.accent : Color.white.opacity(0.12),
+                                        lineWidth: 1))
+                                .frame(minHeight: 44)          // 命中区，不是视觉高度
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isOn ? .isSelected : [])
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Text(CareSymbol.entryHint).font(.caption2).foregroundStyle(DS.muted)
+        }
+    }
+}

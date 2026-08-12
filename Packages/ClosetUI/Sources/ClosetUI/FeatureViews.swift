@@ -78,6 +78,19 @@ public struct ItemDetailView: View {
             Section("Cut details") {
                 StyleAttributePicker(attributes: $vm.attributes)
             }
+            Section("Care") {
+                CareSymbolPicker(selection: $vm.care)
+                if let warning = vm.careConflictWarning {
+                    Text(warning).font(.caption2).foregroundStyle(.orange)
+                        .accessibilityLabel(warning)
+                }
+            }
+            Section("Notes") {
+                TextField(ItemNotes.entryHint, text: $vm.notes, axis: .vertical)
+                    .lineLimit(1...4)
+                Text("\(ItemNotes.remaining(vm.notes)) left")
+                    .font(.caption2).foregroundStyle(DS.muted)
+            }
             Section("Fit measures (inches, flat)") {
                 TextField("Chest flat width", text: $vm.chestFlat)
                 TextField("Waist flat width", text: $vm.waistFlat)

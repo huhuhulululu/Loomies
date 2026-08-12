@@ -64,6 +64,9 @@ public enum DataLifecycleService {
         public var hipFlatWidthInches: Double?
         public var localImageRelativePath: String?
         public var barcode: String?
+        /// 护理与备注（D93）——导出必须带上，否则「带走你的全部数据」不成立
+        public var careRaw: [String] = []
+        public var notes: String?
     }
 
     public struct OutfitDTO: Codable, Sendable, Equatable {
@@ -159,7 +162,8 @@ public enum DataLifecycleService {
                     waistFlatWidthInches: $0.waistFlatWidthInches,
                     hipFlatWidthInches: $0.hipFlatWidthInches,
                     localImageRelativePath: $0.localImageRelativePath,
-                    barcode: $0.barcode
+                    barcode: $0.barcode,
+                    careRaw: $0.careRaw, notes: $0.notes
                 )
             }
             .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
