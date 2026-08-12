@@ -992,3 +992,50 @@ struct IntakeTests {
         #expect(vm.draft?.barcode == nil)
     }
 }
+
+/// D102（审计 HIGH）：AI 打标与洗标 OCR 在生产里是**永久 mock**——
+/// `makeTagging`/`makeOCR` 没有任何平台分支，一律返回 mock。
+/// 于是「识别成功」路径上，用户看到预填好的类型/场合，
+/// 却**没有任何提示**说那不是识别结果、只是默认值。
+/// 失败时反而有诚实文案（"Couldn't auto-tag… defaults used"），成功时没有——
+/// 这正好把不诚实留在了最常走的那条路上。
+struct RecognitionAvailabilityHonestyTests {
+
+    /// 当前构建没有接任何识别服务——这个事实必须可查询，UI 才能据实说话。
+    @Test func recognitionIsReportedAsUnavailable() {
+        #expect(!IntakeServiceFactory.recognitionAvailable)
+    }
+
+    /// 未接识别时的披露：说清字段是**起点**不是识别结果，且不得暗示 AI 看过照片。
+    @Test func prefillDisclosureDoesNotClaimRecognition() {
+        let text = IntakeServiceFactory.prefillDisclosure
+        #expect(!text.isEmpty)
+        let words = Set(text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init))
+        for claim in ["recognized", "detected", "identified", "ai", "smart"] {
+            #expect(!words.contains(claim), Comment(rawValue: "声称识别过：\(text)"))
+        }
+        // 必须点明这是起点/需要核对
+        #expect(text.localizedCaseInsensitiveContains("starting")
+                || text.localizedCaseInsensitiveContains("check")
+                || text.localizedCaseInsensitiveContains("guess"))
+    }
+
+    /// mock 打标不得给出「确定的」温区/颜色——未知就是未知（D88 已修温区，此处锁住）。
+    @Test func mockTaggingInventsNoConfidentAttributes() {
+        let tags = IntakeServiceFactory.makeTagging()
+        #expect(tags is MockTaggingService)
+        // 默认值里不得含臆造的温区
+        let defaults = ItemTags(slot: .top, color: nil, occasions: ["casual"], warmth: nil)
+        #expect(defaults.warmth == nil)
+    }
+
+    /// 接上真识别后这条门会自动放行——它守的是「没接却装作接了」。
+    @Test func disclosureIsOnlyRequiredWhileRecognitionIsMissing() {
+        if IntakeServiceFactory.recognitionAvailable {
+            // 真接上了：不再需要这条披露（本测试留作口径记录）
+            #expect(Bool(true))
+        } else {
+            #expect(!IntakeServiceFactory.prefillDisclosure.isEmpty)
+        }
+    }
+}

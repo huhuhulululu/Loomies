@@ -631,3 +631,68 @@ struct FeatureGapViewModelTests {
         #expect(withMsg.localizedCaseInsensitiveContains("Photo too small"))
     }
 }
+
+/// D102（审计 HIGH）：日历在本柜无计划时**静默回退展示全部衣柜的计划**，
+/// 行上没有任何归属标注，而滑动删除会真的删掉**别柜**的计划。
+/// 跨柜是本项目的硬约束（搭配永不跨柜），日历不该是唯一的例外，
+/// 更不该是**无声**的例外。
+@MainActor
+struct CalendarScopeTests {
+
+    func setup() throws -> (ModelContext, Wardrobe, Wardrobe) {
+        let ctx = try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+        let a = Wardrobe(name: "Home"); ctx.insert(a)
+        let b = Wardrobe(name: "Lake"); ctx.insert(b)
+        try ctx.save()
+        return (ctx, a, b)
+    }
+
+    @discardableResult
+    func plan(in w: Wardrobe, ctx: ModelContext, on date: Date = Date()) throws -> CalendarPlan {
+        let o = Outfit(name: "Look \(w.name)"); o.wardrobe = w; ctx.insert(o)
+        let p = CalendarPlan(date: date); p.outfit = o; ctx.insert(p)
+        try ctx.save()
+        return p
+    }
+
+    /// 本柜无计划时**不得**把别柜的计划混进来。
+    @Test func emptyClosetDoesNotBorrowOtherClosetsPlans() throws {
+        let (ctx, home, lake) = try setup()
+        try plan(in: lake, ctx: ctx)
+        let visible = CalendarPlanService.plans(for: home, in: ctx)
+        #expect(visible.isEmpty, "本柜没有计划就是没有——不得静默展示别柜的")
+        // 别柜的计划仍在（只是不该出现在这里）
+        #expect(try ctx.fetch(FetchDescriptor<CalendarPlan>()).count == 1)
+    }
+
+    /// 本柜有计划时只列本柜的。
+    @Test func onlyThisClosetsPlansAreListed() throws {
+        let (ctx, home, lake) = try setup()
+        try plan(in: home, ctx: ctx)
+        try plan(in: lake, ctx: ctx)
+        let visible = CalendarPlanService.plans(for: home, in: ctx)
+        #expect(visible.count == 1)
+        #expect(visible.first?.outfit?.wardrobe?.id == home.id)
+    }
+
+    /// 空态要说清「这是本柜的日历」，别让用户以为计划丢了。
+    @Test func emptyCopyNamesTheScope() {
+        let copy = CalendarScopeCopy.emptyMessage
+        #expect(copy.localizedCaseInsensitiveContains("closet"))
+        #expect(!copy.localizedCaseInsensitiveContains("all closets"))
+    }
+
+    /// 无主搭配（outfit 已删/无归属）的计划不得出现在任何一个柜的日历里——
+    /// 否则它会以「不属于任何人」的身份漂到某个柜里被误删。
+    @Test func orphanPlansAreNotShownInAnyCloset() throws {
+        let (ctx, home, _) = try setup()
+        let orphan = CalendarPlan(date: Date())
+        ctx.insert(orphan)
+        try ctx.save()
+        #expect(CalendarPlanService.plans(for: home, in: ctx).isEmpty)
+    }
+}

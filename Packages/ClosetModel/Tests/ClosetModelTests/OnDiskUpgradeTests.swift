@@ -19,8 +19,17 @@ struct OnDiskUpgradeTests {
         return dir
     }
 
-    /// 旧写法建盘上库 → 新写法（带 migrationPlan）打开同一路径 → 数据完好。
-    @Test func legacyOnDiskStoreOpensWithMigrationPlan() throws {
+    /// 旧**装配**建盘上库 → 新装配（带 migrationPlan）打开同一路径 → 数据完好。
+    ///
+    /// ⚠️ D102 更正边界：本测试**证明不了 schema 漂移**——两侧的 schema 都来自
+    /// `LoomiesSchemaV1`，是同一个表达式，改了实体两边一起变，它不会红。
+    /// 它真正证明的是「无 migrationPlan 写出的库能被带 migrationPlan 的装配打开」，
+    /// 即 D84 的**装配变更**对已发布用户安全。
+    ///
+    /// 漂移防护由别处负责：`SchemaGuardTests` 的 golden 指纹（D84 单向门）盯字段级变化，
+    /// `SchemaRegistrationCompletenessTests` 盯「新增实体忘记注册」。
+    /// 三者合起来才是完整的，单看这一条会高估它。
+    @Test func legacyAssemblyStoreOpensWithMigrationPlan() throws {
         let dir = try makeStoreDirectory()
         defer { try? FileManager.default.removeItem(at: dir) }
         let mainURL = dir.appendingPathComponent("main.store")

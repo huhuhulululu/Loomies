@@ -431,6 +431,12 @@ public struct AddPieceSheet: View {
                         }
                     }
                     Section("Details") {
+                        // 未接真识别时如实说明：这些是起点不是识别结果（D102）
+                        if !IntakeServiceFactory.recognitionAvailable {
+                            Text(IntakeServiceFactory.prefillDisclosure)
+                                .font(.caption2)
+                                .foregroundStyle(DS.muted)
+                        }
                         TextField("Name", text: draft.name)
                         Picker("Type", selection: draft.slot) {
                             ForEach(GarmentSlot.allCases, id: \.self) {

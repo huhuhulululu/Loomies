@@ -194,3 +194,61 @@ struct SchemaGuardTests {
                 Comment(rawValue: "手搓实体清单：\(handRolled)"))
     }
 }
+
+/// D102（审计 HIGH/MEDIUM 两条合并处置）：
+/// 1. `OnDiskUpgradeTests` 号称是「已发布用户的盘上库扛得住 D84 装配变更」的证据，
+///    但它两侧都用 `Schema(LoomiesSchemaV1.mainModels)` ——**同一个表达式**，
+///    所以它**结构上不可能因 schema 漂移而失败**。它真正证明的是「无 migrationPlan
+///    写出的盘上库能被带 migrationPlan 的装配打开」，那是装配差异，不是漂移防护。
+///    漂移防护是 golden 指纹（D84）的职责，本文件上方那条门。
+/// 2. 真正没人守的是**完整性**：D84 砍掉了重复的实体清单，却没有任何东西保证
+///    幸存的那一份**列全了**——新增一个 @Model 却忘记注册，它就不进 schema、
+///    不进 golden、不进迁移，而 fetch 会在运行时炸。
+struct SchemaRegistrationCompletenessTests {
+
+    /// ClosetModel 源码里声明的每个 `@Model` 都必须出现在 `LoomiesSchemaV1.models` 里。
+    @Test func everyDeclaredModelIsRegistered() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()      // ClosetModelTests
+            .deletingLastPathComponent()      // Tests
+            .deletingLastPathComponent()      // ClosetModel（包根）
+            .appendingPathComponent("Sources/ClosetModel", isDirectory: true)
+        var declared: Set<String> = []
+        let fm = FileManager.default
+        let en = fm.enumerator(at: sources, includingPropertiesForKeys: nil)
+        while let url = en?.nextObject() as? URL {
+            guard url.pathExtension == "swift",
+                  let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            for (i, line) in lines.enumerated()
+            where line.trimmingCharacters(in: .whitespaces) == "@Model" {
+                // 下一行形如 `public final class Item {`
+                guard i + 1 < lines.count else { continue }
+                let next = lines[i + 1].trimmingCharacters(in: .whitespaces)
+                guard let range = next.range(of: "class ") else { continue }
+                let name = next[range.upperBound...]
+                    .prefix { $0.isLetter || $0.isNumber || $0 == "_" }
+                if !name.isEmpty { declared.insert(String(name)) }
+            }
+        }
+        #expect(declared.count >= 8, "@Model 扫描器失效（只找到 \(declared.sorted())）")
+
+        let registered = Set(LoomiesSchemaV1.models.map { String(describing: $0) })
+        let missing = declared.subtracting(registered)
+        #expect(missing.isEmpty,
+                Comment(rawValue: "声明了但没注册进 schema 的实体：\(missing.sorted())"
+                        + " —— 它不进 golden、不进迁移，fetch 会在运行时炸"))
+        // 反向：注册了但源码里已不存在的（改名/删除后忘了从清单摘）
+        let stale = registered.subtracting(declared)
+        #expect(stale.isEmpty, Comment(rawValue: "清单里有源码中已不存在的实体：\(stale.sorted())"))
+    }
+
+    /// 主域 + 本地域的并集必须等于全集（D5 分域不得漏掉某个实体）。
+    @Test func domainPartitionCoversEveryRegisteredModel() {
+        let all = Set(LoomiesSchemaV1.models.map { String(describing: $0) })
+        let main = Set(LoomiesSchemaV1.mainModels.map { String(describing: $0) })
+        let local = Set(LoomiesSchemaV1.localModels.map { String(describing: $0) })
+        #expect(main.union(local) == all)
+        #expect(main.isDisjoint(with: local))
+    }
+}

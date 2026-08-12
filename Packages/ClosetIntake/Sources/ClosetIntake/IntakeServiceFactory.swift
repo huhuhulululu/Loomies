@@ -34,6 +34,19 @@ public enum IntakeServiceFactory {
         #endif
     }
 
+    /// 当前构建是否接了**真的**识别（AI 打标 / 洗标 OCR）。
+    ///
+    /// D102：`makeTagging` / `makeOCR` 没有任何平台分支，一律返回 mock ——
+    /// 于是「识别成功」路径上用户看到预填好的类型/场合，却没有任何提示说
+    /// 那不是识别结果、只是默认值。失败时反而有诚实文案，成功时没有，
+    /// 不诚实正好落在最常走的那条路上。接上真服务时把这里改 true，
+    /// 披露会自动收起（门也随之放行）。
+    public static let recognitionAvailable = false
+
+    /// 未接识别时的披露：字段是**起点**，不是照片识别出来的。
+    public static let prefillDisclosure =
+        "Type and occasion start from a common guess, not from your photo — check them before adding."
+
     public static func makeTagging(
         defaultTags: ItemTags = ItemTags(
             slot: .top,

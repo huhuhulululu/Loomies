@@ -5,14 +5,21 @@ import ClosetCore
 
 // MARK: - Calendar (full)
 
+/// 日历的**作用域文案**（D102）：日历只列当前衣柜的计划。
+/// 空态必须说清这一点——否则用户会以为计划丢了，而不是「换个柜子看」。
+public enum CalendarScopeCopy {
+    public static let emptyMessage =
+        "Save a look from Today, or plan a favorite for a day. "
+        + "This calendar shows only the closet you're in."
+}
+
 /// Empty calendar list — Attention vs all; points to Today/Favorites (no fake sync).
 public enum CalendarEmptyCopy {
     public static func title(attentionOnly: Bool) -> String {
         attentionOnly ? "No items need attention" : "No plans yet"
     }
 
-    public static let description =
-        "Save a look from Today, or plan a favorite for a day."
+    public static let description = CalendarScopeCopy.emptyMessage
 
     /// Toolbar + (same wording as empty-state CTA).
     public static let addPlanAccessibilityLabel = "Plan a favorite"
@@ -243,11 +250,10 @@ public struct CalendarView: View {
     }
 
     private func reload() {
+        // D102：此前本柜为空时会**静默回退展示全部衣柜**的计划，行上没有归属标注，
+        // 而滑动删除会真的删掉别柜的计划。跨柜是本项目的硬约束（搭配永不跨柜），
+        // 日历不该是唯一的例外，更不该是无声的例外。
         plans = CalendarPlanService.plans(for: wardrobe, in: context)
-        // 若本柜为空，仍展示全部（跨柜计划可见）
-        if plans.isEmpty {
-            plans = CalendarPlanService.allPlans(in: context)
-        }
     }
 
     private func reloadFavorites() {

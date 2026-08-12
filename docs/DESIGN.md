@@ -161,7 +161,11 @@
 ### F2 尺码与维度录入（差异化卖点）
 
 三层递进（洗标 OCR / 尺码归一化 / 维度级 fit 判断均无竞品覆盖）：
-1. **快速层**：拍洗标/吊牌 → 端侧 OCR（`RecognizeTextRequest` + 品牌 customWords；iOS 26 `RecognizeDocumentsRequest` 结构化抽取+条码、26 语言）→ 自动填品牌/尺码/成分/护理 → 单屏确认。条码反查仅作辅助（GS1 库无尺码字段）
+1. **快速层**（⚠️ **v1.0 未接，见 D102**：`makeOCR` 无平台分支、恒返回 mock；
+   产品面已如实披露「字段是起点不是识别结果」。端侧 `RecognizeTextRequest` 不需要
+   Worker 也不需要配额，是 v1.x 的第一优先）：拍洗标/吊牌 → 端侧 OCR
+   （`RecognizeTextRequest` + 品牌 customWords；iOS 26 `RecognizeDocumentsRequest`
+   结构化抽取+条码、26 语言）→ 自动填品牌/尺码/成分/护理 → 单屏确认。条码反查仅作辅助（GS1 库无尺码字段）
 2. **结构层**：尺码体系字段（v1.0）+ 品牌尺码表映射（v1.x 随种子库启用）。⚠️ 无现成可商用尺码表数据库 → 自建高频品牌种子库 + 众包回填
 3. **实测层**（可选）：平铺测量字段（§2.2）；平铺拍照自动测量（Size AI 宣称 5-9mm 精度，厂商自述）列 P2 观察项
 
