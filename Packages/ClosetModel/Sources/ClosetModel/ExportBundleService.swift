@@ -14,8 +14,28 @@ public enum ExportBundleService {
 
     public static let archiveJSONName = "data.json"
     public static let archivePhotosFolder = "photos"
+    /// 归档根目录名。NSFileCoordinator 的 .forUploading 压的是**目录本身**，
+    /// 所以条目形如 `loomies-export/data.json`——注释此前声称没有这一层。
+    public static let archiveRootName = "loomies-export"
 
     public static let bundleReadyMessage = "Export ready — JSON plus your item photos."
+    /// 按**实际装进去**的照片数说话。单张复制失败被 try? 吞掉是合理的弹性，
+    /// 但据此仍无条件说「plus your item photos」就是部分失败被完全静音。
+    public static func readyMessage(copied: Int, planned: Int) -> String {
+        if planned == 0 { return "Export ready — your closet data as JSON." }
+        if copied == planned {
+            return "Export ready — JSON plus \(copied) \(copied == 1 ? "photo" : "photos")."
+        }
+        if copied == 0 {
+            return "Export ready — JSON only. Your "
+                + "\(planned) \(planned == 1 ? "photo" : "photos") couldn't be read."
+        }
+        return "Export ready — JSON plus \(copied) of \(planned) photos. "
+            + "The rest couldn't be read."
+    }
+    /// 分享面板未接管载荷的平台（非 iOS）：不得声称已就绪。
+    public static let bundleNoHandoffMessage =
+        "Export built, but this platform has no share sheet to hand it to."
     public static let bundleFailedMessage = "Couldn't build the export — try again"
     /// 进行中文案（按钮禁用期间显示；不得让用户以为卡死）。
     public static let bundleInProgressMessage = "Packing your export…"
@@ -56,11 +76,19 @@ public enum ExportBundleService {
         return Plan(json: json, photos: photos)
     }
 
+    /// 写入结果：zip 位置 + **实际**复制成功的照片数（文案据此说话，不据计划说话）。
+    public struct WriteResult: Sendable, Equatable {
+        public let url: URL
+        public let copiedPhotos: Int
+        public let plannedPhotos: Int
+    }
+
     /// nonisolated：staging 拷贝 + 压缩全在调用方的执行上下文（UI 侧应放 Task.detached）。
     /// 成功后 staging 目录删除，`directory` 里只留下 zip。
-    public static func writeBundle(_ plan: Plan, in directory: URL) throws -> URL {
+    @discardableResult
+    public static func writeBundle(_ plan: Plan, in directory: URL) throws -> WriteResult {
         let fm = FileManager.default
-        let stem = "loomies-export"
+        let stem = archiveRootName
         let staging = directory.appendingPathComponent(stem, isDirectory: true)
         try? fm.removeItem(at: staging)
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -69,13 +97,20 @@ public enum ExportBundleService {
         try Data(plan.json.utf8).write(
             to: staging.appendingPathComponent(archiveJSONName), options: .atomic)
 
+        var copied = 0
         if !plan.photos.isEmpty {
             let photosDir = staging.appendingPathComponent(archivePhotosFolder, isDirectory: true)
             try fm.createDirectory(at: photosDir, withIntermediateDirectories: true)
             for photo in plan.photos {
                 let dest = photosDir.appendingPathComponent(photo.archiveName)
-                // 单张失败不炸整包（源文件可能刚被删）——诚实地少一张，胜过整个导出失败
-                try? fm.copyItem(at: URL(fileURLWithPath: photo.sourcePath), to: dest)
+                // 单张失败不炸整包（源文件可能刚被删）——诚实地少一张，胜过整个导出失败；
+                // 但少了几张必须记账，文案不得照旧宣称「plus your item photos」。
+                do {
+                    try fm.copyItem(at: URL(fileURLWithPath: photo.sourcePath), to: dest)
+                    copied += 1
+                } catch {
+                    AppLog.notice("export photo skipped (source vanished)", .data)
+                }
             }
         }
 
@@ -92,6 +127,23 @@ public enum ExportBundleService {
         }
         if let coordinatorError { throw coordinatorError }
         if let copyError { throw copyError }
-        return destination
+        return WriteResult(
+            url: destination, copiedPhotos: copied, plannedPhotos: plan.photos.count)
     }
+
+    /// 回收遗留的 `export-*` 临时目录（写入抛错 / 分享前被杀 / 面板只删了 zip）。
+    /// 与 `AvatarCinematicExporter.sweepTemporaryExports` 同纪律：目录名前缀匹配，
+    /// 不碰无关文件；`directory` 可注入，避免并行测试互扫。
+    public static func sweepTemporaryExports(in directory: URL? = nil) {
+        let fm = FileManager.default
+        let root = directory ?? fm.temporaryDirectory
+        guard let entries = try? fm.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: nil) else { return }
+        for url in entries where url.lastPathComponent.hasPrefix(temporaryDirectoryPrefix) {
+            try? fm.removeItem(at: url)
+        }
+    }
+
+    /// 导出临时目录前缀（UI 建目录与 sweep 必须同源，不得各写各的字面量）。
+    public static let temporaryDirectoryPrefix = "export-"
 }

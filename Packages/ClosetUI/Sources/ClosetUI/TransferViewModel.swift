@@ -16,11 +16,11 @@ public final class TransferViewModel {
     public private(set) var didTransfer = false
 
     /// Customer chip when no destination selected (sheet stays open).
-    public static let pickDestinationMessage = "Pick a wardrobe."
+    public static let pickDestinationMessage = "Pick a closet."
 
     /// Empty destination list — recovery is Me → Wardrobes (no silent Move enable).
     public static let noOtherWardrobesMessage =
-        "No other wardrobes. Create one in Me."
+        "No other closets. Create one in Me."
 
     /// Customer chip when ModelSave fails (sheet stays open; no silent “Moved”).
     public static let saveFailedMessage = TransferService.saveFailedMessage

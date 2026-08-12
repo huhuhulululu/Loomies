@@ -74,6 +74,12 @@ public final class ItemDetailViewModel {
 
     public var statuses: [String] { Array(ItemStatusService.allowed).sorted() }
 
+    /// 带层级深度的位置（详情 Picker 用缩进消歧义：同柜可有两个同名不同父的位置）。
+    public var storageLocationNodes: [StorageLocationService.Node] {
+        guard let w = item.wardrobe else { return [] }
+        return StorageLocationService.listWithDepth(in: w)
+    }
+
     /// Locations in this piece’s closet (for detail picker). Empty → Me → Storage first.
     public var storageLocations: [StorageLocation] {
         guard let w = item.wardrobe else { return [] }

@@ -57,8 +57,12 @@ public struct ItemDetailView: View {
                 } else {
                     Picker("Location", selection: $vm.locationID) {
                         Text("None").tag(Optional<UUID>.none)
-                        ForEach(vm.storageLocations, id: \.id) { loc in
-                            Text(loc.name).tag(Optional(loc.id))
+                        // 位置成树之后同柜可合法存在两个 "Attic"（不同父下）——
+                        // 裸 name 会让用户看到两行一模一样的文字，选不清是哪个。
+                        ForEach(vm.storageLocationNodes, id: \.location.id) { node in
+                            Text(StorageRowCopy.indentedTitle(
+                                node.location.name, depth: node.depth))
+                                .tag(Optional(node.location.id))
                         }
                     }
                     .accessibilityLabel("Storage location")

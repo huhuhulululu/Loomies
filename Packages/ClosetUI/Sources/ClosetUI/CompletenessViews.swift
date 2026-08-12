@@ -282,6 +282,9 @@ public struct StorageLocationsView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @State private var nodes: [StorageLocationService.Node] = []
+    /// 删除确认的**值类型**快照（绝不在 @State 里持 @Model：对话框消散期间仍会求值）
+    @State private var pendingDelete: StorageLocationService.DeletePlan?
+    @State private var pendingDeleteID: UUID?
     @State private var newName = ""
     @State private var newParentID: UUID?
     @State private var message = ""
@@ -336,11 +339,23 @@ public struct StorageLocationsView: View {
                             itemCount: (node.location.items ?? []).count))
                         .accessibilityHint(StorageEmptyCopy.rowSwipeAccessibilityHint)
                     }
-                    .onDelete(perform: delete)
+                    .onDelete(perform: requestDelete)
                 }
             }
         }
         .navigationTitle("Storage")
+        .confirmationDialog(
+            pendingDelete.map { "Delete \($0.name)?" } ?? "",
+            isPresented: Binding(get: { pendingDelete != nil },
+                                 set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { plan in
+            Button("Delete", role: .destructive) { confirmDelete(plan) }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: { plan in
+            Text(StorageLocationService.deleteWarning(plan))
+        }
         .onAppear { reload() }
     }
 
@@ -370,18 +385,39 @@ public struct StorageLocationsView: View {
         }
     }
 
-    private func delete(at offsets: IndexSet) {
-        var saveFailed = false
-        for i in offsets {
-            if !DeleteService.deleteLocation(nodes[i].location, in: context) {
-                saveFailed = true
-            }
+    /// 删父节点会把子位置与衣物提升到父级——此前完全静默（删「Closet 1」，
+    /// 「Rail A」悄悄变成顶层）。有东西被搬动就先说清后果；空叶子直接删。
+    private func requestDelete(at offsets: IndexSet) {
+        guard let i = offsets.first else { return }
+        let target = nodes[i].location
+        let plan = StorageLocationService.deletePlan(for: target)
+        if plan.needsConfirmation {
+            pendingDeleteID = target.id
+            pendingDelete = plan
+        } else {
+            perform(delete: target)
+        }
+    }
+
+    private func confirmDelete(_ plan: StorageLocationService.DeletePlan) {
+        defer { pendingDelete = nil; pendingDeleteID = nil }
+        // 按 id 现取现用（快照只承载文案与计数，绝不持模型引用）
+        guard let id = pendingDeleteID,
+              let target = nodes.first(where: { $0.location.id == id })?.location else { return }
+        perform(delete: target)
+    }
+
+    private func perform(delete target: StorageLocation) {
+        let plan = StorageLocationService.deletePlan(for: target)
+        guard DeleteService.deleteLocation(target, in: context) else {
+            reload()
+            // 失败行 reload 后会重新出现；不闪提示等于静默成功
+            message = StorageLocationService.removeSaveFailedMessage
+            return
         }
         reload()
-        // After reload, failed rows reappear; flash so swipe is not silent success.
-        if saveFailed {
-            message = StorageLocationService.removeSaveFailedMessage
-        }
+        // 提升过东西就说一声去哪了（改名去重也在这条路径上发生）
+        message = plan.needsConfirmation ? StorageLocationService.deleteWarning(plan) : ""
     }
 }
 

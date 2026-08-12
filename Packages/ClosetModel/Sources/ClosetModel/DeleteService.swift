@@ -113,11 +113,19 @@ public enum DeleteService {
         // 内存值快照（rollback 不回写已置的内存属性）——失败路径须逐一还原
         let previousItemLocations = items.map { ($0, $0.location) }
         let previousChildParents = children.map { ($0, $0.parent) }
+        let previousChildNames = children.map { ($0, $0.name) }
         for item in items {
             item.location = parent
         }
         for child in children {
             child.parent = parent
+            // 提升可能撞出同名兄弟（根层已有 "Attic" + 子层 "Closet 1/Attic"）——
+            // 那正是 siblingNameConflicts 要防的、Picker 里分辨不出的两行。
+            // 改名保住数据，比留下两行一模一样的选项诚实。
+            if let w = child.wardrobe {
+                child.name = StorageLocationService.deduplicatedSiblingName(
+                    child.name, in: w, parent: parent, excluding: child)
+            }
         }
         context.delete(location)
         guard ModelSave.save(context, label: "deleteLocation") else {
@@ -127,6 +135,9 @@ public enum DeleteService {
             }
             for (child, previous) in previousChildParents {
                 child.parent = previous
+            }
+            for (child, previousName) in previousChildNames {
+                child.name = previousName
             }
             context.rollback()   // 失败删除不得滞留
             AppLog.error("deleteLocation save failed location=\(AppLog.ref(location.id))", .data)

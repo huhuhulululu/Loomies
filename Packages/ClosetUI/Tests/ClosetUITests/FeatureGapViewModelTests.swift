@@ -263,11 +263,11 @@ struct FeatureGapViewModelTests {
         #expect(TransferViewModel.saveFailedMessage.localizedCaseInsensitiveContains("try again"))
         #expect(!TransferViewModel.saveFailedMessage.localizedCaseInsensitiveContains("moved to"))
         #expect(TransferService.saveFailedMessage == TransferViewModel.saveFailedMessage)
-        // Empty destination list VO — recovery Me → Wardrobes; not try-on / silent move.
+        // 空目的地 VO——指路 Me；词汇统一为 closet（Me 里已无 "Wardrobes" 这个标签）
         #expect(TransferViewModel.noOtherWardrobesMessage
             .localizedCaseInsensitiveContains("Me"))
         #expect(TransferViewModel.noOtherWardrobesMessage
-            .localizedCaseInsensitiveContains("wardrobe"))
+            .localizedCaseInsensitiveContains("closet"))
         #expect(!TransferViewModel.noOtherWardrobesMessage
             .localizedCaseInsensitiveContains("try-on"))
         #expect(!CustomerFlashStyle.isFailure(TransferViewModel.noOtherWardrobesMessage))

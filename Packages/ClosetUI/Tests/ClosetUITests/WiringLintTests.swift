@@ -139,3 +139,68 @@ struct WiringLintTests {
         #expect(violations.isEmpty, Comment(rawValue: "\(violations)"))
     }
 }
+
+/// 面向用户的文案不得再出现「wardrobe」。D85/D86 把词汇统一成 closet 之后
+/// 留了两处漂移：Me 的分区标题仍写 "Wardrobes"（其中那一行却叫 "Closets & people"），
+/// Transfer 让用户去 "Me → Wardrobes" 找一个已经不存在的标签。
+struct CustomerCopyVocabularyTests {
+
+    /// 剥掉字符串插值再判——`\(wardrobe.items)` 是代码，不是给用户看的话。
+    static func customerProse(in literal: String) -> String {
+        var out = ""
+        var depth = 0
+        var i = literal.startIndex
+        while i < literal.endIndex {
+            if literal[i] == "\\", literal.index(after: i) < literal.endIndex,
+               literal[literal.index(after: i)] == "(" {
+                depth += 1
+                i = literal.index(i, offsetBy: 2)
+                continue
+            }
+            if depth > 0 {
+                if literal[i] == "(" { depth += 1 }
+                if literal[i] == ")" { depth -= 1 }
+            } else {
+                out.append(literal[i])
+            }
+            i = literal.index(after: i)
+        }
+        return out
+    }
+
+    @Test func noCustomerFacingStringSaysWardrobe() throws {
+        var violations: [String] = []
+        for url in WiringLintTests.productionSources()
+        where url.path.contains("/ClosetUI/") || url.path.contains("/ClosetIntake/") {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                guard !s.hasPrefix("//"), !s.hasPrefix("///"), !s.contains("AppLog.") else { continue }
+                var scanning = false
+                var literal = ""
+                for ch in s {
+                    if ch == "\"" {
+                        if scanning {
+                            let prose = Self.customerProse(in: literal)
+                            // 带空格 = 句子（标识符 / 键名 / 日志标签不算）
+                            if prose.localizedCaseInsensitiveContains("wardrobe"),
+                               prose.contains(" ") {
+                                violations.append("\(url.lastPathComponent):\(n + 1) ~ \(prose)")
+                            }
+                        }
+                        scanning.toggle(); literal = ""
+                    } else if scanning { literal.append(ch) }
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue: "\(violations)"))
+    }
+
+    /// 门本身要能抓到真违规（防止上面的剥离逻辑把什么都吃掉 = 空转的门）。
+    @Test func theLintItselfCatchesRealProse() {
+        #expect(Self.customerProse(in: "No other wardrobes. Create one in Me.")
+            .localizedCaseInsensitiveContains("wardrobe"))
+        #expect(!Self.customerProse(in: "\\((wardrobe.items ?? []).count) pieces")
+            .localizedCaseInsensitiveContains("wardrobe"))
+    }
+}

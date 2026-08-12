@@ -106,7 +106,7 @@ public struct MeView: View {
                 } header: {
                     Text("Privacy")
                 }
-                Section("Wardrobes") {
+                Section("Closets") {
                     NavigationLink("Closets & people") {
                         // 传当前柜 id：当前打开的衣柜不给删除动作（防上层持已删模型）
                         WardrobeManageView(currentWardrobeID: wardrobe.id)
@@ -246,8 +246,12 @@ public struct MeView: View {
                 },
                 set: { box in
                     if box == nil {
-                        // 关闭即清理临时 zip（与 cinematic MP4 同纪律）
-                        if let url = shareFileURL { try? FileManager.default.removeItem(at: url) }
+                        // 关闭即清理**整个临时目录**（与 cinematic MP4 同纪律）——
+                        // 只删 zip 会把 export-<uuid>/ 空目录永久留在 tmp 里
+                        if let url = shareFileURL {
+                            try? FileManager.default.removeItem(
+                                at: url.deletingLastPathComponent())
+                        }
                         shareFileURL = nil
                         sharePayload = nil
                     }
@@ -268,10 +272,15 @@ public struct MeView: View {
         do {
             let plan = try ExportBundleService.plan(
                 in: context, includeBodyDimensions: includeBodyInExport)
+            // 先回收上次遗留的（写入抛错 / 分享前被杀，面板的清理跑不到）
+            ExportBundleService.sweepTemporaryExports()
             let dir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("export-\(UUID().uuidString)", isDirectory: true)
+                .appendingPathComponent(
+                    "\(ExportBundleService.temporaryDirectoryPrefix)\(UUID().uuidString)",
+                    isDirectory: true)
             Task {
-                let result: Result<URL, Error> = await Task.detached(priority: .userInitiated) {
+                let result: Result<ExportBundleService.WriteResult, Error> =
+                    await Task.detached(priority: .userInitiated) {
                     do {
                         try FileManager.default.createDirectory(
                             at: dir, withIntermediateDirectories: true)
@@ -282,13 +291,20 @@ public struct MeView: View {
                 }.value
                 isBuildingExport = false
                 switch result {
-                case .success(let url):
+                case .success(let out):
                     #if os(iOS)
-                    shareFileURL = url
+                    shareFileURL = out.url
+                    // 文案按**实际**装进去的照片数说话（部分失败不得被完全静音）
+                    dataMessage = ExportBundleService.readyMessage(
+                        copied: out.copiedPhotos, planned: out.plannedPhotos)
+                    #else
+                    // 非 iOS 没有分享面板接管载荷——不得声称「已就绪」
+                    dataMessage = ExportBundleService.bundleNoHandoffMessage
                     #endif
-                    dataMessage = ExportBundleService.bundleReadyMessage
                     AppLog.notice("export bundle ready body=\(includeBodyInExport)", .data)
                 case .failure(let error):
+                    // 失败分支也要收拾自己建的目录
+                    try? FileManager.default.removeItem(at: dir)
                     dataMessage = ExportBundleService.bundleFailedMessage
                     AppLog.error("export bundle failed: \(AppLog.errRef(error))", .data)
                 }
@@ -330,7 +346,10 @@ public struct MeView: View {
 /// 分享载荷：文本（诊断 / 纯 JSON）或文件（导出包 zip）。
 /// 二者共用同一 sheet，但文件路径需在关闭后清理（临时文件不得无界积累）。
 private struct ShareBox: Identifiable {
-    let id = UUID()
+    /// 身份**由载荷决定**。此前 `let id = UUID()` 在每次 binding getter 求值时
+    /// 都生成新值，SwiftUI 视作 item 变了 → 关掉再开；D87 新增的
+    /// isBuildingExport / dataMessage 状态变化让这条更容易发作。
+    var id: String { fileURL?.path ?? text ?? "" }
     let text: String?
     let fileURL: URL?
 
