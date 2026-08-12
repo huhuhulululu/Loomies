@@ -12,6 +12,9 @@ public final class Person {
     public var coldBias: Int = 0   // 怕冷(+)/怕热(-)偏置
     /// 个人色彩季型可选（R11），raw 字符串；加法字段
     public var personalColorSeasonRaw: String?
+    /// 场合构成（D97，DESIGN §474 个性化三题之一）。nil = 没答（可跳过），
+    /// **不得**被当成某个具体选择——系统用中性默认时要能与用户的选择区分。
+    public var primaryOccasionRaw: String?
     @Relationship(deleteRule: .cascade, inverse: \Wardrobe.owner)
     public var wardrobes: [Wardrobe]? = []
     public init(name: String = "") { self.name = name }

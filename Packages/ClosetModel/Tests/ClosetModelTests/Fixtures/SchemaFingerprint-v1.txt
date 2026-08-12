@@ -46,6 +46,7 @@ ENTITY Person domain=main
   A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
   A name type=String opt=0 uniq=0 trans=0 hasDefault=1
   A personalColorSeasonRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A primaryOccasionRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   R wardrobes dest=Wardrobe rule=cascade inverse=owner opt=1 toOne=0
 ENTITY PersonBodyProfile domain=local
   A bustInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0

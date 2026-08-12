@@ -28,7 +28,12 @@ public struct CopilotView: View {
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
-        _vm = State(initialValue: CopilotViewModel(wardrobe: wardrobe))
+        // 默认场合来自 onboarding 的「场合构成」（D97）；没答则用中性默认，
+        // 而不是硬编码 "work" 替用户假设他主要为通勤穿衣
+        _vm = State(initialValue: CopilotViewModel(
+            wardrobe: wardrobe,
+            occasion: OccasionMix.effectiveOccasion(
+                stated: wardrobe.owner?.primaryOccasionRaw)))
     }
 
     private let occasions = ["work", "date", "gala", "casual"]
@@ -491,7 +496,8 @@ public struct CopilotView: View {
         let count = items.count
         // 能走到 Today 就说明引导已完成（app-shell 无 active 衣柜时呈现 Onboarding）
         let fraction = ActivationProgress.fraction(itemCount: count, onboarded: true)
-        let milestone = ActivationProgress.headlineMilestone(items: candidates)
+        let milestone = ActivationProgress.headlineMilestone(
+            items: candidates, statedOccasion: vm.wardrobe.owner?.primaryOccasionRaw)
 
         return VStack(alignment: .leading, spacing: 10) {
             Text("Get a full look in a minute")

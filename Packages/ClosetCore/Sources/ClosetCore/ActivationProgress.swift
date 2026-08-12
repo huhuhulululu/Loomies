@@ -59,7 +59,9 @@ public enum ActivationProgress {
         /// 还缺哪些槽位（用户才知道下一件该拍什么）。
         public let missingSlots: [GarmentSlot]
 
-        /// 兑现文案——**只说挣来的**。
+        /// 兑现文案——**只说挣来的**，且说的是**衣柜能配出什么**，
+        /// 不是「今天能不能穿」：里程碑按槽位覆盖算，而 Today 还过天气门。
+        /// 满柜羊毛装在 30°C 天里，说「ready」会让用户点进去发现一套都没有。
         public var headline: String {
             guard canDressOnce else {
                 return "No \(occasion) look yet"
@@ -68,9 +70,10 @@ public enum ActivationProgress {
                 let n = distinctLooks >= ActivationProgress.maxReportedLooks
                     ? "\(ActivationProgress.maxReportedLooks)+"
                     : "\(distinctLooks)"
-                return "\(n) \(occasion) looks — enough for a full week"
+                return "Your closet covers \(n) \(occasion) looks — a full week"
             }
-            return "\(distinctLooks) \(occasion) \(distinctLooks == 1 ? "look" : "looks") ready"
+            return "Your closet can make \(distinctLooks) "
+                + "\(occasion) \(distinctLooks == 1 ? "look" : "looks")"
         }
 
         /// 下一步：缺槽位就点名，够穿了就说还差几套到一周。
@@ -130,10 +133,18 @@ public enum ActivationProgress {
         trackedOccasions.map { milestone(occasion: $0, items: items) }
     }
 
-    /// 最该被推到用户眼前的那条：已兑现的挑最接近一周的，都没兑现就挑最接近能穿的。
-    public static func headlineMilestone(items: [CandidateItem]) -> Milestone? {
+    /// 最该被推到用户眼前的那条。
+    /// `statedOccasion`（onboarding 的场合构成，D97）答过就以它打头——
+    /// 用户说了主要为什么穿衣，就该先看到那条的进度；没答才退回按进度挑。
+    public static func headlineMilestone(
+        items: [CandidateItem], statedOccasion: String? = nil
+    ) -> Milestone? {
         let all = milestones(items: items)
         guard !all.isEmpty else { return nil }
+        if let stated = OccasionMix.parse(statedOccasion),
+           let hit = all.first(where: { $0.occasion == stated }) {
+            return hit
+        }
         // (能穿, 套数, 场合序) —— 全确定，无随机
         return all.max { a, b in
             if a.canDressOnce != b.canDressOnce { return !a.canDressOnce }

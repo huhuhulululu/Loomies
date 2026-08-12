@@ -159,3 +159,41 @@ struct ActivationProgressTests {
         #expect(all.first { $0.occasion == "work" }?.canDressOnce == true)
     }
 }
+
+/// D97：里程碑衡量的是**衣柜完备度**，不是「今天能不能穿」——
+/// 它按槽位覆盖算，而 Today 还过天气门。满柜羊毛装在 30°C 天里，
+/// 里程碑若说「3 套 ready」，用户点进去却一套都没有，那就是谎报。
+/// 措辞必须把这两件事分开。
+struct MilestoneScopeHonestyTests {
+
+    func item(_ id: String, _ slot: GarmentSlot) -> CandidateItem {
+        CandidateItem(id: id, slot: slot, occasions: ["work"],
+                      warmth: .veryWarm, status: .available)
+    }
+
+    /// 兑现文案说的是「衣柜能配出几套」，不得读成「现在就能穿」。
+    @Test func headlineIsAboutTheClosetNotTodaysWeather() {
+        let items = [item("t", .top), item("b", .bottom), item("s", .shoes)]
+        let m = ActivationProgress.milestone(occasion: "work", items: items)
+        #expect(m.canDressOnce)
+        let words = m.headline.lowercased()
+        // 「ready」/「today」会被读成今天就能穿——而天气门可能全过滤掉
+        #expect(!words.contains("ready"))
+        #expect(!words.contains("today"))
+        #expect(!words.contains("wear now"))
+        // 必须点明这是衣柜的能力
+        #expect(words.contains("closet") || words.contains("can make")
+                || words.contains("covers"))
+    }
+
+    /// 「一周」同理：说的是衣柜能撑一周不重样，不是这周天气都合适。
+    @Test func weekClaimIsAboutRotationDepthNotForecast() {
+        var items = [item("s", .shoes)]
+        for i in 0..<3 { items.append(item("t\(i)", .top)) }
+        for i in 0..<3 { items.append(item("b\(i)", .bottom)) }
+        let m = ActivationProgress.milestone(occasion: "work", items: items)
+        #expect(m.reachedWeek)
+        #expect(m.headline.localizedCaseInsensitiveContains("week"))
+        #expect(!m.headline.localizedCaseInsensitiveContains("ready"))
+    }
+}

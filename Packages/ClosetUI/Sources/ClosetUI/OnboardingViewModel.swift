@@ -12,6 +12,8 @@ import ClosetCore
 public final class OnboardingViewModel {
     public var displayName: String = ""
     public var city: String = ""
+    /// 场合构成（D97，DESIGN §474 个性化三题之一）。nil = 跳过，不猜。
+    public var primaryOccasion: String?
     /// 可选身体四围（英寸）。任一项非空即尝试写 profile；四围齐才激活 FFIT。
     public var bustInches: Double?
     public var waistInches: Double?
@@ -68,6 +70,8 @@ public final class OnboardingViewModel {
         let cityTrim = city.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let person = Person(name: name)
+        // 未答就是 nil——不得静默记成某个具体场合（那是系统假设冒充用户选择）
+        person.primaryOccasionRaw = OccasionMix.parse(primaryOccasion)
         context.insert(person)
         let wardrobe = Wardrobe(name: "Main", locationCity: cityTrim)
         wardrobe.owner = person

@@ -110,6 +110,18 @@ struct OnboardingScreen: View {
                     TextField("Home city", text: $vm.city)
                         .textContentType(.addressCity)
                 }
+                // 场合构成（D97，DESIGN §474 个性化三题之一）。可跳过——
+                // 不答就是不答，系统用中性默认，不记成用户的选择。
+                Section {
+                    Picker(OccasionMix.question, selection: $vm.primaryOccasion) {
+                        Text(OccasionMix.skipTitle).tag(Optional<String>.none)
+                        ForEach(OccasionMix.choices, id: \.self) { c in
+                            Text(OccasionMix.displayTitle(c)).tag(Optional(c))
+                        }
+                    }
+                } footer: {
+                    Text(OccasionMix.hint)
+                }
                 Section {
                     Text("Optional — pick a look-alike. You can refine measurements later.")
                         .font(.caption)
