@@ -669,7 +669,7 @@ public struct ClosetGridView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(DS.accent.opacity(0.9))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(DS.onAccent)
                             .clipShape(Capsule())
                     }
                 }

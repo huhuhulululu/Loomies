@@ -57,7 +57,7 @@ public struct ColorSwatchPicker: View {
                                 .frame(width: 30, height: 30)
                                 .overlay(
                                     Circle().strokeBorder(
-                                        paletteID == entry.id ? DS.accent : Color.white.opacity(0.25),
+                                        paletteID == entry.id ? DS.accent : DS.hairline,
                                         lineWidth: paletteID == entry.id ? 3 : 1))
                                 // 44pt 命中区（a11y 下限），视觉仍是 30pt 色点
                                 .frame(width: 44, height: 44)
@@ -85,7 +85,7 @@ public struct StyleAttributePicker: View {
     @Binding var attributes: Set<StyleAttribute>
     public init(attributes: Binding<Set<StyleAttribute>>) { _attributes = attributes }
 
-    public static let hint = "Cut details we use to flatter your body shape."
+    public static let hint = "Cut details — we use these to match pieces to your proportions."
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -124,12 +124,12 @@ struct FlowChips: View {
                             .font(.caption)
                             .padding(.horizontal, 10)
                             .frame(height: 32)
-                            .background(isOn ? DS.accent.opacity(0.22) : Color.white.opacity(0.06))
+                            .background(isOn ? DS.accent.opacity(0.22) : DS.surface)
                             .foregroundStyle(isOn ? DS.accent : DS.ink)
                             .clipShape(Capsule())
                             .overlay(
                                 Capsule().strokeBorder(
-                                    isOn ? DS.accent : Color.white.opacity(0.12),
+                                    isOn ? DS.accent : DS.hairline,
                                     lineWidth: isOn ? 1.5 : 0.5))
                     }
                     .buttonStyle(.plain)
@@ -162,12 +162,12 @@ public struct CareSymbolPicker: View {
                                 .font(.caption)
                                 .padding(.horizontal, 10)
                                 .frame(height: 32)
-                                .background(isOn ? DS.accent.opacity(0.22) : Color.white.opacity(0.06))
+                                .background(isOn ? DS.accent.opacity(0.22) : DS.surface)
                                 .foregroundStyle(isOn ? DS.accent : DS.ink)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule().strokeBorder(
-                                        isOn ? DS.accent : Color.white.opacity(0.12),
+                                        isOn ? DS.accent : DS.hairline,
                                         lineWidth: 1))
                                 .frame(minHeight: 44)          // 命中区，不是视觉高度
                                 .contentShape(Rectangle())
@@ -188,6 +188,10 @@ public struct CareSymbolPicker: View {
 /// 而用户看不到任何异样。
 ///
 /// 存量的自定义值原样列出并可取消，**不静默删掉用户的数据**。
+// D115：这些 chip 此前用 `Color.white.opacity(0.06/0.12)` 做底与描边——
+// 那是照深色底写的，而 app 当时只有**浅色**：暖骨白上叠 6% 白等于什么都没有。
+// 全 app 用得最多的控件因此没有可见边界（「拼装感」的直接来源）。
+// 改用语义 token，两套配色下都成立。
 public struct OccasionChips: View {
     @Binding var selection: Set<String>
     let custom: [String]
@@ -215,12 +219,12 @@ public struct OccasionChips: View {
                                 .font(.caption)
                                 .padding(.horizontal, 10)
                                 .frame(height: 32)
-                                .background(isOn ? DS.accent.opacity(0.22) : Color.white.opacity(0.06))
+                                .background(isOn ? DS.accent.opacity(0.22) : DS.surface)
                                 .foregroundStyle(isOn ? DS.accent : DS.ink)
                                 .clipShape(Capsule())
                                 .overlay(
                                     Capsule().strokeBorder(
-                                        isOn ? DS.accent : Color.white.opacity(0.12), lineWidth: 1))
+                                        isOn ? DS.accent : DS.hairline, lineWidth: 1))
                                 .frame(minHeight: 44)   // 命中区，不是视觉高度
                                 .contentShape(Rectangle())
                         }

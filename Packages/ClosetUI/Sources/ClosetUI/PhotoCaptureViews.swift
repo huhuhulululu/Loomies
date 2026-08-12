@@ -232,16 +232,8 @@ public struct ItemThumbnailView: View {
         #endif
     }
 
-    private func slotWash(_ slot: GarmentSlot) -> Color {
-        switch slot {
-        case .top: return DS.accent
-        case .bottom: return Color(red: 0.30, green: 0.35, blue: 0.45)
-        case .dress: return Color(red: 0.55, green: 0.40, blue: 0.50)
-        case .outerwear: return Color(red: 0.45, green: 0.35, blue: 0.30)
-        case .shoes: return Color(red: 0.25, green: 0.25, blue: 0.28)
-        case .accessory: return Color(red: 0.50, green: 0.42, blue: 0.28)
-        }
-    }
+    /// D115：槽位色进设计系统（`Palette.slotWash`），两套配色下都有定义。
+    private func slotWash(_ slot: GarmentSlot) -> Color { DS.slotWash(slot.rawValue) }
 
     private func platformImage(_ data: Data) -> Image? {
         #if canImport(UIKit)
@@ -738,7 +730,7 @@ public struct AddPieceSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(DS.accent)
-            .foregroundStyle(.white)
+            .foregroundStyle(DS.onAccent)
             .clipShape(RoundedRectangle(cornerRadius: DS.radius))
     }
 

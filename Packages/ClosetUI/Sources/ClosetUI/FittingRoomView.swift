@@ -101,7 +101,7 @@ public struct FittingRoomView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(selected ? DS.accent : Color.white.opacity(0.12),
+                            .strokeBorder(selected ? DS.accent : DS.hairline,
                                           lineWidth: selected ? 2 : 0.5))
                 Text(item.name)
                     .font(.caption2)

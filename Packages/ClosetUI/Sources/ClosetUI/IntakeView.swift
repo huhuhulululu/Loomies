@@ -113,7 +113,7 @@ public struct IntakeView: View {
                 } label: {
                     Text(IntakeEmptyCopy.title)
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(DS.accent).foregroundStyle(.white)
+                        .background(DS.accent).foregroundStyle(DS.onAccent)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                 }
                 .accessibilityLabel(IntakeEmptyCopy.captureButtonAccessibilityLabel)
@@ -145,7 +145,7 @@ public struct IntakeView: View {
                     Text("Add to closet")
                         .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 14)
                         .background(vm.canConfirm ? DS.accent : DS.muted.opacity(0.35))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(DS.onAccent)
                         .clipShape(RoundedRectangle(cornerRadius: DS.radius))
                 }
                 .disabled(!vm.canConfirm)

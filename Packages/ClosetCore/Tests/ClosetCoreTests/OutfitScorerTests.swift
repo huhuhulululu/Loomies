@@ -39,28 +39,30 @@ struct OutfitScorerTests {
         #expect(!s.reasons.contains { $0.localizedCaseInsensitiveContains("color") })
     }
 
-    @Test func bodyShapeFlatteringScoresHigher() {
-        let flattering = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])   // 沙漏 +
+    /// D115：理由文案改成**只评价衣服**（DESIGN §10.4 红线禁 flattering 类词），
+    /// 断言随之改成新说法——旧断言写的是被禁掉的那句，留着等于把红线焊回去。
+    @Test func cutsThatSuitTheProportionsScoreHigher() {
+        let suited = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])   // 沙漏 +
         let avoid = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.straightNoWaist])]) // 沙漏 -
         let hourglassCtx = ScoringContext(bodyShape: .hourglass)
-        #expect(OutfitScorer.score(flattering, context: hourglassCtx).value >
+        #expect(OutfitScorer.score(suited, context: hourglassCtx).value >
                 OutfitScorer.score(avoid, context: hourglassCtx).value)
-        #expect(OutfitScorer.score(flattering, context: hourglassCtx).reasons.contains {
-            $0.localizedCaseInsensitiveContains("body shape")
-                || $0.localizedCaseInsensitiveContains("flatters")
+        // 仍要说清「为什么」——合规不等于把理由变成空话
+        #expect(OutfitScorer.score(suited, context: hourglassCtx).reasons.contains {
+            $0.localizedCaseInsensitiveContains("proportions")
         })
     }
 
     /// C4: affinity 是无界求和，最终分必须钳在文档化值域 [0, 2]。
     @Test func scoreIsClampedToDocumentedRange() {
-        let flattering = Outfit(items: (0..<12).map { i in
+        let suited = Outfit(items: (0..<12).map { i in
             CandidateItem(id: "f\(i)", slot: .top, attributes: [.wrap, .belt, .highWaist])
         })
         let avoid = Outfit(items: (0..<12).map { i in
             CandidateItem(id: "a\(i)", slot: .top, attributes: [.straightNoWaist])
         })
         let hourglassCtx = ScoringContext(bodyShape: .hourglass)
-        let hi = OutfitScorer.score(flattering, context: hourglassCtx)
+        let hi = OutfitScorer.score(suited, context: hourglassCtx)
         let lo = OutfitScorer.score(avoid, context: hourglassCtx)
         #expect(hi.value == OutfitScorer.scoreRange.upperBound)
         #expect(lo.value == OutfitScorer.scoreRange.lowerBound)
@@ -80,13 +82,13 @@ struct OutfitScorerTests {
     }
 
     @Test func bodyShapeWeightScalesTheShapeTerm() {
-        let flattering = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])
+        let suited = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])
         let measured = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 1.0)
         let guessed = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 0.5)
         let ignored = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 0)
-        let full = OutfitScorer.score(flattering, context: measured)
-        let half = OutfitScorer.score(flattering, context: guessed)
-        let none = OutfitScorer.score(flattering, context: ignored)
+        let full = OutfitScorer.score(suited, context: measured)
+        let half = OutfitScorer.score(suited, context: guessed)
+        let none = OutfitScorer.score(suited, context: ignored)
         #expect(full.value > half.value)
         #expect(half.value > none.value)
         #expect(none.value == 1.0)

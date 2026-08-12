@@ -358,27 +358,12 @@ public struct CopilotView: View {
     }
 
     private func heroEdgeGlow(_ b: AvatarBackdrop) -> LinearGradient {
-        let c: Color = {
-            switch b {
-            case .studio: return Color.white.opacity(0.35)
-            case .work: return Color(red: 0.55, green: 0.72, blue: 0.95).opacity(0.55)
-            case .date: return Color(red: 0.95, green: 0.45, blue: 0.5).opacity(0.55)
-            case .gala: return Color(red: 0.7, green: 0.55, blue: 1).opacity(0.6)
-            case .casual: return Color(red: 0.55, green: 0.8, blue: 0.65).opacity(0.5)
-            }
-        }()
+        // D115：场合辉光进设计系统（`Palette.occasionGlow`），深色下不再是一套写死的浅色。
+        let c = DS.occasionGlow(b.rawValue).opacity(0.55)
         return LinearGradient(colors: [c, c.opacity(0.15), c], startPoint: .topLeading, endPoint: .bottomTrailing)
     }
 
-    private func heroCardWash(_ b: AvatarBackdrop) -> Color {
-        switch b {
-        case .studio: return Color(white: 0.7)
-        case .work: return Color(red: 0.55, green: 0.7, blue: 0.9)
-        case .date: return Color(red: 0.7, green: 0.3, blue: 0.4)
-        case .gala: return Color(red: 0.45, green: 0.3, blue: 0.7)
-        case .casual: return Color(red: 0.5, green: 0.75, blue: 0.6)
-        }
-    }
+    private func heroCardWash(_ b: AvatarBackdrop) -> Color { DS.occasionGlow(b.rawValue) }
 
     private var lookPager: some View {
         HStack(spacing: 6) {
@@ -539,7 +524,7 @@ public struct CopilotView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
                     .background(DS.accent)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(DS.onAccent)
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -605,7 +590,7 @@ public struct CopilotView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(DS.accent)
-                .foregroundStyle(.white)
+                .foregroundStyle(DS.onAccent)
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
             }
             .buttonStyle(.plain)

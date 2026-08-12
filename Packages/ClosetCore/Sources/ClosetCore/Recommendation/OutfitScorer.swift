@@ -58,12 +58,16 @@ public enum OutfitScorer {
         if let shape = context.bodyShape, context.bodyShapeWeight > 0 {
             let affinity = BodyShapeStyling.affinity(items: outfit.items, shape: shape.popularCategory)
             let delta = 0.2 * affinity * context.bodyShapeWeight
+            // D115：DESIGN §10.4 文案红线——合身语言只评价**衣服**，不评价身体。
+            // 「Flatters your body shape」既踩了明令禁止的词，也把主语放在了用户身上；
+            // 它还是排第一的推荐理由，等于把项目自己的信任底线摆在最显眼处破掉。
+            // 改成描述这套**剪裁**做了什么：主语是衣服，句子仍然说清了为什么被推荐。
             if affinity > 0 {
                 value += delta
-                reasons.append("Flatters your body shape")
+                reasons.append("Cuts that work with your proportions")
             } else if affinity < 0 {
                 value += delta
-                reasons.append("Cut may not suit your shape")
+                reasons.append("Cut fights your proportions — swap one piece")
             }
         }
         if let season = context.colorSeason {
