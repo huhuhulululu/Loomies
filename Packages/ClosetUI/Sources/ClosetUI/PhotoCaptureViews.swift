@@ -16,34 +16,79 @@ import AppKit
 
 #if os(iOS)
 public struct PhotoLibraryPicker: UIViewControllerRepresentable {
-    var onPicked: (Data?) -> Void
+    /// 单张回调（保留给相机/单图路径）。
+    var onPicked: ((Data?) -> Void)?
+    /// 批量回调：交回**图片句柄**而不是 Data——一次性载入 30 张全分辨率会炸内存，
+    /// 逐张按需加载（`BatchImageLoader`）。
+    var onPickedBatch: (([PHPickerResult]) -> Void)?
+    /// 0 = 不限（由 `BatchIntakeQueue.maxSelection` 在回调侧截断并明说）。
+    var selectionLimit: Int = 1
+
+    public init(onPicked: @escaping (Data?) -> Void) {
+        self.onPicked = onPicked
+        self.selectionLimit = 1
+    }
+
+    public init(selectionLimit: Int, onPickedBatch: @escaping ([PHPickerResult]) -> Void) {
+        self.onPickedBatch = onPickedBatch
+        self.selectionLimit = selectionLimit
+    }
 
     public func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration(photoLibrary: .shared())
         config.filter = .images
-        config.selectionLimit = 1
+        config.selectionLimit = selectionLimit
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
         return picker
     }
 
     public func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    public func makeCoordinator() -> Coordinator { Coordinator(onPicked: onPicked) }
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(onPicked: onPicked, onPickedBatch: onPickedBatch)
+    }
 
     public final class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let onPicked: (Data?) -> Void
-        init(onPicked: @escaping (Data?) -> Void) { self.onPicked = onPicked }
+        let onPicked: ((Data?) -> Void)?
+        let onPickedBatch: (([PHPickerResult]) -> Void)?
+        init(onPicked: ((Data?) -> Void)?, onPickedBatch: (([PHPickerResult]) -> Void)?) {
+            self.onPicked = onPicked
+            self.onPickedBatch = onPickedBatch
+        }
 
         public func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
+            if let onPickedBatch {
+                DispatchQueue.main.async { onPickedBatch(results) }
+                return
+            }
             guard let provider = results.first?.itemProvider,
                   provider.canLoadObject(ofClass: UIImage.self) else {
-                onPicked(nil)
+                onPicked?(nil)
                 return
             }
             provider.loadObject(ofClass: UIImage.self) { obj, _ in
                 let data = (obj as? UIImage).flatMap { $0.jpegData(compressionQuality: 0.9) }
-                DispatchQueue.main.async { self.onPicked(data) }
+                DispatchQueue.main.async { self.onPicked?(data) }
+            }
+        }
+    }
+}
+
+/// 逐张按需加载（D92）：批量选择只拿句柄，用到哪张才解码哪张——
+/// 30 张全分辨率同时驻留会直接爆内存。
+public enum BatchImageLoader {
+    /// nil = 这张读不出来（队列记 `.failed`，不是静默跳过）。
+    /// `@MainActor`：`PHPickerResult` / `NSItemProvider` 都不是 Sendable，
+    /// 跨隔离域传会被并发检查拦下（真机构建才报，macOS 的 swift test 编不到这块）。
+    @MainActor
+    public static func load(_ result: PHPickerResult) async -> Data? {
+        let provider = result.itemProvider
+        guard provider.canLoadObject(ofClass: UIImage.self) else { return nil }
+        return await withCheckedContinuation { continuation in
+            provider.loadObject(ofClass: UIImage.self) { obj, _ in
+                let data = (obj as? UIImage).flatMap { $0.jpegData(compressionQuality: 0.9) }
+                continuation.resume(returning: data)
             }
         }
     }
@@ -169,6 +214,13 @@ public struct AddPieceSheet: View {
     /// 手填草稿：落库唯一真相是 `QuickAddDraft.commit`（未选 = 未知，不替用户假设）。
     @State private var draft = QuickAddDraft()
     @State private var message = ""
+    #if os(iOS)
+    /// 批量选择的**句柄**（不是 Data——30 张全分辨率同时驻留会爆内存）
+    @State private var batchResults: [PHPickerResult] = []
+    #endif
+    /// 批量进度与诚实记账；nil = 不在批量流里
+    @State private var batchQueue: BatchIntakeQueue?
+    @State private var batchNotice = ""
 
     enum Mode { case choose, manual, intake }
 
@@ -199,6 +251,17 @@ public struct AddPieceSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(mode == .choose ? "Close" : "Back") {
+                        #if os(iOS)
+                        // 批量中途退出：已确认的不回滚（用户逐件拍过板），
+                        // 但必须说清还剩几张没看——否则用户以为整批都进去了
+                        if let queue = batchQueue {
+                            batchQueue = nil
+                            batchResults = []
+                            onConfirmFlash?(queue.summaryOnExit)
+                            dismiss()
+                            return
+                        }
+                        #endif
                         if mode == .choose {
                             dismiss()
                         } else {
@@ -210,9 +273,10 @@ public struct AddPieceSheet: View {
             }
             #if os(iOS)
             .sheet(isPresented: $showLibrary) {
-                PhotoLibraryPicker { data in
+                // 批量为默认路径（DESIGN §F1）；每张仍由用户逐一拍板
+                PhotoLibraryPicker(selectionLimit: BatchIntakeQueue.maxSelection) { results in
                     showLibrary = false
-                    handleCapture(data)
+                    startBatch(results)
                 }
                 .ignoresSafeArea()
             }
@@ -252,7 +316,7 @@ public struct AddPieceSheet: View {
             Button {
                 showLibrary = true
             } label: {
-                primaryLabel("Choose from Photos", systemImage: "photo.on.rectangle")
+                primaryLabel(BatchIntakeCopy.chooseTitle, systemImage: "photo.on.rectangle")
             }
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 Button {
@@ -332,6 +396,23 @@ public struct AddPieceSheet: View {
                             #endif
                         }
                     }
+                    if let queue = batchQueue, !queue.progressCaption.isEmpty {
+                        Section {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(queue.progressCaption)
+                                    .font(.caption.weight(.semibold))
+                                ProgressView(
+                                    value: Double(queue.index), total: Double(max(1, queue.total)))
+                                    .tint(DS.accent)
+                                if !batchNotice.isEmpty {
+                                    Text(batchNotice)
+                                        .font(.caption2).foregroundStyle(DS.muted)
+                                }
+                            }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel(queue.progressCaption)
+                        }
+                    }
                     Section("Details") {
                         TextField("Name", text: draft.name)
                         Picker("Type", selection: draft.slot) {
@@ -385,9 +466,17 @@ public struct AddPieceSheet: View {
                         }
                     }
                     Section {
-                        Button("Add to closet") {
+                        Button(batchQueue == nil
+                               ? "Add to closet" : BatchIntakeCopy.addAndContinueTitle) {
                             if let item = intakeVM.confirm(into: wardrobe, context: context) {
                                 AppLog.info("intake confirmed item=\(AppLog.ref(item.id))", .intake)
+                                #if os(iOS)
+                                if batchQueue != nil {
+                                    // 批量：记账后推进下一张，汇总留到走完再一次说清
+                                    recordBatch(.added)
+                                    return
+                                }
+                                #endif
                                 // Sheet dismisses now — hand any post-save honesty flash
                                 // (matting/layer/image save failed) to the parent first.
                                 if let flash = Self.postConfirmFlash(
@@ -398,6 +487,14 @@ public struct AddPieceSheet: View {
                             }
                         }
                         .disabled(!intakeVM.canConfirm)
+                        #if os(iOS)
+                        // 批量里必须能跳过——不想要的那张不该逼用户入库或整批放弃
+                        if batchQueue != nil {
+                            Button(BatchIntakeCopy.skipTitle, role: .cancel) {
+                                recordBatch(.skipped)
+                            }
+                        }
+                        #endif
                     } footer: {
                         if !intakeVM.canConfirm {
                             Text("Name this piece so it shows up clearly in your closet.")
@@ -415,12 +512,29 @@ public struct AddPieceSheet: View {
                     Text(intakeVM.lastError
                          ?? "Pick a photo to cut out, or enter details by hand. Type and brand stay starter guesses.")
                 } actions: {
-                    Button("Choose another photo") {
-                        intakeVM.reset()
-                        mode = .choose
+                    #if os(iOS)
+                    // 批量里这张处理不了时必须能**继续这一批**——
+                    // 否则一张坏图就把用户甩出队列，剩下的全没了下文
+                    if batchQueue != nil {
+                        Button(BatchIntakeCopy.skipTitle) { recordBatch(.failed) }
+                            .buttonStyle(.borderedProminent)
+                            .tint(DS.accent)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DS.accent)
+                    #endif
+                    if batchQueue == nil {
+                        Button("Choose another photo") {
+                            intakeVM.reset()
+                            mode = .choose
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(DS.accent)
+                    } else {
+                        // 批量里「换一张」会丢掉整个队列 —— 降级为次级动作
+                        Button("Choose another photo") {
+                            intakeVM.reset()
+                            mode = .choose
+                        }
+                    }
                     Button("Enter manually") {
                         intakeVM.reset()
                         mode = .manual
@@ -429,6 +543,56 @@ public struct AddPieceSheet: View {
             }
         }
     }
+
+    #if os(iOS)
+    /// 开始一批。超上限**明说**后截断，不静默丢弃用户的选择。
+    private func startBatch(_ results: [PHPickerResult]) {
+        guard !results.isEmpty else {
+            message = "No image selected."
+            return
+        }
+        batchNotice = BatchIntakeQueue.truncationNotice(picked: results.count) ?? ""
+        batchResults = Array(results.prefix(BatchIntakeQueue.maxSelection))
+        batchQueue = BatchIntakeQueue(total: batchResults.count)
+        Task { await advanceBatch() }
+    }
+
+    /// 载入当前这张进确认页。读不出来记 `.failed` 并继续，不静默跳过。
+    private func advanceBatch() async {
+        guard var queue = batchQueue else { return }
+        while !queue.isFinished {
+            let idx = queue.index
+            guard idx < batchResults.count else { break }
+            guard let data = await BatchImageLoader.load(batchResults[idx]) else {
+                queue.record(.failed)
+                batchQueue = queue
+                continue
+            }
+            batchQueue = queue
+            message = ""
+            mode = .intake
+            await intakeVM.process(data)
+            return   // 停在确认页等用户拍板
+        }
+        finishBatch(queue)
+    }
+
+    /// 用户对当前这张拍板后推进。
+    private func recordBatch(_ outcome: BatchIntakeQueue.Outcome) {
+        guard var queue = batchQueue else { return }
+        queue.record(outcome)
+        batchQueue = queue
+        intakeVM.reset()
+        Task { await advanceBatch() }
+    }
+
+    private func finishBatch(_ queue: BatchIntakeQueue) {
+        batchQueue = nil
+        batchResults = []
+        onConfirmFlash?(queue.summary)
+        dismiss()
+    }
+    #endif
 
     private func handleCapture(_ data: Data?) {
         guard let data else {
