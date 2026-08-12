@@ -17,6 +17,12 @@ public final class ItemDetailViewModel {
     public var occasionsText: String  // comma-separated
     public var chestFlat: String
     public var waistFlat: String
+    /// 适穿温区（天气硬过滤输入）；nil = 未知（不硬过滤，不替用户假设）。
+    public var warmthRaw: Int?
+    /// 颜色色板 id（配色打分输入）；nil = 未知。
+    public var colorPaletteID: String?
+    /// 风格属性（体型加权输入）。
+    public var attributes: Set<StyleAttribute> = []
     /// Me Storage location — nil = unassigned. Save applies via `StorageLocationService.assign`.
     public var locationID: UUID?
     public private(set) var fitLabel: String?
@@ -39,6 +45,21 @@ public final class ItemDetailViewModel {
         self.chestFlat = item.chestFlatWidthInches.map { String($0) } ?? ""
         self.waistFlat = item.waistFlatWidthInches.map { String($0) } ?? ""
         self.locationID = item.location?.id
+        self.warmthRaw = item.warmthRaw
+        // 已存颜色 → 最近色板选中态；中性无 hue 时也能回读（hue nil → 用 0 参与中性匹配）
+        self.colorPaletteID = Self.paletteID(
+            hue: item.colorHue, isNeutral: item.colorIsNeutral)
+        self.attributes = Set(item.attributesRaw.compactMap { StyleAttribute(rawValue: $0) })
+    }
+
+    /// 单品颜色 → 色板 id（无颜色信息时 nil＝未知，不假装用户选过）。
+    static func paletteID(hue: Double?, isNeutral: Bool) -> String? {
+        if let hue {
+            return GarmentColorPalette.nearest(
+                to: GarmentColor(hueDegrees: hue, isNeutral: isNeutral))?.id
+        }
+        // hue 未知 + 标记中性：视作中性未指定具体色 → 仍未知（用户可主动选 Black/White…）
+        return nil
     }
 
     public var statuses: [String] { Array(ItemStatusService.allowed).sorted() }
@@ -87,12 +108,20 @@ public final class ItemDetailViewModel {
         let occ = occasionsText.split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+        let swatch = GarmentColorPalette.entry(id: colorPaletteID)
         let edited = ItemEditorService.apply(
             .init(name: name, slotRaw: slotRaw, occasionsRaw: occ,
                   brand: brand, sizeLabel: sizeLabel,
+                  warmthRaw: warmthRaw,
                   chestFlatWidthInches: Double(chestFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
                   waistFlatWidthInches: Double(waistFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
-                  replaceFlatWidths: true),
+                  replaceFlatWidths: true,
+                  replaceWarmth: true,
+                  attributesRaw: attributes.map(\.rawValue).sorted(),
+                  // 中性色 hue 无意义 → 置 nil（Adapter 保「中性」语义）；未选 → 清为未知
+                  colorHue: (swatch?.isNeutral ?? true) ? nil : swatch?.hueDegrees,
+                  colorIsNeutral: swatch?.isNeutral ?? item.colorIsNeutral,
+                  replaceColor: true),
             to: item, in: context)
         let statusOk = ItemStatusService.setStatus(item, to: statusRaw, in: context)
         let locationOk = applyLocation(in: context)

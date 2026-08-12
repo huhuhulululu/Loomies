@@ -516,3 +516,22 @@ D80 收敛后增量打磨（commit 粒度），不新增产品功能，仅抬升
 - **体型维度**：photoreal 命名新增 shape token（`photoreal_{sex}_{phenotype}_{shape}_{front|yaw###}`），resolve 链 shape 专属 → 表型 → 通用（D69 不变）；shape 真图命中时 `BodyMorphParams.removingShapePreset` 旁路 preset warp（防双重效果，用户微调保留）。**选正面档**：出图 64 张（rectangle 视基础帧近似后补），任务清单入 BODY-AVATAR-IMAGE-PROMPTS §10。
 - **资产 QA 门**：`PhotorealInventoryQATests`——矩阵账本（缺格==已知待补，防再漏）、严格 2:3 尺寸（已修 `photoreal_female_african_yaw045` 765×1099 孤例）、命名白名单合规。croquis 轨确认为渲染死代码，手册 §8/§9 改写为 photoreal 命名。
 - **试衣间**：`FittingRoomViewModel/View`（Closet 工具栏 tshirt 入口）——按槽位挑本柜单品（displaySlot 纠偏、裙↔上下装互斥、跨柜静默拒绝）→ 纸娃娃正面上身（与推荐/收藏同一条 composer 链）→ 存收藏（source=fittingRoom，失败保留选区诚实提示）。侧背叠衣是结构性缺口（无 per-yaw 层图），另立项。
+
+## D83 [2026-08-11] 单品属性录入面（解封推荐三条链）
+
+完整性审计 A1-2/3/4：温区 / 颜色 / 风格属性**无任何录入 UI**，且 quick-add 硬编码
+`Warmth.light` + `colorIsNeutral=true`。后果不是「少个字段」而是**推荐引擎在真实数据上空转**：
+天气硬过滤（<50°F 时 light 全被滤掉 → 冷天必空）、配色协调与 60-30-10 打分（恒中性）、
+体型加权（attributesRaw 全仓无生产者 → affinity 恒 0）。demo seed 因写了这些字段而掩盖问题。
+
+- **Core**：`GarmentAttributeCatalog` —— `Warmth.displayTitle/entryHint/ordered`、
+  `StyleAttribute.displayTitle/entryGroups`（分组必须覆盖全部 case，有测试守）、
+  `GarmentColorPalette`（16 色板：中性 7 + 彩色 9；id 稳定可落库、`nearest` 回读选中态、
+  中性与彩色互不串台、脏值/nil 返回 nil 不瞎选）。
+- **Model**：`ItemEditorService.Patch` 加 `attributesRaw`（allowed-set 守卫 + 去重排序落库）、
+  `colorHue/colorIsNeutral/replaceColor`（hue 必须有限且 ∈[0,360)）、`replaceWarmth`
+  （nil 默认「不动」，整表提交才解释为「清为未知」）；失败快照恢复覆盖三个新字段。
+- **UI**：`QuickAddDraft` 把快速添加落库抽成可测值类型（**未选 = 未知**，不再替用户假设）；
+  `ItemDetailViewModel` 加载/保存三属性；控件 `WarmthPicker`/`ColorSwatchPicker`（44pt 命中区）/
+  `StyleAttributePicker` 复用于详情页与快速添加。
+- 端到端锁：录入 → `toCandidateItem` → 体型 affinity > 0（此前恒 0）。测试 662 → 677。

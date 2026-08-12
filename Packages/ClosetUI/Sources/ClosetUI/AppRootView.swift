@@ -764,9 +764,7 @@ struct QuickAddSheet: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var name = ""
-    @State private var slot = GarmentSlot.top.rawValue
-    @State private var occasion = "work"
+    @State private var draft = QuickAddDraft()
     @State private var message = ""
 
     /// Customer toast when ModelSave fails — same bar as manual Add (no silent stay).
@@ -775,24 +773,26 @@ struct QuickAddSheet: View {
     /// Order-preserving dedup — the picker occasion may already be "casual".
     /// nonisolated: pure helper, callable off the View's MainActor isolation.
     nonisolated static func dedupOccasions(_ raw: [String]) -> [String] {
-        var seen = Set<String>()
-        return raw.filter { seen.insert($0).inserted }
+        QuickAddDraft.dedupOccasions(raw)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
-                Picker("Type", selection: $slot) {
+                TextField("Name", text: $draft.name)
+                Picker("Type", selection: $draft.slotRaw) {
                     ForEach(GarmentSlot.allCases, id: \.rawValue) { s in
                         Text(s.displayTitle).tag(s.rawValue)
                     }
                 }
-                Picker("Occasion", selection: $occasion) {
+                Picker("Occasion", selection: $draft.occasion) {
                     ForEach(["work", "casual", "date", "gala"], id: \.self) {
                         Text($0.capitalized).tag($0)
                     }
                 }
+                // D83：温区/颜色不再硬编码（light + 中性）——冷天必空推荐与配色恒中性的根因
+                Section("Warmth") { WarmthPicker(warmthRaw: $draft.warmthRaw) }
+                Section("Color") { ColorSwatchPicker(paletteID: $draft.colorPaletteID) }
                 if !message.isEmpty {
                     Text(message)
                         .font(.caption)
@@ -807,30 +807,14 @@ struct QuickAddSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        let item = Item(name: trimmed)
-                        let draftSlot = GarmentSlot(rawValue: slot) ?? .top
-                        item.slotRaw = IntakeViewModel.persistSlot(
-                            draftSlot: draftSlot, name: trimmed).rawValue
-                        item.occasionsRaw = Self.dedupOccasions([occasion, "casual"])
-                        item.warmthRaw = Warmth.light.rawValue
-                        item.statusRaw = "available"
-                        item.colorIsNeutral = true
-                        item.wardrobe = wardrobe
-                        context.insert(item)
-                        guard ModelSave.save(context, label: "quickAdd") else {
-                            // 断关系 + rollback（delete 只删行，wardrobe.items 幻影与脏标记滞留）
-                            item.wardrobe = nil
-                            context.rollback()
-                            message = Self.saveFailedMessage
-                            AppLog.error("quickAdd save failed", .intake)
+                        guard draft.commit(into: wardrobe, context: context) != nil else {
                             // Stay on form with toast (no silent dismiss); next Save retries.
+                            message = Self.saveFailedMessage
                             return
                         }
-                        AppLog.info("quickAdd item=\(AppLog.ref(item.id)) slot=\(item.slotRaw)", .intake)
                         dismiss()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!draft.canCommit)
                 }
             }
         }

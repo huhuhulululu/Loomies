@@ -64,6 +64,16 @@ public struct ItemDetailView: View {
                     .accessibilityLabel("Storage location")
                 }
             }
+            // D83 属性录入：推荐引擎的三条输入链（天气门 / 配色 / 体型加权）
+            Section("Warmth") {
+                WarmthPicker(warmthRaw: $vm.warmthRaw)
+            }
+            Section("Color") {
+                ColorSwatchPicker(paletteID: $vm.colorPaletteID)
+            }
+            Section("Cut details") {
+                StyleAttributePicker(attributes: $vm.attributes)
+            }
             Section("Fit measures (inches, flat)") {
                 TextField("Chest flat width", text: $vm.chestFlat)
                 TextField("Waist flat width", text: $vm.waistFlat)

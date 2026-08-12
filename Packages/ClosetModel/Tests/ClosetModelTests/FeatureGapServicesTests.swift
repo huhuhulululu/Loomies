@@ -190,6 +190,70 @@ struct FeatureGapServicesTests {
         #expect(StorageLocationService.list(in: w).map(\.id) == expected)
     }
 
+    /// D83 属性录入：风格属性写入面。此前 attributesRaw 全仓无生产者 →
+    /// 体型加权（FFIT × 属性二维表）在真实数据上 affinity 恒 0。
+    @Test func itemEditorWritesStyleAttributesDeterministically() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        ctx.insert(i)
+        // 乱序 + 重复 → 去重且按 rawValue 稳定排序（禁止依赖入参顺序）
+        #expect(ItemEditorService.apply(
+            .init(attributesRaw: ["belt", "wrap", "belt"]), to: i, in: ctx))
+        #expect(i.attributesRaw == ["belt", "wrap"])
+        // 未知属性整包拒绝（allowed-set 守卫，与 warmthRaw 同款）
+        #expect(!ItemEditorService.apply(
+            .init(attributesRaw: ["wrap", "notAnAttribute"]), to: i, in: ctx))
+        #expect(i.attributesRaw == ["belt", "wrap"])
+        // 空数组 = 清空（用户取消全部勾选）
+        #expect(ItemEditorService.apply(.init(attributesRaw: []), to: i, in: ctx))
+        #expect(i.attributesRaw.isEmpty)
+    }
+
+    /// D83：温区可清空（用户撤回「未知不硬过滤」）——nil 默认是「不动」，
+    /// 详情表单整表提交需显式 replaceWarmth。
+    @Test func itemEditorReplaceWarmthClearsWhenNil() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        i.warmthRaw = Warmth.light.rawValue
+        ctx.insert(i)
+        // 不带 replace 的 nil → 保持原值
+        #expect(ItemEditorService.apply(.init(name: "tee"), to: i, in: ctx))
+        #expect(i.warmthRaw == Warmth.light.rawValue)
+        // 带 replace 的 nil → 清为未知
+        #expect(ItemEditorService.apply(.init(replaceWarmth: true), to: i, in: ctx))
+        #expect(i.warmthRaw == nil)
+        // 带 replace 的合法值 → 写入
+        #expect(ItemEditorService.apply(
+            .init(warmthRaw: Warmth.veryWarm.rawValue, replaceWarmth: true), to: i, in: ctx))
+        #expect(i.warmthRaw == Warmth.veryWarm.rawValue)
+    }
+
+    /// D83：颜色写入面。此前 quick-add/manual 一律写 isNeutral=true + hue=nil →
+    /// 配色协调与 60-30-10 打分恒中性。
+    @Test func itemEditorWritesAndClearsColor() throws {
+        let ctx = try makeContext()
+        let i = Item(name: "tee"); i.slotRaw = "top"
+        ctx.insert(i)
+        #expect(ItemEditorService.apply(
+            .init(colorHue: 212, colorIsNeutral: false, replaceColor: true), to: i, in: ctx))
+        #expect(i.colorHue == 212)
+        #expect(i.colorIsNeutral == false)
+        // 中性（无 hue 语义）：hue 置 nil、isNeutral=true —— Adapter 会保住「中性」语义
+        #expect(ItemEditorService.apply(
+            .init(colorHue: nil, colorIsNeutral: true, replaceColor: true), to: i, in: ctx))
+        #expect(i.colorHue == nil)
+        #expect(i.colorIsNeutral == true)
+        // 不带 replaceColor 的 patch 不得动颜色（部分更新不误清）
+        #expect(ItemEditorService.apply(.init(name: "tee2"), to: i, in: ctx))
+        #expect(i.colorIsNeutral == true)
+        // 非有限/越界 hue 拒绝（与平铺宽守卫同标准）
+        for bad in [Double.nan, .infinity, -5, 360] {
+            #expect(!ItemEditorService.apply(
+                .init(colorHue: bad, colorIsNeutral: false, replaceColor: true), to: i, in: ctx))
+        }
+        #expect(i.colorHue == nil)
+    }
+
     @Test func saveFavoriteFromIDsAndPlan() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

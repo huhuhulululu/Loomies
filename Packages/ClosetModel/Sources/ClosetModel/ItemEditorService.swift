@@ -16,15 +16,32 @@ public enum ItemEditorService {
         public var waistFlatWidthInches: Double?
         /// When true, write flat widths even if nil (clears measures). Detail form uses this.
         public var replaceFlatWidths: Bool
+        /// 整表提交时置 true：`warmthRaw == nil` 才解释为「清为未知」而非「不动」。
+        public var replaceWarmth: Bool
+        /// 风格属性（体型加权输入）；空数组 = 清空，nil = 不动。
+        public var attributesRaw: [String]?
+        /// 颜色（配色打分输入）；仅当 `replaceColor` 为 true 时写入（含置 nil 的中性态）。
+        public var colorHue: Double?
+        public var colorIsNeutral: Bool?
+        public var replaceColor: Bool
         public init(name: String? = nil, slotRaw: String? = nil, occasionsRaw: [String]? = nil,
                     brand: String? = nil, sizeLabel: String? = nil, warmthRaw: Int? = nil,
                     chestFlatWidthInches: Double? = nil, waistFlatWidthInches: Double? = nil,
-                    replaceFlatWidths: Bool = false) {
+                    replaceFlatWidths: Bool = false,
+                    replaceWarmth: Bool = false,
+                    attributesRaw: [String]? = nil,
+                    colorHue: Double? = nil, colorIsNeutral: Bool? = nil,
+                    replaceColor: Bool = false) {
+            self.replaceWarmth = replaceWarmth
             self.name = name; self.slotRaw = slotRaw; self.occasionsRaw = occasionsRaw
             self.brand = brand; self.sizeLabel = sizeLabel; self.warmthRaw = warmthRaw
             self.chestFlatWidthInches = chestFlatWidthInches
             self.waistFlatWidthInches = waistFlatWidthInches
             self.replaceFlatWidths = replaceFlatWidths
+            self.attributesRaw = attributesRaw
+            self.colorHue = colorHue
+            self.colorIsNeutral = colorIsNeutral
+            self.replaceColor = replaceColor
         }
     }
 
@@ -45,6 +62,18 @@ public enum ItemEditorService {
                 return false
             }
         }
+        // 风格属性 allowed-set 守卫（与 warmthRaw 同款）：脏 raw 会在 Adapter 解析为空集，
+        // 体型加权静默归零而 UI 仍显示已勾选。
+        if let attrs = patch.attributesRaw,
+           attrs.contains(where: { StyleAttribute(rawValue: $0) == nil }) {
+            AppLog.error("rejected unknown style attribute for item=\(AppLog.ref(item.id))", .data)
+            return false
+        }
+        // 颜色 hue 必须有限且在 [0,360)：脏值让配色关系判定失效（NaN 一律 neutral）。
+        if patch.replaceColor, let h = patch.colorHue, !h.isFinite || h < 0 || h >= 360 {
+            AppLog.error("rejected invalid color hue for item=\(AppLog.ref(item.id))", .data)
+            return false
+        }
         // Snapshot mutated fields: rollback() 只清脏标记不清内存值 → 失败须先还原（ItemStatusService 同款）。
         let oldName = item.name
         let oldSlotRaw = item.slotRaw
@@ -54,6 +83,9 @@ public enum ItemEditorService {
         let oldWarmthRaw = item.warmthRaw
         let oldChestFlatWidthInches = item.chestFlatWidthInches
         let oldWaistFlatWidthInches = item.waistFlatWidthInches
+        let oldAttributesRaw = item.attributesRaw
+        let oldColorHue = item.colorHue
+        let oldColorIsNeutral = item.colorIsNeutral
         let oldRevision = item.revision
 
         if let name = patch.name {
@@ -73,7 +105,11 @@ public enum ItemEditorService {
         // brand/size 与 name 同一判空标准（trim）：" " 落库会阻塞条码补全且详情页显示空白非 nil。
         if let brand = patch.brand { item.brand = TextNormalize.blankToNil(brand) }
         if let size = patch.sizeLabel { item.sizeLabel = TextNormalize.blankToNil(size) }
-        if let w = patch.warmthRaw { item.warmthRaw = w }
+        if patch.replaceWarmth {
+            item.warmthRaw = patch.warmthRaw   // nil = 清为未知（不硬过滤）
+        } else if let w = patch.warmthRaw {
+            item.warmthRaw = w
+        }
         if patch.replaceFlatWidths {
             // Detail form: empty fields must clear FitMark source measures.
             item.chestFlatWidthInches = patch.chestFlatWidthInches
@@ -81,6 +117,14 @@ public enum ItemEditorService {
         } else {
             if let c = patch.chestFlatWidthInches { item.chestFlatWidthInches = c }
             if let w = patch.waistFlatWidthInches { item.waistFlatWidthInches = w }
+        }
+        if let attrs = patch.attributesRaw {
+            // 去重 + rawValue 排序：确定性（禁止依赖入参/Set 顺序），导出快照可复现
+            item.attributesRaw = Array(Set(attrs)).sorted()
+        }
+        if patch.replaceColor {
+            item.colorHue = patch.colorHue
+            item.colorIsNeutral = patch.colorIsNeutral ?? item.colorIsNeutral
         }
         item.revision += 1
         guard ModelSave.save(context, label: "itemEdit") else {
@@ -93,6 +137,9 @@ public enum ItemEditorService {
             item.warmthRaw = oldWarmthRaw
             item.chestFlatWidthInches = oldChestFlatWidthInches
             item.waistFlatWidthInches = oldWaistFlatWidthInches
+            item.attributesRaw = oldAttributesRaw
+            item.colorHue = oldColorHue
+            item.colorIsNeutral = oldColorIsNeutral
             item.revision = oldRevision
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("edited item save failed item=\(AppLog.ref(item.id))", .data)

@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **662 tests**（Core 222 / Model 174 / UI 224 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间（FittingRoomView，Closet 工具栏入口）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **677 tests**（Core 227 / Model 177 / UI 231 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间（FittingRoomView，Closet 工具栏入口）。D83：属性录入面（温区/颜色/风格属性）。
 
 ## 项目定位
 
@@ -104,7 +104,8 @@ Item[] / ScoredOutfit.itemIDs
 - **保存失败原子性**：全部写路径走 `ModelSave`（snapshot → 操作 → 失败 `rollback` + 内存态恢复）；删除-only 失败留 dirty marker、不假装成功；测试中点保存禁止（no mid-operation saves）；测试钩子 `ModelSave.forceFailure` / `ItemImageStore.forceFailure`（图文件删除同样原子 + orphan 清理）。create 失败一律「断关系 + rollback」而非 `context.delete`（delete 只删行，关系幻影与脏标记滞留污染后续 save）——衣柜/Onboarding/QuickAdd/Intake confirm 全对齐 OutfitDraftService 模式。
 - **Toast 代际**：自动消失计时器一律持单调 token 判「自己那条还在」，不按消息值判等（同文案连发会被旧计时器提前清）。
 - **日志隐私**：AppLog 消息禁止插值用户内容——实体一律 `AppLog.ref(id)`（前 8 位稳定标识）、错误一律 `AppLog.errRef`（domain#code，禁 `\(error)` 全量 dump——NSFilePath 泄露容器路径）、城市/条码只报有无/长度；OSLog 全级别 `.private`（sysdiagnose 兜底脱敏）；LogRing 单条 512 字符截断；诊断包 `WardrobeSummary` 不携带衣柜名/城市（id 前缀 + hasCity）；静态隐私 lint 测试（`appLogCallSitesCarryNoPIIPatterns`）+ 端到端负向断言双锁；debug 面板入口仅 DEBUG 构建可见。
-- **脏输入即缺失**：NaN / 0 / 负值在 FitEngine / FFITClassifier / ColorHarmony / WeatherFit / BodyMorph / FFIT 一律按 nil / 中性处理，绝不做「自信兜底」；持久化入口同标准——`ItemEditorService` 拒绝非有限/非正平铺宽，导出 encoder `convertToString` 兜底历史脏 Double。
+- **脏输入即缺失**：NaN / 0 / 负值在 FitEngine / FFITClassifier / ColorHarmony / WeatherFit / BodyMorph / FFIT 一律按 nil / 中性处理，绝不做「自信兜底」；持久化入口同标准——`ItemEditorService` 拒绝非有限/非正平铺宽、未知风格属性（allowed-set，与 warmthRaw 同款）、越界/非有限 hue，导出 encoder `convertToString` 兜底历史脏 Double。
+- **属性录入面（D83）**：温区/颜色/风格属性是推荐三条链（天气硬过滤 / 配色打分 / 体型加权）的**唯一**输入，此前无录入 UI 导致真实衣柜数据上空转（demo seed 掩盖）。`ClosetCore.GarmentAttributeCatalog` 提供人话标题 + `GarmentColorPalette`（16 色板，id 稳定、中性/彩色不串台、`nearest` 回读）；`ItemEditorService.Patch` 加 `attributesRaw` / `colorHue+colorIsNeutral+replaceColor` / `replaceWarmth`（nil 默认「不动」，整表提交才是「清为未知」）；`QuickAddDraft` 把快速添加落库抽成可测值类型——**未选 = 未知（nil）**，禁止替用户假设成 `Warmth.light` / 中性（旧硬编码是冷天必空推荐的根因）。控件 `WarmthPicker` / `ColorSwatchPicker`（44pt 命中区）/ `StyleAttributePicker` 复用于详情与快速添加。
 - **UI 诚实**：`lastError` 与 `statusMessage` 互斥（失败清空 success 文案）；异步竞态用 generation counter last-call-wins（Intake process/enrich、Copilot applyWeather）；Intake 空图早退显式复位 `isProcessing`；Intake 分阶段失败文案 + rollback 清 orphan 文件。
 - **日界口径**：穿着防重复窗口按日历日算（`WearHistory.recentlyWornItemIDs` 注入 `Calendar`，DST 安全），与 UI 承诺「de-prioritized 7 days」一致，不随打卡钟点漂移。天气「今天」按**衣柜城市时区**取日（geocode 的 IANA `timezone` 字段 → dayString 与请求参数同源；无字段退回设备历 + auto）——设备时区 ≠ 城市时区（出差/双城柜）不再取错日。离线气候表月份保持设备历（粗估 ±数°F，不为月界数小时加时区表——已评估不修）。**CalendarPlan 以 `dayKey`（"yyyy-MM-dd"，加法 schema）为日历日真相**：`date`（本地午夜瞬时值）跨时区会漂到前一天——查询/去重/展示（`displayDate` 本地正午反解）/导出全走 dayKey；空键旧数据退回 date 按设备历解释，覆盖写时顺带固化。
 - **关键词折叠**：名称关键词分类（剪影/displaySlot）与搜索一律走 `TextNormalize.foldedKey`（大小写 locale 无关 + 变音符号折叠）；禁用 `localizedCaseInsensitiveContains` 做关键词匹配（tr locale 下 I≠i）；失败文案样式判定（"couldn't"，无 i 字符）不受限。
