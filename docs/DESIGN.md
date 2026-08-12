@@ -494,7 +494,8 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 ### 11.1 Schema 演进与迁移（blocking——单向门）
 
 CloudKit 同步的 SwiftData **只支持加法式轻量迁移**（不能删字段/改名/收紧约束），且 CloudKit 生产 schema 部署后**不可回滚**。纪律：
-- v1 起启用 `VersionedSchema` + `SchemaMigrationPlan`；演进只加不删不改名，新字段一律 optional + 默认值
+- v1 起启用 `VersionedSchema` + `SchemaMigrationPlan`；演进只加不删不改名，新字段**一律 optional 或带默认值**（迁移时每个属性都必须有值；D84 裁决：与 `Entities.swift` 头注释一致的 OR 口径，`id: UUID = UUID()` 这类「非 optional 但有默认」是既有基线）；新关系必须 optional 且声明 inverse；禁 `@Attribute(.unique)`
+- 单向门由 `SchemaGuardTests` + golden 指纹 `Fixtures/SchemaFingerprint-v1.txt` 强制（破坏性变更硬失败；加法式需 `LOOMIES_SCHEMA_GOLDEN=record` 重录并进 diff 审查）
 - CloudKit schema 上线检查单：开发环境验证 → deploy to production 前人工复核（不可逆动作）
 - §2 冻结声明的例外条款以此为据；改语义/删字段仍需重新裁决
 

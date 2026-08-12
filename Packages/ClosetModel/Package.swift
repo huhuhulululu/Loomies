@@ -10,6 +10,8 @@ let package = Package(
     dependencies: [.package(path: "../ClosetCore")],
     targets: [
         .target(name: "ClosetModel", dependencies: [.product(name: "ClosetCore", package: "ClosetCore")]),
-        .testTarget(name: "ClosetModelTests", dependencies: ["ClosetModel"]),
+        // Fixtures/ 是 schema golden 指纹（D84 单向门），走 #filePath 源路径读写，
+        // 不需要进 test bundle——不 exclude 会有 unhandled-file 警告。
+        .testTarget(name: "ClosetModelTests", dependencies: ["ClosetModel"], exclude: ["Fixtures"]),
     ]
 )

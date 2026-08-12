@@ -1,0 +1,85 @@
+VERSION 1.0.0
+ENTITY CalendarPlan domain=main
+  A date type=Date opt=0 uniq=0 trans=0 hasDefault=1
+  A dayKey type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A needsAttention type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  R outfit dest=Outfit rule=nullify inverse=- opt=1 toOne=1
+ENTITY Item domain=main
+  A attributesRaw type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1
+  A barcode type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A brand type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A chestFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A colorHue type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A colorIsNeutral type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  A hipFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A localImageRelativePath type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A occasionsRaw type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1
+  A revision type=Int opt=0 uniq=0 trans=0 hasDefault=1
+  A sizeLabel type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A sizeSystemRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A slotRaw type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A statusRaw type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A subtype type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A waistFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A warmthRaw type=Optional<Int> opt=1 uniq=0 trans=0 hasDefault=0
+  R location dest=StorageLocation rule=nullify inverse=items opt=1 toOne=1
+  R outfits dest=Outfit rule=nullify inverse=items opt=1 toOne=0
+  R wardrobe dest=Wardrobe rule=nullify inverse=items opt=1 toOne=1
+ENTITY Outfit domain=main
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A isFavorite type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  A missing type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A notes type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A occasionRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A permanentlyMissing type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  A sourceRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  R items dest=Item rule=nullify inverse=outfits opt=1 toOne=0
+  R wardrobe dest=Wardrobe rule=nullify inverse=outfits opt=1 toOne=1
+ENTITY Person domain=main
+  A coldBias type=Int opt=0 uniq=0 trans=0 hasDefault=1
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A personalColorSeasonRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  R wardrobes dest=Wardrobe rule=cascade inverse=owner opt=1 toOne=0
+ENTITY PersonBodyProfile domain=local
+  A bustInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A fineChest type=Double opt=0 uniq=0 trans=0 hasDefault=1
+  A fineHeight type=Double opt=0 uniq=0 trans=0 hasDefault=1
+  A fineHip type=Double opt=0 uniq=0 trans=0 hasDefault=1
+  A fineWaist type=Double opt=0 uniq=0 trans=0 hasDefault=1
+  A highHipInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A highHipInferred type=Bool opt=0 uniq=0 trans=0 hasDefault=1
+  A hipInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A personID type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A popularShapeOverrideRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A presentationPhenotypeRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A presentationSexRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A shapeSourceRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A waistInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
+ENTITY StorageLocation domain=main
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  R children dest=StorageLocation rule=nullify inverse=parent opt=1 toOne=0
+  R items dest=Item rule=nullify inverse=location opt=1 toOne=0
+  R parent dest=StorageLocation rule=nullify inverse=children opt=1 toOne=1
+  R wardrobe dest=Wardrobe rule=nullify inverse=locations opt=1 toOne=1
+ENTITY Wardrobe domain=main
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A locationCity type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A name type=String opt=0 uniq=0 trans=0 hasDefault=1
+  R items dest=Item rule=cascade inverse=wardrobe opt=1 toOne=0
+  R locations dest=StorageLocation rule=cascade inverse=wardrobe opt=1 toOne=0
+  R outfits dest=Outfit rule=cascade inverse=wardrobe opt=1 toOne=0
+  R owner dest=Person rule=nullify inverse=wardrobes opt=1 toOne=1
+ENTITY WearRecord domain=main
+  A date type=Date opt=0 uniq=0 trans=0 hasDefault=1
+  A fitFeedback type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A outfitID type=Optional<UUID> opt=1 uniq=0 trans=0 hasDefault=0
+  A wardrobeSnapshotID type=Optional<UUID> opt=1 uniq=0 trans=0 hasDefault=0
+  A wornItemIDs type=Array<String> opt=0 uniq=0 trans=0 hasDefault=1

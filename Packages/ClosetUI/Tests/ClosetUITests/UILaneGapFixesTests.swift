@@ -75,6 +75,8 @@ struct ResolveBodyFrameTests {
 /// U3 — film export gate: zero on-canvas garments → no basewear-only video.
 @Suite("CopilotCinematicExportCopy.canExport")
 struct CinematicExportGateTests {
+    init() { ItemImageTestRoot.install() }   // 触盘套件：根目录按进程隔离，勿写真机目录
+
     @Test func emptyLayersCannotExport() {
         #expect(!CopilotCinematicExportCopy.canExport(layers: []))
     }

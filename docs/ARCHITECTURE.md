@@ -1,7 +1,7 @@
 # 架构目录（唯一真相）
 
 > 与代码不一致时以代码为准并立即更新本文档。
-> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **677 tests**（Core 227 / Model 177 / UI 231 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间（FittingRoomView，Closet 工具栏入口）。D83：属性录入面（温区/颜色/风格属性）。
+> 最近同步：2026-08-10 — 15 轮打磨收敛（D80）+ 后续 a11y/测试质量/文案/工具链波（D81，含正确性波：日历日穿着窗口/天气竞态/Intake 卡死/平铺宽守卫/文本判空统一 TextNormalize），四包 **696 tests**（Core 238 / Model 185 / UI 231 / Intake 42）。D82：photoreal shape 维度 + 资产 QA 门 + 试衣间。D83：属性录入面（温区/颜色/风格属性）。D84：Schema 单向门（VersionedSchema + 指纹 golden + 装配单一入口）。
 
 ## 项目定位
 
@@ -115,6 +115,7 @@ Item[] / ScoredOutfit.itemIDs
 - **同槽择优口径**：`OutfitAvatarComposer` 的「有图」= 文件真实存在（`ItemImageStore.fileExists`，stat 不读内容），非路径非空——反向孤儿死路径不得劫持择优。`Int(CGFloat)` 转换一律浮点域先钳非有限值（GeometryReader 首帧 0/∞ → `Int(NaN)` 是运行时陷阱；3 处修复）。
 - **图片对账**：`ImageReconcileService`（Today bootstrap 触发）——孤儿文件（无行引用）删文件、死路径（文件消失）清 nil 落库（失败内存还原 + rollback），崩溃窗口/部分失败产生的两类孤儿自愈闭环；文件名即 `{itemID}.{ext}` 使对账 O(n)。
 - **叠衣确定性**：`OutfitAvatarComposer` displaySlot hint 排序 + composer 确定性 + zIndex 钉死 + dirty-dress 抑制；`OutfitCompleter.maxOptionsPerSlot` 限每槽候选数。
+- **Schema 单向门（D84）**：容器装配唯一入口 `LoomiesStore.makeContainer()`（`LoomiesSchemaV1: VersionedSchema` + `LoomiesMigrationPlan`）——实体清单只此一处，app-shell 不得手搓 `Schema([...])`（有 lint）。两个 `ModelConfiguration` **各带子 schema**（D5 载荷：都传 fullSchema 会让身体数据落主库），`name`（main/local）派生 store 文件名**禁止改名**。破坏性 schema 变更由 `ClosetCore.SchemaFingerprint` + 入库 golden `Fixtures/SchemaFingerprint-v1.txt` 硬拦（旧行消失/版本 bump/golden 畸形皆 destructive；record 模式先差分后写盘，破坏性永不落盘）；加法安全 = 属性 optional **或**有默认且非 unique、关系 optional 且有 inverse。改 app-shell 装配须 `xcodebuild` 真编译验证。
 - **数据生命周期**：删除级联 person→profiles、wardrobe→plans+图文件、**deleteItem 随 commit 删本地图**（责任在服务层，调用方重复删幂等）、deleteAll 全走 `ModelSave`；`wipeItemImageDirectory` 全删才算成功，失败经 `DeleteReceipt.imageWipeFailed` 在 summaryLine 诚实提示（CCPA 删除权）；导出确定性（id tie-break 排序）；`Item.barcode` 端到端。
 - **cinematic 临时文件**：MP4 生命周期闭环——分享面板 onDismiss 即删、换新前删旧、导出失败清残片（cancelWriting + removeItem）、Today bootstrap 扫尾 `sweepTemporaryExports`；exporter 内置衣物下限守卫（层声明本地照片但全部读不出 → `garmentsUnavailable`，不得静默产出纯裸体底座视频）。
 - **跨柜不变量**在所有入口点强制（transfer / draft / search / copilot），非仅服务层。

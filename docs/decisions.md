@@ -535,3 +535,36 @@ D80 收敛后增量打磨（commit 粒度），不新增产品功能，仅抬升
   `ItemDetailViewModel` 加载/保存三属性；控件 `WarmthPicker`/`ColorSwatchPicker`（44pt 命中区）/
   `StyleAttributePicker` 复用于详情页与快速添加。
 - 端到端锁：录入 → `toCandidateItem` → 体型 affinity > 0（此前恒 0）。测试 662 → 677。
+
+## D84 [2026-08-11] Schema 单向门落地（VersionedSchema + 指纹 golden 差分）
+
+DESIGN §11.1 把「v1 起启用 VersionedSchema + SchemaMigrationPlan」标为 **blocking 单向门**，
+MVP-PLAN M0 退出门要求「schema 过加法式单向门守卫测试」——此前全仓零实现（裸 `@Model` +
+app-shell 手搓 `Schema([...])`）。本次落地并经对抗审查（3 簇蓝图全 REJECT，整改后实施）：
+
+- **装配单一入口** `LoomiesStore`（ClosetModel）：`LoomiesSchemaV1: VersionedSchema`（v1.0.0）+
+  `LoomiesMigrationPlan`（v1 无前驱故 stages 空；v2 起 append lightweight stage）+
+  `makeContainer()`。app-shell 由手搓实体清单改为一行 `LoomiesStore.makeContainer()`——
+  此前实体清单存在两处，加实体漏改一处即启动崩溃。
+- **D5 域隔离载荷（审查 CRITICAL）**：两个 `ModelConfiguration` 必须**各带子 schema**
+  （`Schema(mainModels)` / `Schema(localModels)`），都传 fullSchema 会让两个 store 都建全量表、
+  身体数据落进主库。有行级测试 `configurationsCarryDomainSubschemas` +
+  `bodyProfileRowsStayInLocalDomain` 守。config 的 `name`（main/local）派生 store 文件名，**禁止改名**（改名即丢已发布用户数据）。
+- **单向门形态**：`ClosetCore.SchemaFingerprint`（纯字符串差分，可表驱动穷举反例）+ 入库 golden
+  `Fixtures/SchemaFingerprint-v1.txt`（85 行 = VERSION + 8 实体 + 61 属性 + 15 关系）。
+  规则：golden 每行必须逐字仍在（删字段/改类型/收紧 optional/改 rule/改 inverse/改 domain
+  统由「旧行消失」覆盖）；新增行须加法安全；versionIdentifier 变更 = destructive（不得静默）；
+  golden 畸形（缺 VERSION/孤儿行/未知 kind/重复行）也判 destructive。
+  **record 模式先差分后写盘**——破坏性永不落盘，一条环境变量洗白不了删字段。已实证：
+  模拟丢字段 → DESTRUCTIVE 硬失败，恢复后回绿。
+- **加法安全规则采 OR 口径的显式裁决**：DESIGN §11.1 散文写「新字段一律 optional + 默认值」（AND），
+  但 `Entities.swift` 头注释与实际基线是「所有属性 optional **或**带默认值」（`id: UUID = UUID()`、
+  D82 的 `dayKey: String = ""` 皆非 optional 但有默认）。AND 会否决项目自己既有的加法模式。
+  技术正解是 OR（迁移时每属性都要有值：可空 或 有默认），故守卫按 OR 实现，
+  并同步修订 DESIGN §11.1 措辞与 Entities 头注释一致。
+- **反直觉实测（不落盘下次必重踩）**：`Schema.entities`/`.attributes` 迭代序**不是**声明序 →
+  指纹必须排序；`id: UUID = UUID()` 的 `defaultValue` 每次运行都是新随机值 → 只能记
+  `hasDefault` 布尔；`ModelConfiguration.CloudKitDatabase` 不可 `==` 比较 → 用 describe 断言。
+- **DoD 含 app-shell 真编译**（审查 HIGH：app-shell 不参与 swift test，文本 lint 不算数）：
+  `xcodebuild -scheme ClosetApp -destination generic/platform=iOS` **BUILD SUCCEEDED** 已验证。
+- 顺带修掉一个 flake 源：`CinematicExportGateTests` 触盘却缺 `ItemImageTestRoot.install()`。

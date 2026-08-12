@@ -32,7 +32,7 @@
 
 | 里程碑 | 周期（团队情景） | 交付物 | 退出门（pass/fail） |
 |--------|------|--------|---------|
-| **M0 地基与契约冻结** | W1-3 | SwiftData 七实体 + VersionedSchema 单向门 + CloudKit 私有库骨架 + 身体维度本地-only 域隔离（DL-1/2/3）+ **AI 代理打标 schema 契约冻结** + **抠图基准语料冻结** | schema 过加法式单向门守卫测试；CloudKit 开发环境同步跑通；身体数据不进 CloudKit 的单测硬门绿；**≥100 张人工标注抠图基准语料入库**（solid/浅色/花纹/深色各档，供 M1 的 ≥90% 可证伪）|
+| **M0 地基与契约冻结** | W1-3 | SwiftData 七实体 + VersionedSchema 单向门 + CloudKit 私有库骨架 + 身体维度本地-only 域隔离（DL-1/2/3）+ **AI 代理打标 schema 契约冻结** + **抠图基准语料冻结** | schema 过加法式单向门守卫测试 **✅ 已过**（D84：`SchemaGuardTests` + golden 指纹 `Fixtures/SchemaFingerprint-v1.txt`，破坏性变更硬失败已实证）；CloudKit 开发环境同步跑通 ❌ 未做（需真机/云端）；身体数据不进 CloudKit 的单测硬门绿 ⚠️ **部分**——D84 已锁「身体数据不落主库」（`configurationsCarryDomainSubschemas` + `bodyProfileRowsStayInLocalDomain`），但「不进 CloudKit」需开启同步后另测（当前 `cloudKitDatabase: .none`，语义未被真正验证）；**≥100 张人工标注抠图基准语料入库**（solid/浅色/花纹/深色各档，供 M1 的 ≥90% 可证伪）|
 | **M1 生死线端侧全链 + 激活漏斗** | W3-9 | 连拍/PHPicker 零权限批量导入（SI-1/2）+ 端侧抠图 + 拍摄引导 + 手修编辑器（SI-3/6）+ 三派生缩略图管线（SI-8）+ **onboarding 2-3 题 + 冷启动双路径空状态 + 预赋进度 + 里程碑兑现推荐**（critic critical：北极星驱动器，原计划漏了） | 抠图在 M0 基准语料上 ≥90%（**对固定语料**，非「感觉」）；单件端到端 <15 秒（真机计时）；出网 payload 身体字段隐私单测绿；**M1 末尾插一次百件网格性能 smoke**（不等 M3）|
 | **M2 管理与推荐闭环** | W6-12 | 多衣柜 + 人物档案 + 存放位置树 + 单品转移（缺件语义）UI + 规则层推荐（候选硬过滤→组套→打分→1-3 套 + 理由）+ **最小合身标记（ease→紧/合/松）** | F4 四条正确性自动化用例全绿（天气仅日间时段/场合硬过滤/≥7 天防重复+状态感知/组合语法）；ease 引擎单测；**FFIT 完整 9 类判定移 v1.x**（critic：仅最小合身标记进 v1.0，见 §6）|
 | **M3 集成硬化与合规** | W11-15 | FixtureStore→SwiftDataStore 集成收口（US-19）+ CloudKit 合并协议（UUID/revision/tombstone + 修复器 DL-7）+ 双机竞态套件（DL-8）+ 遥测/监控/隐私审计门 | §11.4 性能预算全过（百件 p95≥58fps + 冷启≤2s + 内存≤400MB，真机 Instruments）；CloudKit 双机竞态收敛无孤儿/双属；隐私一致性审计门绿 |

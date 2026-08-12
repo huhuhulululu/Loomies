@@ -13,20 +13,10 @@ struct ClosetApp: App {
         _ = DebugSettings.shared
         AppLog.notice("Loomies launch", .app)
 
-        let mainSchema = Schema([
-            Person.self, Wardrobe.self, StorageLocation.self, Item.self,
-            Outfit.self, WearRecord.self, CalendarPlan.self,
-        ])
-        let mainConfig = ModelConfiguration(
-            "main", schema: mainSchema, cloudKitDatabase: .none)
-        let localConfig = ModelConfiguration(
-            "local", schema: Schema([PersonBodyProfile.self]), cloudKitDatabase: .none)
-
         do {
-            container = try ModelContainer(
-                for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
-                    Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
-                configurations: mainConfig, localConfig)
+            // 装配单一入口（D84）：实体清单 + 双域 config + migrationPlan 全在 LoomiesStore，
+            // 这里不再手搓——加实体漏改一处即启动崩溃。
+            container = try LoomiesStore.makeContainer()
             AppLog.info("ModelContainer ready", .data)
         } catch {
             // errRef：\(error) 全量 dump 携带容器路径（日志隐私不变量，与 Packages 同标准）
