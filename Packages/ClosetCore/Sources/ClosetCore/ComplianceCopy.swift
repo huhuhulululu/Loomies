@@ -58,9 +58,18 @@ public enum ComplianceCopy {
         public var id: String { question }
     }
 
-    public struct PolicyLink: Sendable, Equatable, Identifiable {
+    /// 政策**应用内全文**。不外链到尚不存在的域名——App 里放死链与
+    /// 「不得声称做不到的事」同源（App Store Connect 提交时仍需一个托管 URL，
+    /// 那是发布运维项，不该让 App 内出现打不开的链接）。
+    public struct PolicySection: Sendable, Equatable {
+        public let heading: String
+        public let body: String
+    }
+
+    public struct PolicyDocument: Sendable, Equatable, Identifiable {
         public let title: String
-        public let url: URL
+        public let lastUpdated: String
+        public let sections: [PolicySection]
         public var id: String { title }
     }
 
@@ -118,9 +127,70 @@ public enum ComplianceCopy {
                 + "They are left out of data exports unless you explicitly include them."),
     ]
 
-    public static let policyLinks: [PolicyLink] = [
-        PolicyLink(title: "Privacy Policy", url: URL(string: "https://loomies.app/privacy")!),
-        PolicyLink(title: "Terms of Use", url: URL(string: "https://loomies.app/terms")!),
+    public static let policyDocuments: [PolicyDocument] = [
+        PolicyDocument(
+            title: "Privacy Policy",
+            lastUpdated: "August 2026",
+            sections: [
+                PolicySection(
+                    heading: "What we store",
+                    body: "Your closets, pieces, photos, looks, wear history, and plans are stored "
+                        + "on this device. Body measurements live in a separate local store that is "
+                        + "excluded from cloud sync. We do not operate an account system and we do "
+                        + "not have a copy of your closet."),
+                PolicySection(
+                    heading: "What leaves this device",
+                    body: "Two features make network requests. The weather forecast sends the city "
+                        + "name you set for a closet to Open-Meteo. The optional barcode lookup sends "
+                        + "the barcode you scanned to the Open Facts databases — that barcode "
+                        + "identifies a specific product you own. Nothing else is transmitted: not "
+                        + "your photos, item names, looks, or measurements."),
+                PolicySection(
+                    heading: "Analytics",
+                    body: "Anonymous usage statistics are off by default and are opt-in from "
+                        + "Me → Privacy. This build has no analytics service connected, so nothing "
+                        + "is sent even when the switch is on. If that changes, only the event names "
+                        + "and non-identifying fields on our published allowlist may ever be sent; "
+                        + "body measurements and images are permanently excluded."),
+                PolicySection(
+                    heading: "Your data rights",
+                    body: "Me → Data → Export my data produces a JSON file plus your original "
+                        + "photos so you can take everything with you. Me → Data → Delete all data "
+                        + "erases closets, pieces, looks, wear history, plans, measurements, and "
+                        + "local photos from this device. Uninstalling the app alone does not erase "
+                        + "data that was synced elsewhere."),
+                PolicySection(
+                    heading: "Children",
+                    body: "Loomies is not directed to children under 13 and we do not knowingly "
+                        + "collect information from them. There is no account, so no personal "
+                        + "profile is created on our side."),
+            ]),
+        PolicyDocument(
+            title: "Terms of Use",
+            lastUpdated: "August 2026",
+            sections: [
+                PolicySection(
+                    heading: "What Loomies does",
+                    body: "Loomies suggests outfits from the pieces you add and shows them on a "
+                        + "body-shape avatar. Suggestions are advice, not a fitting guarantee — you "
+                        + "always make the final call, and every recommendation can be overridden."),
+                PolicySection(
+                    heading: "Fit marks and avatars",
+                    body: "Fit marks are computed from the flat measurements you enter and are an "
+                        + "approximation, not a promise that a garment will fit. The avatar is a "
+                        + "proportion guide built from a body-shape catalog; it is not a "
+                        + "photo-realistic try-on of your own body."),
+                PolicySection(
+                    heading: "Your content",
+                    body: "The photos and text you add stay yours. Because they are stored on your "
+                        + "device, keeping backups is up to you — deleting the app or the data "
+                        + "removes them permanently."),
+                PolicySection(
+                    heading: "No warranty",
+                    body: "The app is provided as is, without warranties of any kind. We are not "
+                        + "responsible for purchasing decisions, garment damage, or laundry outcomes "
+                        + "that follow from using its suggestions."),
+            ]),
     ]
 
     /// 帮助与反馈：反馈通道复用既有诊断导出（不虚构邮箱/工单系统）。

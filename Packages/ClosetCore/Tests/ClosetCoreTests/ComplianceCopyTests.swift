@@ -87,11 +87,31 @@ struct ComplianceCopyTests {
         #expect(answers.contains("barcode") || answers.contains("open"))
     }
 
-    @Test func policyLinksAreHTTPSAndLabeled() {
-        #expect(ComplianceCopy.policyLinks.count >= 2)
-        for link in ComplianceCopy.policyLinks {
-            #expect(link.url.scheme == "https")
-            #expect(!link.title.isEmpty)
+    /// 政策必须**应用内可读**：外链到尚不存在的域名 = App 里放死链，
+    /// 与「不得声称做不到的事」同源（实测 loomies.app 当时无法解析）。
+    @Test func policiesAreReadableInAppNotDeadLinks() {
+        #expect(ComplianceCopy.policyDocuments.count >= 2)
+        let titles = ComplianceCopy.policyDocuments.map(\.title)
+        #expect(titles.contains { $0.localizedCaseInsensitiveContains("privacy") })
+        #expect(titles.contains { $0.localizedCaseInsensitiveContains("terms") })
+        for doc in ComplianceCopy.policyDocuments {
+            #expect(!doc.title.isEmpty)
+            #expect(!doc.sections.isEmpty)
+            for section in doc.sections {
+                #expect(!section.heading.isEmpty)
+                // 实质内容，不是占位
+                #expect(section.body.count > 40)
+                #expect(!section.body.localizedCaseInsensitiveContains("lorem"))
+                #expect(!section.body.localizedCaseInsensitiveContains("coming soon"))
+                #expect(!section.body.localizedCaseInsensitiveContains("tbd"))
+            }
+            #expect(!doc.lastUpdated.isEmpty)
         }
+        // 隐私政策必须与出网面清单对得上（同一真相，不得各说各话）
+        let privacyText = ComplianceCopy.policyDocuments
+            .first { $0.title.localizedCaseInsensitiveContains("privacy") }?
+            .sections.map(\.body).joined(separator: " ").lowercased() ?? ""
+        #expect(privacyText.contains("barcode"))
+        #expect(privacyText.contains("city"))
     }
 }

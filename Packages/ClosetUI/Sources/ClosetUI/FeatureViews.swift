@@ -609,9 +609,9 @@ public struct AboutView: View {
                 NavigationLink("Help & FAQ") { HelpView() }
             }
             Section("Policies") {
-                ForEach(ComplianceCopy.policyLinks) { link in
-                    Link(link.title, destination: link.url)
-                        .accessibilityHint("Opens in your browser")
+                // 应用内全文（外链到未上线域名 = 死链，违反 UI 诚实铁律）
+                ForEach(ComplianceCopy.policyDocuments) { doc in
+                    NavigationLink(doc.title) { PolicyDocumentView(document: doc) }
                 }
             }
         }
