@@ -108,6 +108,7 @@ public struct ItemDetailView: View {
             Section("Fit measures (inches, flat)") {
                 TextField("Chest flat width", text: $vm.chestFlat)
                 TextField("Waist flat width", text: $vm.waistFlat)
+                TextField("Hip flat width", text: $vm.hipFlat)
                 if let fit = vm.fitLabel {
                     LabeledContent("Fit mark", value: fit)
                     if let detail = vm.fitDetail {

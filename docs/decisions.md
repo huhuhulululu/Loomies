@@ -1005,3 +1005,33 @@ onboarding 完成后存在，所以进到这里就已经答过了）。
 可跳过的身体维度——**姓名不在其中**，它也不喂任何下游（只是 Me 里的显示标签），
 却和城市一起卡着激活。城市继续卡（它喂天气这个真下游），姓名放开为可选，
 未填时用可读占位「You」，随时能在 Me → Profile 改。
+
+## D100 — 收尾：tab 口径裁决 + F2 死码族处置（2026-08-12，缺口 #21 / #23）
+
+**#21 五 tab vs 四 tab**：DESIGN §10.2 原文**自相矛盾**——同一行里既把「入库」
+列为 tab（衣橱/搭配/入库/日历/我的），又写「tab bar 只做导航不放动作」。
+入库是**动作**不是目的地，那半句话本就否定了入库 tab；iOS HIG 同样如此。
+裁决：**以实现为准（4 tab），改文档**。入库入口在 Closet 的「+」（批量多选也在那），
+那是用户找「往衣柜里加东西」时会去的地方。新增 `TabSkeletonTests` 双向对账——
+实现的 tab 集合与 DESIGN 那一行必须一致，不再各说各的。
+
+**#23 F2 死码族**：三族逐一核实，处置各不相同——**不是一刀切地删**。
+
+- `NominalSize` / `SizingCategory` / `MeasurementSchema` / `MeasurementField` /
+  `FlatMeasurements`：零消费者的平行设计草稿。真正上线的尺码链路是
+  `sizeLabel` + `sizeSystemRaw`（标称层）+ 三个平铺实测（喂 FitMarkService）
+  + `PublicSizeReference`（识别提示）。**删除**，并在原文件写下**复活条件**
+  （要做按品类的渐进补全 UX，需先给 Item 加品类字段与稀疏测量存储，走 D84 单向门）。
+  ⚠️ 同文件的 `SizeSystem` **保留**——它是活的（`PublicSizeReference` 在用），
+  且 rawValue 落在 `Item.sizeSystemRaw` 里是**存储契约**，已补测试钉住。
+  （第一次我直接 `git rm` 整个文件，编译当场炸——「死码族」不等于「死文件」。）
+- `DressCode` / `FormalityLevel`：`fits(itemFormality:occasion:)` 需要 Item 上
+  **不存在**的正式度字段，永远调不到；而场合硬过滤已由 `CandidateFilter` 做到。
+  再加一层正式度门还会缩小候选（D89 刚打过这场仗）。**删除**。
+- `hipFlatWidthInches`：**已落库**字段，删它是破坏性 schema 变更（撞 D84 单向门）。
+  而它本身是下装的真约束——腰上合、臀上卡的裤子太常见。**接上**它：
+  详情页补录入面，`FitMarkService` 对下装同时看腰宽与臀宽，取**更紧的那个**判定
+  （腰上宽松不能替臀上卡的裤子说「合身」）；缺一边就只判另一边，不瞎猜。
+
+至此 **`.claude-state/requirements.md` 的完整性审计缺口清单全部清空**
+（唯一显式延期项：DESIGN §206 的「可选胶囊模板引导补拍」，见 D98）。

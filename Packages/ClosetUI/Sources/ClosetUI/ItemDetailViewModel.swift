@@ -24,6 +24,8 @@ public final class ItemDetailViewModel {
     /// 风格属性（体型加权输入）。
     public var attributes: Set<StyleAttribute> = []
     /// 护理符号（结构化，D93）
+    /// 臀宽（D100）：下装的真约束——腰上合、臀上卡的裤子太常见了
+    public var hipFlat: String = ""
     public var care: Set<CareSymbol> = []
     /// 自由备注（不可信输入；落库前过 ItemNotes.sanitize）
     public var notes: String = ""
@@ -61,6 +63,7 @@ public final class ItemDetailViewModel {
         self.occasionsText = item.occasionsRaw.joined(separator: ", ")
         self.chestFlat = item.chestFlatWidthInches.map { String($0) } ?? ""
         self.waistFlat = item.waistFlatWidthInches.map { String($0) } ?? ""
+        self.hipFlat = item.hipFlatWidthInches.map { String($0) } ?? ""
         self.locationID = item.location?.id
         self.warmthRaw = item.warmthRaw
         // 已存颜色 → 最近色板选中态；中性无 hue 时也能回读（hue nil → 用 0 参与中性匹配）
@@ -152,6 +155,7 @@ public final class ItemDetailViewModel {
                   warmthRaw: warmthRaw,
                   chestFlatWidthInches: Double(chestFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
                   waistFlatWidthInches: Double(waistFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  hipFlatWidthInches: Double(hipFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
                   replaceFlatWidths: true,
                   replaceWarmth: true,
                   attributesRaw: attributes.map(\.rawValue).sorted(),

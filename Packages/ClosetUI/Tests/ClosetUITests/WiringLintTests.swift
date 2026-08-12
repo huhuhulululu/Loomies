@@ -248,3 +248,42 @@ struct CustomerCopyVocabularyTests {
             .localizedCaseInsensitiveContains("wardrobe"))
     }
 }
+
+/// D100（缺口 #21）：tab 集合是**文档与实现的共同契约**，不得再各说各的。
+/// DESIGN §10.2 原文把「入库」列为 tab，同一行又写「tab bar 只做导航不放动作」——
+/// 入库是动作不是目的地，那句话本就否定了入库 tab。裁决以实现为准（4 tab），
+/// 文档已改；这道门钉住两边不再漂移。
+struct TabSkeletonTests {
+
+    static let expected = ["Today", "Closet", "Calendar", "Me"]
+
+    @Test func appExposesExactlyTheDocumentedTabs() throws {
+        let root = WiringLintTests.productionSources().first {
+            $0.lastPathComponent == "AppRootView.swift"
+        }
+        let text = try String(contentsOf: try #require(root), encoding: .utf8)
+        var found: [String] = []
+        for line in text.split(separator: "\n") where line.contains(".tabItem { Label(") {
+            guard let open = line.range(of: "Label(\""),
+                  let close = line[open.upperBound...].firstIndex(of: "\"") else { continue }
+            found.append(String(line[open.upperBound..<close]))
+        }
+        #expect(found == Self.expected, Comment(rawValue: "实际 tab：\(found)"))
+        // DESIGN 的 ≤5 上限
+        #expect(found.count <= 5)
+    }
+
+    /// 文档必须与实现一致（此前 DESIGN 写五 tab、实现四 tab，两年没人对账）。
+    @Test func designDocumentsTheSameTabs() throws {
+        let design = WiringLintTests.productionSources().first?
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("docs/DESIGN.md")
+        let text = try String(contentsOf: try #require(design), encoding: .utf8)
+        let line = try #require(
+            text.split(separator: "\n").first { $0.contains("导航骨架：底部 TabView") })
+        #expect(line.contains("4 tab"))
+        #expect(!line.contains("入库 / 日历"), "入库不再是 tab")
+    }
+}

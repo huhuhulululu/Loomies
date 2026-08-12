@@ -14,6 +14,8 @@ public enum ItemEditorService {
         public var warmthRaw: Int?
         public var chestFlatWidthInches: Double?
         public var waistFlatWidthInches: Double?
+        /// 臀宽（D100）：下装合身判定的第二个约束
+        public var hipFlatWidthInches: Double?
         /// When true, write flat widths even if nil (clears measures). Detail form uses this.
         public var replaceFlatWidths: Bool
         /// 整表提交时置 true：`warmthRaw == nil` 才解释为「清为未知」而非「不动」。
@@ -33,6 +35,7 @@ public enum ItemEditorService {
         public init(name: String? = nil, slotRaw: String? = nil, occasionsRaw: [String]? = nil,
                     brand: String? = nil, sizeLabel: String? = nil, warmthRaw: Int? = nil,
                     chestFlatWidthInches: Double? = nil, waistFlatWidthInches: Double? = nil,
+                    hipFlatWidthInches: Double? = nil,
                     replaceFlatWidths: Bool = false,
                     replaceWarmth: Bool = false,
                     attributesRaw: [String]? = nil,
@@ -48,6 +51,7 @@ public enum ItemEditorService {
             self.brand = brand; self.sizeLabel = sizeLabel; self.warmthRaw = warmthRaw
             self.chestFlatWidthInches = chestFlatWidthInches
             self.waistFlatWidthInches = waistFlatWidthInches
+            self.hipFlatWidthInches = hipFlatWidthInches
             self.replaceFlatWidths = replaceFlatWidths
             self.attributesRaw = attributesRaw
             self.colorHue = colorHue
@@ -67,7 +71,8 @@ public enum ItemEditorService {
         }
         // 平铺宽来自自由文本 Double 解析（strtod 语义放行 nan/inf/负值）：非有限或
         // 非正值拒绝——脏值落库会让 JSON 导出（默认 .throw）永久失败，FitMark 也只认 >0。
-        for measure in [patch.chestFlatWidthInches, patch.waistFlatWidthInches] {
+        for measure in [patch.chestFlatWidthInches, patch.waistFlatWidthInches,
+                        patch.hipFlatWidthInches] {
             if let m = measure, !m.isFinite || m <= 0 {
                 AppLog.error("rejected invalid flat width for item=\(AppLog.ref(item.id))", .data)
                 return false
@@ -101,6 +106,7 @@ public enum ItemEditorService {
         let oldWarmthRaw = item.warmthRaw
         let oldChestFlatWidthInches = item.chestFlatWidthInches
         let oldWaistFlatWidthInches = item.waistFlatWidthInches
+        let oldHipFlatWidthInches = item.hipFlatWidthInches
         let oldAttributesRaw = item.attributesRaw
         let oldColorHue = item.colorHue
         let oldColorIsNeutral = item.colorIsNeutral
@@ -134,9 +140,11 @@ public enum ItemEditorService {
             // Detail form: empty fields must clear FitMark source measures.
             item.chestFlatWidthInches = patch.chestFlatWidthInches
             item.waistFlatWidthInches = patch.waistFlatWidthInches
+            item.hipFlatWidthInches = patch.hipFlatWidthInches
         } else {
             if let c = patch.chestFlatWidthInches { item.chestFlatWidthInches = c }
             if let w = patch.waistFlatWidthInches { item.waistFlatWidthInches = w }
+            if let h = patch.hipFlatWidthInches { item.hipFlatWidthInches = h }
         }
         if let attrs = patch.attributesRaw {
             // 去重 + rawValue 排序：确定性（禁止依赖入参/Set 顺序），导出快照可复现
@@ -166,6 +174,7 @@ public enum ItemEditorService {
             item.warmthRaw = oldWarmthRaw
             item.chestFlatWidthInches = oldChestFlatWidthInches
             item.waistFlatWidthInches = oldWaistFlatWidthInches
+            item.hipFlatWidthInches = oldHipFlatWidthInches
             item.attributesRaw = oldAttributesRaw
             item.colorHue = oldColorHue
             item.colorIsNeutral = oldColorIsNeutral

@@ -19,6 +19,7 @@ public enum FitMarkService {
             name: item.name,
             chestFlatWidthInches: item.chestFlatWidthInches,
             waistFlatWidthInches: item.waistFlatWidthInches,
+            hipFlatWidthInches: item.hipFlatWidthInches,
             profile: profile)
     }
 
@@ -28,6 +29,7 @@ public enum FitMarkService {
         name: String = "",
         chestFlatWidthInches: Double?,
         waistFlatWidthInches: Double?,
+        hipFlatWidthInches: Double? = nil,
         profile: PersonBodyProfile
     ) -> FitVerdict? {
         let slot = GarmentSlot.resolved(slotRaw, name: name)
@@ -39,10 +41,27 @@ public enum FitMarkService {
             let e = FitEngine.ease(garmentFlatWidth: flat, bodyCircumference: body)
             return FitEngine.verdict(ease: e, band: defaultTopBand)
         case .bottom:
-            guard let flat = waistFlatWidthInches, let body = profile.waistInches,
-                  flat > 0, body > 0 else { return nil }
-            let e = FitEngine.ease(garmentFlatWidth: flat, bodyCircumference: body)
-            return FitEngine.verdict(ease: e, band: defaultBottomBand)
+            // 下装同时有腰宽与臀宽时取**更紧的那个**判定（D100）：
+            // 腰上宽松不能替臀上卡的裤子说「合身」。缺一边就只判另一边，不瞎猜。
+            var verdicts: [FitVerdict] = []
+            if let flat = waistFlatWidthInches, let body = profile.waistInches,
+               flat > 0, body > 0,
+               let v = FitEngine.verdict(
+                ease: FitEngine.ease(garmentFlatWidth: flat, bodyCircumference: body),
+                band: defaultBottomBand) {
+                verdicts.append(v)
+            }
+            if let flat = hipFlatWidthInches, let body = profile.hipInches,
+               flat > 0, body > 0,
+               let v = FitEngine.verdict(
+                ease: FitEngine.ease(garmentFlatWidth: flat, bodyCircumference: body),
+                band: defaultBottomBand) {
+                verdicts.append(v)
+            }
+            guard !verdicts.isEmpty else { return nil }
+            // tight < fitted < loose：取最紧
+            return verdicts.contains(.tight) ? .tight
+                : (verdicts.contains(.fitted) ? .fitted : .loose)
         case .shoes, .accessory:
             return nil
         }

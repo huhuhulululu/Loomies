@@ -466,7 +466,9 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 
 - 标准 SwiftUI 组件经 Xcode 26 SDK 重编译并运行于 iOS 26 即自动获得新外观；手工项集中在四处：清理自定义 bar/sheet 背景（Apple 建议性措辞「prefer to remove」，会与系统玻璃/scroll edge effect 冲突）、自定义悬浮元素注册 `scrollEdgeEffectStyle`、搭配详情 hero 图用 `backgroundExtensionEffect`（Apple 点名的 product page 场景）、Icon Composer 分层图标（六外观变体全验收，不预裁圆角不自绘高光）
 - 克制规则（Apple 官方告诫）：自定义 `glassEffect` 全 App ≤2 处（如悬浮「今日搭配」入口）且必须包进 `GlassEffectContainer`；内容层禁用玻璃；禁玻璃叠玻璃；regular/clear 变体不混用（clear 仅全屏看图/体型可视化浮层 + ~35% dimming）；bar 优先单色外观（内容鲜艳 App 的 HIG 首选项）
-- 导航骨架：底部 TabView ≤5 tab（衣橱 / 搭配 / 入库 / 日历 / 我的），衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示；搜索用 `Tab(role:.search)`；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
+- 导航骨架：底部 TabView **4 tab（搭配 / 衣橱 / 日历 / 我的）**——入库不设 tab，
+  它是**动作**不是目的地（本行下文「tab bar 只做导航不放动作」本就否定了入库 tab；
+  D100 裁决：以实现为准，改文档）。入库入口在 Closet 的「+」，批量多选也在那里，衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示；搜索用 `Tab(role:.search)`；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
 - 系统表面：Widget 主屏 clear/tinted 去饱和模式需 `widgetAccentable` 适配（否则衣物照片不可辨）；WidgetKit push 服务端触发每日搭配刷新；App Intents `SnippetIntent` 交互结果卡适配「今日搭配」快捷场景（⚠️ updates 页 June 2026 段属 iOS 27 SDK，min iOS 26 不可依赖）
 
 ### 10.3 关键 UX 流程
