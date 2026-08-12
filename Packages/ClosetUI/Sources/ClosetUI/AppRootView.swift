@@ -51,6 +51,11 @@ public struct MeView: View {
     @State private var confirmDeleteAll = false
     /// 遥测 opt-in（默认关闭；D86。状态行如实说明当前未接分析服务）
     @State private var telemetryEnabled = TelemetryGate.shared.isEnabled
+    /// D118：每日回访的开关与时刻。
+    @State private var dailyRitualOn = DailyRitualScheduler.isEnabled
+    @State private var dailyRitualHour = DailyRitualScheduler.hour
+    /// 授权被拒时如实说，并把开关拨回去——设置里显示「开」而一条都不发是撒谎。
+    @State private var dailyRitualNote = DailyRitual.permissionRationale
     @Bindable private var debug = DebugSettings.shared
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -96,6 +101,34 @@ public struct MeView: View {
                                     ? Color.orange : DS.muted)
                             .accessibilityLabel(seedMessage)
                     }
+                }
+                // D118：每日回访。此前这个 App 永远不会主动出现在用户面前
+                //（全仓 0 处 UNUserNotificationCenter），而 MARKET §8.1 的
+                // D30 留存证伪线正建立在「每天早上用一次」上。
+                Section {
+                    Toggle("Morning nudge", isOn: Binding(
+                        get: { dailyRitualOn },
+                        set: { on in
+                            dailyRitualOn = on
+                            Task { await applyDailyRitual(enabled: on) }
+                        }))
+                    if dailyRitualOn {
+                        Picker("Time", selection: Binding(
+                            get: { dailyRitualHour },
+                            set: { h in
+                                dailyRitualHour = h
+                                DailyRitualScheduler.hour = h
+                                Task { await applyDailyRitual(enabled: true) }
+                            })) {
+                            ForEach(DailyRitual.selectableHours, id: \.self) { h in
+                                Text(hourLabel(h)).tag(h)
+                            }
+                        }
+                    }
+                    Text(dailyRitualNote)
+                        .font(.caption2).foregroundStyle(DS.muted)
+                } header: {
+                    Text("Daily")
                 }
                 Section {
                     Toggle("Anonymous usage stats", isOn: Binding(
@@ -299,6 +332,37 @@ public struct MeView: View {
 
     /// 导出包：MainActor 读 SwiftData 出计划 → **后台**拷贝+压缩 → 分享面板。
     /// 压缩绝不放主线程（几百张图会冻结 UI 数秒到数分钟；exporter 已有同类判例）。
+    /// 12 小时制标签（en-US 首发市场，§10.5）。
+    private func hourLabel(_ h: Int) -> String {
+        let suffix = h < 12 ? "AM" : "PM"
+        let display = h % 12 == 0 ? 12 : h % 12
+        return "\(display):00 \(suffix)"
+    }
+
+    /// 开关落地。授权拿不到就把开关拨回去并说明原因——
+    /// 设置里显示「开」而系统层面一条都不会发，是最典型的那类不诚实。
+    private func applyDailyRitual(enabled: Bool) async {
+        guard enabled else {
+            DailyRitualScheduler.disable()
+            dailyRitualNote = DailyRitual.permissionRationale
+            return
+        }
+        let granted = await DailyRitualScheduler.requestAuthorization()
+        guard granted else {
+            dailyRitualOn = false
+            DailyRitualScheduler.disable()
+            dailyRitualNote =
+                "Notifications are off for Loomies in iOS Settings — turn them on there first."
+            return
+        }
+        DailyRitualScheduler.isEnabled = true
+        let count = (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.count
+        await DailyRitualScheduler.reschedule(availableItemCount: count)
+        dailyRitualNote = DailyRitual.shouldSchedule(availableItemCount: count)
+            ? DailyRitual.permissionRationale
+            : "Starts once your closet can put a full look together."
+    }
+
     private func exportBundle() {
         guard !isBuildingExport else { return }
         isBuildingExport = true

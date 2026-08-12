@@ -188,3 +188,40 @@ struct AvatarEntryPointTests {
                 "入口不是叠加上去的")
     }
 }
+
+/// D118 接线门：每日回访这条能力必须真的**被接上**——
+/// 本仓的复发病正是「实现了 + 测试写了 + 零调用点」。
+@MainActor
+struct DailyRitualWiringTests {
+
+    private var sourcesDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    /// 用户能开关它。
+    @Test func thereIsAUserFacingSwitch() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("DailyRitualScheduler"),
+                "设置里没有每日回访的开关 —— 能力等于不存在")
+        #expect(text.contains("DailyRitual.selectableHours"), "用户选不了时间")
+    }
+
+    /// 每次进 Today 都按衣柜当下的状态重排——
+    /// 「配不配打扰用户」取决于衣柜此刻的样子，不是用户上次拨开关那一刻的样子。
+    @Test func itIsRescheduledFromTheDailySurface() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("CopilotView.swift"), encoding: .utf8)
+        #expect(text.contains("DailyRitualScheduler.reschedule"))
+    }
+
+    /// 授权被拒必须把开关拨回去（显示「开」却一条不发是最典型的不诚实）。
+    @Test func aDeniedPermissionTurnsTheSwitchBack() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("dailyRitualOn = false"),
+                "授权被拒后开关还显示着「开」")
+    }
+}

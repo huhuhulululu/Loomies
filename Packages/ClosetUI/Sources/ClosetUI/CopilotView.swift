@@ -1078,6 +1078,10 @@ public struct CopilotView: View {
         ImageReconcileService.reconcile(in: context)
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         vm.reloadToday(in: context)   // D116：重开 App 也记得今天定过什么
+        // D118：衣柜够用时（重新）排每日回访。放在这里而不是设置页，
+        // 是因为「配不配打扰用户」取决于衣柜此刻的状态，而不是用户上次开开关的状态。
+        await DailyRitualScheduler.reschedule(
+            availableItemCount: vm.availableItems.count)
         await vm.applyWeather(CompositeWeatherProvider.production)
         // Prefer live @Query profile; fall back to context fetch for first paint.
         if let p = ownerProfile {
