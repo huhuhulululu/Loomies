@@ -33,7 +33,7 @@ struct ColdStartActivationTests {
     @Test func emptyClosetShowsEndowedProgressAndNoClaims() throws {
         let (ctx, w) = try makeContext()
         let candidates = (w.items ?? []).map { $0.toCandidateItem() }
-        #expect(ActivationProgress.fraction(itemCount: 0, onboarded: true) == 0.2)
+        #expect(ActivationProgress.fraction(itemCount: 0) == 0.2)
         let m = try #require(ActivationProgress.headlineMilestone(items: candidates))
         #expect(!m.canDressOnce)
         #expect(!m.headline.localizedCaseInsensitiveContains("ready"))
@@ -69,12 +69,12 @@ struct ColdStartActivationTests {
     /// 进度随入库单调上升，且真实衣柜里不会倒退。
     @Test func progressGrowsWithEveryPiece() throws {
         let (ctx, w) = try makeContext()
-        var last = ActivationProgress.fraction(itemCount: 0, onboarded: true)
+        var last = ActivationProgress.fraction(itemCount: 0)
         for i in 0..<6 {
             add("Piece \(i)", "top", to: w, in: ctx)
             try ctx.save()
             let now = ActivationProgress.fraction(
-                itemCount: (w.items ?? []).count, onboarded: true)
+                itemCount: (w.items ?? []).count)
             #expect(now > last)
             last = now
         }
@@ -173,9 +173,9 @@ struct FirstRunLandsInColdStartTests {
         #expect(vm.availableItems.count == 7)
         // 横幅读 availableItems：进度不得因为一堆在洗件而显示「ready」
         let fraction = ActivationProgress.fraction(
-            itemCount: vm.availableItems.count, onboarded: true)
+            itemCount: vm.availableItems.count)
         #expect(fraction < 1)
-        #expect(!ActivationProgress.caption(itemCount: vm.availableItems.count, onboarded: true)
+        #expect(!ActivationProgress.caption(itemCount: vm.availableItems.count)
             .localizedCaseInsensitiveContains("ready"))
     }
 }

@@ -28,12 +28,9 @@ public struct CopilotView: View {
     private var debug: DebugSettings { DebugSettings.shared }
 
     public init(wardrobe: Wardrobe) {
-        // 默认场合来自 onboarding 的「场合构成」（D97）；没答则用中性默认，
-        // 而不是硬编码 "work" 替用户假设他主要为通勤穿衣
-        _vm = State(initialValue: CopilotViewModel(
-            wardrobe: wardrobe,
-            occasion: OccasionMix.effectiveOccasion(
-                stated: wardrobe.owner?.primaryOccasionRaw)))
+        // 默认场合来自 onboarding 的「场合构成」（D97）；推导收在 forToday 里，
+        // View 与测试走同一条路径，回归门才真的守得住（D98）
+        _vm = State(initialValue: CopilotViewModel.forToday(wardrobe: wardrobe))
     }
 
     private let occasions = ["work", "date", "gala", "casual"]
@@ -498,7 +495,7 @@ public struct CopilotView: View {
         let candidates = items.map { $0.toCandidateItem() }
         let count = items.count
         // 能走到 Today 就说明引导已完成（app-shell 无 active 衣柜时呈现 Onboarding）
-        let fraction = ActivationProgress.fraction(itemCount: count, onboarded: true)
+        let fraction = ActivationProgress.fraction(itemCount: count)
         let milestone = ActivationProgress.headlineMilestone(
             items: candidates, statedOccasion: vm.wardrobe.owner?.primaryOccasionRaw)
 
@@ -511,14 +508,14 @@ public struct CopilotView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: fraction)
                     .tint(DS.accent)
-                Text(ActivationProgress.caption(itemCount: count, onboarded: true))
+                Text(ActivationProgress.caption(itemCount: count))
                     .font(.caption2)
                     .foregroundStyle(DS.muted)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 "Closet setup \(Int(fraction * 100)) percent. "
-                + ActivationProgress.caption(itemCount: count, onboarded: true))
+                + ActivationProgress.caption(itemCount: count))
 
             // 场合里程碑：兑现了就说兑现，没兑现就点名还缺什么槽位
             if let milestone {

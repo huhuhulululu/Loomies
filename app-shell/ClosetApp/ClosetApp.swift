@@ -116,7 +116,9 @@ struct OnboardingScreen: View {
         NavigationStack {
             Form {
                 Section("About you") {
-                    TextField("Name", text: $vm.displayName)
+                    // 姓名不在 DESIGN §474 的个性化三题里，也不喂任何下游——
+                    // 标成可选，别让它当激活闸门（D98）
+                    TextField("Name (optional)", text: $vm.displayName)
                         .textContentType(.name)
                     TextField("Home city", text: $vm.city)
                         .textContentType(.addressCity)

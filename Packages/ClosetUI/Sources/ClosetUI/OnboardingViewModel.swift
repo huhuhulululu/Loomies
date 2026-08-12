@@ -37,15 +37,18 @@ public final class OnboardingViewModel {
     }
 
     /// Validation toast when name/city empty (Get started still gated by canFinish in UI).
-    public static let needNameAndCityMessage = "Enter your name and city to continue."
+    /// 只卡城市：它喂天气（真下游）。姓名不在 DESIGN §474 的个性化三题里，
+    /// 也不个性化任何东西——只是 Me 里的显示标签，不该当激活闸门（D98）。
+    public static let needNameAndCityMessage = "Enter your city to continue."
+    /// 未填姓名时的可读占位（用户随时能在 Me → Profile 改）。
+    public static let unnamedPersonLabel = "You"
 
     /// Customer toast when ModelSave fails (rollback; no silent complete).
     public static let saveFailedMessage = "Couldn't finish setup — try again"
 
     /// 名 + 城非空即可完成；身体全可选。
     public var canFinish: Bool {
-        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// 落库 Person + 主衣柜；若有任一身体字段则写 PersonBodyProfile。
@@ -66,7 +69,7 @@ public final class OnboardingViewModel {
             message = BodyDataConsent.requiredMessage
             return false
         }
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = TextNormalize.blankToNil(displayName) ?? Self.unnamedPersonLabel
         let cityTrim = city.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let person = Person(name: name)

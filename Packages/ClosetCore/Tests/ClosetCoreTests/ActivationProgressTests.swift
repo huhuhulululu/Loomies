@@ -20,33 +20,33 @@ struct ActivationProgressTests {
 
     /// 答完引导问题即显 20%——零件也不是 0%（预赋效应；DESIGN 明文）。
     @Test func onboardingEndowsTwentyPercent() {
-        #expect(ActivationProgress.fraction(itemCount: 0, onboarded: true)
+        #expect(ActivationProgress.fraction(itemCount: 0)
                 == ActivationProgress.endowedFraction)
         #expect(ActivationProgress.endowedFraction == 0.2)
-        // 没走过引导则不预赋（否则「进度」是凭空来的）
-        #expect(ActivationProgress.fraction(itemCount: 0, onboarded: false) == 0)
+        // 「没走过引导不预赋」这条不再用参数表达：Today 只在有 active 衣柜时
+        // 渲染，而衣柜只在 onboarding 完成后存在——不变量是结构性的（D98）。
     }
 
     /// 单调递增、夹在 [0,1]，且到目标件数即满。
     @Test func fractionIsMonotonicAndClamped() {
         var last = -1.0
         for n in 0...(ActivationProgress.targetItemCount + 20) {
-            let f = ActivationProgress.fraction(itemCount: n, onboarded: true)
+            let f = ActivationProgress.fraction(itemCount: n)
             #expect(f >= last)
             #expect(f >= 0 && f <= 1)
             last = f
         }
         #expect(ActivationProgress.fraction(
-            itemCount: ActivationProgress.targetItemCount, onboarded: true) == 1)
+            itemCount: ActivationProgress.targetItemCount) == 1)
     }
 
     /// 进度文案说人话且不吹牛：不得在没到目标时暗示「完成了」。
     @Test func progressCaptionIsHonest() {
-        let early = ActivationProgress.caption(itemCount: 3, onboarded: true)
+        let early = ActivationProgress.caption(itemCount: 3)
         #expect(early.contains("3"))
         #expect(!early.localizedCaseInsensitiveContains("done"))
         let full = ActivationProgress.caption(
-            itemCount: ActivationProgress.targetItemCount, onboarded: true)
+            itemCount: ActivationProgress.targetItemCount)
         #expect(full.localizedCaseInsensitiveContains("ready"))
     }
 
@@ -195,5 +195,45 @@ struct MilestoneScopeHonestyTests {
         #expect(m.reachedWeek)
         #expect(m.headline.localizedCaseInsensitiveContains("week"))
         #expect(!m.headline.localizedCaseInsensitiveContains("ready"))
+    }
+}
+
+/// D98 尾项：里程碑的两处措辞缺陷（对抗审计发现）。
+struct MilestoneCopyPrecisionTests {
+
+    func item(_ id: String, _ slot: GarmentSlot, occasions: Set<String> = []) -> CandidateItem {
+        CandidateItem(id: id, slot: slot, occasions: occasions, status: .available)
+    }
+
+    /// 全是**没标场合**的件时，不得断言「你有一套 work 搭配」——
+    /// 未标注按「哪都能穿」参与计数是对的（否则冷启动进度不动），
+    /// 但据此点名某个具体场合就是替用户下结论。
+    @Test func untaggedPiecesDoNotAssertASpecificOccasion() {
+        let items = [item("t", .top), item("b", .bottom), item("s", .shoes)]
+        let m = ActivationProgress.milestone(occasion: "work", items: items)
+        #expect(m.canDressOnce)
+        #expect(!m.headline.localizedCaseInsensitiveContains("work"))
+        // 并且要指路：标上场合才算数
+        #expect(m.nextStep.localizedCaseInsensitiveContains("tag"))
+    }
+
+    /// 有一件标了该场合，就可以点名了（不是一刀切地永远不提场合）。
+    @Test func oneTaggedPieceIsEnoughToNameTheOccasion() {
+        let items = [item("t", .top, occasions: ["work"]), item("b", .bottom), item("s", .shoes)]
+        let m = ActivationProgress.milestone(occasion: "work", items: items)
+        #expect(m.headline.localizedCaseInsensitiveContains("work"))
+    }
+
+    /// 缺多个槽位时的连接词：不得出现 "bottom and shoes and top" 这种。
+    @Test func multipleMissingSlotsReadAsAList() {
+        let m = ActivationProgress.milestone(occasion: "work", items: [])
+        #expect(m.missingSlots.count >= 2)
+        let step = m.nextStep
+        #expect(!step.contains("and and"))
+        // 三项及以上用逗号 + and，不是全用 and 串起来
+        if m.missingSlots.count >= 3 {
+            #expect(step.contains(","))
+        }
+        #expect(step.components(separatedBy: " and ").count <= 2)
     }
 }

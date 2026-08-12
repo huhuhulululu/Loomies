@@ -28,17 +28,18 @@ public enum ActivationProgress {
 
     // MARK: - 预赋进度
 
-    /// 0…1。`onboarded` 为假时不预赋——凭空的进度是骗人的。
-    public static func fraction(itemCount: Int, onboarded: Bool) -> Double {
-        guard onboarded else { return 0 }
+    /// 0…1。预赋的前提是**已答过引导**——这条不用参数表达：Today 只在有
+    /// active 衣柜时渲染，而衣柜只在 onboarding 完成后才存在，所以进到这里
+    /// 就已经答过了。此前的 `onboarded` 参数在每个生产调用点都硬写 true，
+    /// false 分支不可达却被测试覆盖着，那种「保证」是没人守的（D98）。
+    public static func fraction(itemCount: Int) -> Double {
         guard targetItemCount > 0 else { return 1 }
         let earned = Double(max(0, itemCount)) / Double(targetItemCount)
         return min(1, endowedFraction + earned * (1 - endowedFraction))
     }
 
-    public static func caption(itemCount: Int, onboarded: Bool) -> String {
+    public static func caption(itemCount: Int) -> String {
         let n = max(0, itemCount)
-        guard onboarded else { return "Answer a couple of questions to get started." }
         if n >= targetItemCount {
             return "\(n) pieces in — your closet is ready for daily picks."
         }
@@ -58,6 +59,10 @@ public enum ActivationProgress {
         public let reachedWeek: Bool
         /// 还缺哪些槽位（用户才知道下一件该拍什么）。
         public let missingSlots: [GarmentSlot]
+        /// 参与计数的件里，有没有**真的标了这个场合**的。
+        /// 全靠「未标 = 哪都能穿」凑出来的一套，不该被说成「你有一套 work 搭配」——
+        /// 未标注参与计数是对的（否则冷启动进度不动），据此点名场合则是替用户下结论。
+        public let hasTaggedForOccasion: Bool
 
         /// 兑现文案——**只说挣来的**，且说的是**衣柜能配出什么**，
         /// 不是「今天能不能穿」：里程碑按槽位覆盖算，而 Today 还过天气门。
@@ -66,23 +71,27 @@ public enum ActivationProgress {
             guard canDressOnce else {
                 return "No \(occasion) look yet"
             }
+            // 没有一件真标了这个场合 → 只说「搭配」，不点名场合
+            let noun = hasTaggedForOccasion ? "\(occasion) " : ""
             if reachedWeek {
                 let n = distinctLooks >= ActivationProgress.maxReportedLooks
                     ? "\(ActivationProgress.maxReportedLooks)+"
                     : "\(distinctLooks)"
-                return "Your closet covers \(n) \(occasion) looks — a full week"
+                return "Your closet covers \(n) \(noun)looks — a full week"
             }
             return "Your closet can make \(distinctLooks) "
-                + "\(occasion) \(distinctLooks == 1 ? "look" : "looks")"
+                + "\(noun)\(distinctLooks == 1 ? "look" : "looks")"
         }
 
         /// 下一步：缺槽位就点名，够穿了就说还差几套到一周。
         public var nextStep: String {
-            if let missing = missingSlots.first {
+            if !missingSlots.isEmpty {
                 let names = missingSlots.map { $0.displayTitle.lowercased() }
-                    .joined(separator: " and ")
-                _ = missing
-                return "Add \(names) to unlock \(occasion) looks."
+                return "Add \(ActivationProgress.listJoin(names)) to unlock \(occasion) looks."
+            }
+            // 能穿了但一件都没标这个场合 → 下一步是**标注**，不是继续拍
+            if canDressOnce, !hasTaggedForOccasion {
+                return "Tag pieces for \(occasion) so they count toward \(occasion) looks."
             }
             guard !reachedWeek else {
                 return "Keep adding to widen the rotation."
@@ -90,6 +99,13 @@ public enum ActivationProgress {
             let short = max(1, ActivationProgress.weekLooks - distinctLooks)
             return "\(short) more \(short == 1 ? "look" : "looks") to cover a full week."
         }
+    }
+
+    /// 「a, b and c」——三项以上不得串成 "a and b and c"。
+    static func listJoin(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        guard items.count > 2 else { return items.joined(separator: " and ") }
+        return items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
     }
 
     /// 单场合里程碑。只算**该场合可用**的件；场合未标注（空集）视为「哪都能穿」，
@@ -120,12 +136,18 @@ public enum ActivationProgress {
 
         let combos = shoes > 0 ? (tops * bottoms + dresses) : 0
         let looks = min(combos, maxReportedLooks)
+        let tagged = usable.contains { item in
+            item.occasions.contains {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == wanted
+            }
+        }
         return Milestone(
             occasion: wanted.isEmpty ? occasion : wanted,
             canDressOnce: looks > 0,
             distinctLooks: looks,
             reachedWeek: looks >= weekLooks,
-            missingSlots: missing)
+            missingSlots: missing,
+            hasTaggedForOccasion: tagged)
     }
 
     /// 全部跟踪场合，顺序固定。

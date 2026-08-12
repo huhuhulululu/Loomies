@@ -44,14 +44,16 @@ struct OnboardingViewModelTests {
         #expect(people.contains { $0.name == "Alex" })
     }
 
-    @Test func finishWithoutNameAndCitySurfacesHonestMessage() throws {
+    /// D98：只卡城市（姓名不再是闸门），提示词也要跟着只提城市。
+    @Test func finishWithoutCitySurfacesHonestMessage() throws {
         let ctx = try makeContext()
         let vm = OnboardingViewModel()
         #expect(!vm.finish(in: ctx))
         #expect(!vm.completed)
         #expect(vm.message == OnboardingViewModel.needNameAndCityMessage)
-        #expect(vm.message.localizedCaseInsensitiveContains("name"))
         #expect(vm.message.localizedCaseInsensitiveContains("city"))
+        // 不得再让用户以为姓名是必填
+        #expect(!vm.message.localizedCaseInsensitiveContains("name"))
         #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
         // Save-fail toast is customer-facing + paints as failure (Welcome screen orange).
         #expect(OnboardingViewModel.saveFailedMessage
@@ -304,5 +306,51 @@ struct OnboardingBodyHonestyTests {
         vm.displayName = "Ada"; vm.city = "Austin"
         #expect(vm.finish(in: ctx))
         #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).isEmpty)
+    }
+}
+
+/// D98 尾项：姓名不该硬卡激活。DESIGN §474 点名的个性化三题是
+/// 场合构成 / 城市 / 可跳过的身体维度——**姓名不在其中**，它也不个性化任何东西
+/// （只是 Me 里的一个显示标签），却和城市一起当着激活的闸门。
+/// 城市要留着卡（它喂天气这个真下游），姓名放开。
+@MainActor
+struct OnboardingNameIsOptionalTests {
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    @Test func cityAloneIsEnoughToFinish() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.city = "Austin"
+        #expect(vm.canFinish)
+        #expect(vm.finish(in: ctx))
+        let person = try #require(try ctx.fetch(FetchDescriptor<Person>()).first)
+        // 空名不得落成空白显示——用一个可读的占位，用户随时能在 Me 改
+        #expect(!person.name.trimmingCharacters(in: .whitespaces).isEmpty)
+    }
+
+    /// 城市仍是必答——它喂天气（真下游），不是装饰。
+    @Test func cityIsStillRequired() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "Ada"
+        #expect(!vm.canFinish)
+        #expect(!vm.finish(in: ctx))
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).isEmpty)
+    }
+
+    /// 填了名字照常用它。
+    @Test func providedNameIsKept() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel()
+        vm.displayName = "  Ada  "; vm.city = "Austin"
+        #expect(vm.finish(in: ctx))
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).first?.name == "Ada")
     }
 }

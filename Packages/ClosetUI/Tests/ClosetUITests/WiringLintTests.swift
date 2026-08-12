@@ -124,9 +124,17 @@ struct WiringLintTests {
 
         var orphans: [String] = []
         for (name, declFile) in declared {
+            // 呈现方可以是直接构造 `VM(` ，**也可以是静态工厂** `VM.forToday(` ——
+            // 后者同样是真接线（D98 抽工厂后一度被误判为孤儿）。
+            // 但静态工厂算数的前提是：VM 自己的文件里确实构造了它。
+            let selfConstructs = texts[declFile]?.contains("\(name)(") == true
             let used = texts.contains { url, text in
                 guard url != declFile else { return false }   // 自己文件里的初始化不算接线
-                return text.contains("\(name)(")
+                if text.contains("\(name)(") { return true }
+                guard selfConstructs else { return false }
+                // `VM.someFactory(` —— 静态入口
+                return text.range(of: "\(name)\\.[A-Za-z_][A-Za-z0-9_]*\\(",
+                                  options: .regularExpression) != nil
             }
             // 同文件内的 View 持有它也算（WearHistoryViewModel 与其 View 同文件）
             let selfHosted = texts[declFile]?.contains("State(initialValue: \(name)(") == true

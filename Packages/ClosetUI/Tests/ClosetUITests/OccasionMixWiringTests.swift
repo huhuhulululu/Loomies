@@ -64,10 +64,8 @@ struct OccasionMixWiringTests {
         try ctx.save()
 
         // 没答 → 中性默认 work → 这个全休闲衣柜给不出建议
-        let neutral = CopilotViewModel(
-            wardrobe: w,
-            occasion: OccasionMix.effectiveOccasion(stated: person.primaryOccasionRaw),
-            daytimeTempF: 70)
+        // 走 View 用的同一条工厂——不重实现推导，否则 View 退回硬编码也不会红
+        let neutral = CopilotViewModel.forToday(wardrobe: w)
         neutral.fullAuto = true
         neutral.refresh()
         #expect(neutral.occasion == "work")
@@ -76,10 +74,7 @@ struct OccasionMixWiringTests {
         // 答了 casual → 同一个衣柜给得出建议
         person.primaryOccasionRaw = "casual"
         try ctx.save()
-        let stated = CopilotViewModel(
-            wardrobe: w,
-            occasion: OccasionMix.effectiveOccasion(stated: person.primaryOccasionRaw),
-            daytimeTempF: 70)
+        let stated = CopilotViewModel.forToday(wardrobe: w)
         stated.fullAuto = true
         stated.refresh()
         #expect(stated.occasion == "casual")

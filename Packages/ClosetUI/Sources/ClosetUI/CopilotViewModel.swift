@@ -62,6 +62,17 @@ public final class CopilotViewModel {
         selectSuggestion(at: (selectedSuggestionIndex - 1 + lookCount) % lookCount)
     }
 
+    /// Today 的构造入口（D98）。默认场合的推导只此一处——
+    /// 此前 View 里内联推导、测试里再实现一遍同样的表达式，
+    /// 于是 View 若退回硬编码，测试照样绿（回归门守不住它要守的东西）。
+    @MainActor
+    public static func forToday(wardrobe: Wardrobe, daytimeTempF: Double = 70) -> CopilotViewModel {
+        CopilotViewModel(
+            wardrobe: wardrobe,
+            occasion: OccasionMix.effectiveOccasion(stated: wardrobe.owner?.primaryOccasionRaw),
+            daytimeTempF: daytimeTempF)
+    }
+
     public init(wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double = 70) {
         self.wardrobe = wardrobe
         self.occasion = occasion
