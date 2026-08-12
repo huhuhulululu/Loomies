@@ -67,3 +67,55 @@ struct WeatherProvidingTests {
         ]) == 0)
     }
 }
+
+/// D110（输入质量排查 HIGH）：D107 让离线兜底**变差了**。
+/// 选择器存的是标准名「Austin, Texas, United States」，而这张气候表按**裸城市名**查，
+/// 于是所有用了新选择器的用户在离线时统统落到 68°F 默认值——
+/// 而 D107 之前手打「Austin」的用户反而拿到正确的 76°F。
+/// 更糟的是界面把它标成「Offline estimate」，看起来像是对这座城市的考量过的猜测。
+struct CanonicalCityFallbackTests {
+
+    /// 标准名与裸名必须给出**同一个**估值。
+    @Test func canonicalNameResolvesLikeTheBareCity() {
+        let cases: [(canonical: String, bare: String)] = [
+            ("Austin, Texas, United States", "Austin"),
+            ("Tokyo, Tokyo, Japan", "Tokyo"),
+            ("Singapore, Singapore", "Singapore"),
+            ("Miami, Florida, United States", "Miami"),
+            ("Hong Kong, Hong Kong", "Hong Kong"),
+        ]
+        for (canonical, bare) in cases {
+            #expect(CityClimateWeatherProvider.baseTempF(forCity: canonical)
+                    == CityClimateWeatherProvider.baseTempF(forCity: bare),
+                    Comment(rawValue: "标准名 \(canonical) 落到了默认值"))
+        }
+    }
+
+    /// 与 D107 的真实产物对齐（不是我手抄的字符串——走同一条生成路径）。
+    @Test func matchesWhatThePickerActuallyStores() throws {
+        let payload = Data("""
+        {"results":[{"name":"Austin","latitude":30.27,"longitude":-97.74,
+         "country_code":"US","country":"United States","admin1":"Texas",
+         "timezone":"America/Chicago"}]}
+        """.utf8)
+        let match = try #require(try OpenMeteoJSON.parseGeocodeMatches(payload).first)
+        let stored = CitySearch.storedValue(for: match)
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: stored)
+                == CityClimateWeatherProvider.baseTempF(forCity: "Austin"))
+    }
+
+    /// 表里没有的城市仍走启发式/默认——修的是「查不到自己的名字」，不是放宽匹配。
+    @Test func unknownCitiesStillFallThrough() {
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Nowhere, Atlantis") == 68)
+        // 关键字启发式不受影响
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Miami Beach, Florida") == 82)
+    }
+
+    /// 不得因为拆逗号而误命中：「Portland, Oregon」取第一段仍是 Portland。
+    @Test func firstComponentIsTheCityNotTheRegion() {
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Portland, Oregon, United States")
+                == CityClimateWeatherProvider.baseTempF(forCity: "Portland"))
+        // 「Texas, United States」这种没有城市段的输入不该命中 austin
+        #expect(CityClimateWeatherProvider.baseTempF(forCity: "Texas, United States") == 68)
+    }
+}

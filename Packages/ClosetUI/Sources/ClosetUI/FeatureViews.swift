@@ -776,6 +776,9 @@ public struct FavoritesView: View {
         }
         .navigationTitle("Favorites")
         .onAppear { reload() }
+            // 同 D110：切柜时结构身份不变，onAppear 不重触发——收藏页会留着上一个柜的搭配，
+            // 而行上的删除/排期会真的作用到那个柜。
+            .onChange(of: wardrobe.id) { _, _ in reload() }
         .overlay(alignment: .bottom) {
             if let flashMessage {
                 CustomerFlashStyle.overlayChip(flashMessage)

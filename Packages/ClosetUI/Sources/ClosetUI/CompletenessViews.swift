@@ -101,6 +101,15 @@ public struct CalendarView: View {
                 }
             }
             .onAppear { reload() }
+            // D110：切柜时本视图的**结构身份不变**，`onAppear` 不会重触发，
+            // 于是 `plans` 里留着上一个柜的行——而滑动删除会真的把它们删掉。
+            // 这把 D102 刚关掉的伤害从另一条机制上又打开了一次
+            //（D101 的门注释里写「其余三个 tab 天然跟随」，那个前提本身是错的：
+            //  持 `let wardrobe` 只让**派生读**跟随，自己的 @State 不跟）。
+            .onChange(of: wardrobe.id) { _, _ in
+                reload()
+                reloadFavorites()
+            }
             .sheet(isPresented: $showPlanPicker) { planSheet }
             .overlay(alignment: .bottom) {
                 if let message {
@@ -363,6 +372,8 @@ public struct StorageLocationsView: View {
             Text(StorageLocationService.deleteWarning(plan))
         }
         .onAppear { reload() }
+        // 同 D110：切柜时结构身份不变，onAppear 不重触发——这棵树会留着上一个柜的位置
+        .onChange(of: wardrobe.id) { _, _ in reload() }
     }
 
     private func add() {

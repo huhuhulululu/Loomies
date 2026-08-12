@@ -94,6 +94,14 @@ public struct CityClimateWeatherProvider: WeatherProviding, Sendable {
             "singapore": 86, "bangkok": 88, "sydney": 70,
         ]
         if let exact = table[key] { return exact }
+        // D110：D107 之后存的是**标准名**「Austin, Texas, United States」，
+        // 而这张表按裸城市名建——于是用了新选择器的用户离线时统统落到 68°F 默认值，
+        // 反而不如 D107 之前手打「Austin」的用户。取第一段（城市名）再查一次。
+        // 这样也修好了**已经存进去**的数据，不需要迁移。
+        if let cityPart = key.split(separator: ",").first.map(String.init) {
+            let bare = cityPart.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !bare.isEmpty, bare != key, let exact = table[bare] { return exact }
+        }
         // 无子串循环：2 字母键（"la"/"sf"）会吞掉 Orlando/Glasgow 等无关城市，
         // 且多命中时随 Dictionary 迭代序（每进程 hash seed）抖动。
         // 顺序固定为：精确匹配 → 关键字启发式 → 默认。

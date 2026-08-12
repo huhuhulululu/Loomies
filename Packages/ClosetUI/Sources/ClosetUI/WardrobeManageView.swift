@@ -239,7 +239,9 @@ public struct WardrobeManageView: View {
     }
     @Query private var people: [Person]
     @State private var newName = ""
-    @State private var newCity = ""
+    /// D110：此前这里是裸 TextField——D107 的 ADR 写「两处都换了」，
+    /// 却漏审了这**第三个写入方**，新建衣柜的城市从此没有校验也没有标准名。
+    @State private var cityPicker = CityPickerViewModel()
     @State private var message = ""
     @State private var messageIsFailure = false
     @State private var pendingDelete: PendingWardrobeDelete?
@@ -326,7 +328,7 @@ public struct WardrobeManageView: View {
             }
             Section("Add closet") {
                 TextField("Name", text: $newName)
-                TextField("City", text: $newCity)
+                CityPickerField(vm: cityPicker, title: "City")
                 Button("Create") { create() }
                     .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -402,14 +404,14 @@ public struct WardrobeManageView: View {
     private func create() {
         let result = WardrobeManageActions.create(
             name: newName,
-            city: newCity,
+            city: cityPicker.storedValue ?? "",
             existingPeople: people,
             in: context)
         message = result.message
         messageIsFailure = result.wardrobe == nil
         if result.wardrobe != nil {
             newName = ""
-            newCity = ""
+            cityPicker.preload(nil)
         }
     }
 }

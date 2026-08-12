@@ -289,10 +289,17 @@ struct TabSkeletonTests {
     }
 }
 
-/// D101（审计 HIGH）：`@State` 初值不随参数更新——把衣柜锁在 `CopilotView` 的
-/// `@State` 初值里，切柜后 Today 会一直停在旧衣柜上（其余三个 tab 持 `let wardrobe`，
-/// 天然跟随）。SwiftUI 的身份行为在仓内测不出来（无 ViewInspector），
-/// 只能钉住写法：这类 View 的挂载点必须带 `.id(wardrobe.id)`。
+/// D101/D110：切柜时 `AppRootView` 只是**换值重新求值**，子视图的结构身份不变——
+/// 于是子视图自己的 `@State` **全都不跟随**。
+///
+/// ⚠️ D101 这条注释原本写着「其余三个 tab 持 `let wardrobe`，天然跟随」——
+/// **那个前提是错的**：持 `let wardrobe` 只让**派生读**跟随，视图自己缓存的
+/// `@State` 不跟。正因为门里写着这句错话，日历缓存旧柜计划、
+/// 滑动删除删掉别柜数据这条（D110）才漏了过去。
+///
+/// SwiftUI 的身份行为在仓内测不出来（无 ViewInspector），只能钉住写法：
+/// 凡是持 `let wardrobe` 且把衣柜派生数据存进 `@State` 的视图，
+/// 必须带 `.id(wardrobe.id)` 或 `.onChange(of: wardrobe.id)`。
 struct StateBackedTabIdentityTests {
 
     @Test func todayTabIsRebuiltWhenTheClosetChanges() throws {
@@ -306,6 +313,46 @@ struct StateBackedTabIdentityTests {
         let window = lines[mount..<min(mount + 8, lines.count)].joined(separator: "\n")
         #expect(window.contains(".id(wardrobe.id)"),
                 "CopilotView 的 VM 是 @State 初值，不带 .id 就不会跟随切柜")
+    }
+
+    /// 每个缓存衣柜派生数据的视图都必须跟随切柜（D110 通用化）。
+    @Test func everyWardrobeScopedViewFollowsAClosetSwitch() throws {
+        var violations: [String] = []
+        for url in WiringLintTests.productionSources()
+        where url.path.contains("/ClosetUI/") {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            // 把文件按 `struct X: View {` 切块，逐块判断
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            var current: String? = nil
+            var block: [String] = []
+            func check() {
+                guard let name = current else { return }
+                let body = block.joined(separator: "\n")
+                // 只看：持 let wardrobe + 有 @State 缓存 + 有 reload 式刷新
+                guard body.contains("let wardrobe: Wardrobe"),
+                      body.contains("@State private var"),
+                      body.contains("func reload") else { return }
+                let follows = body.contains("onChange(of: wardrobe.id)")
+                    || body.contains(".id(wardrobe.id)")
+                if !follows {
+                    violations.append("\(url.lastPathComponent):\(name)")
+                }
+            }
+            for line in lines {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                if s.hasPrefix("struct ") || s.hasPrefix("public struct "), s.contains(": View") {
+                    check()
+                    current = s.split(separator: " ").first { $0.hasSuffix("View") }.map(String.init)
+                        ?? s
+                    block = []
+                } else {
+                    block.append(String(line))
+                }
+            }
+            check()
+        }
+        #expect(violations.isEmpty,
+                Comment(rawValue: "缓存了衣柜派生数据却不跟随切柜（会显示并可能删掉别柜数据）：\(violations)"))
     }
 
     /// 反向锁：VM 若改成从 `let wardrobe` 每次求值（不再是 @State 初值），
@@ -352,5 +399,46 @@ struct ImageVariantReachabilityTests {
             }), encoding: .utf8)
         #expect(closet.contains("AccessibilityGridColumns.items"))
         #expect(feature.contains("AccessibilityGridColumns.items"))
+    }
+}
+
+/// D110：城市**每一个写入方**都必须经过辅助输入控件。
+/// D107 的 ADR 写「onboarding 与 Me → City 两处都换成了这个控件」——
+/// 而 `Wardrobe.locationCity` 其实有**三个**写入方，第三个（Me → Closets & people →
+/// Add closet）从没被审，于是那条路径上的城市依旧没有校验、没有标准名。
+/// 这条门让第四个写入方不可能悄悄出现。
+struct CityEntryWiringTests {
+
+    /// 除 `CityPickerField` 自身外，不得有别处直接给城市文本框绑值。
+    @Test func everyCityFieldGoesThroughThePicker() throws {
+        var violations: [String] = []
+        for url in WiringLintTests.productionSources()
+        where url.lastPathComponent != "CityPickerField.swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                guard !s.hasPrefix("//"), !s.hasPrefix("///") else { continue }
+                guard s.contains("TextField(") else { continue }
+                // 标签里提到 city 的文本框 = 城市录入，必须走控件
+                let mentionsCity = s.localizedCaseInsensitiveContains("city")
+                if mentionsCity {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ \(s)")
+                }
+            }
+        }
+        #expect(violations.isEmpty,
+                Comment(rawValue: "绕过城市辅助输入的裸文本框：\(violations)"))
+    }
+
+    /// 反向自证：门确实认得出 `CityPickerField` 的存在（不是空转）。
+    @Test func thePickerItselfIsPresentAndUsed() throws {
+        var callSites = 0
+        for url in WiringLintTests.productionSources()
+        where url.lastPathComponent != "CityPickerField.swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            if text.contains("CityPickerField(") { callSites += 1 }
+        }
+        // onboarding / Me → City / Me → Add closet
+        #expect(callSites >= 3, "城市录入面少于三处——是不是又漏了一个写入方？")
     }
 }
