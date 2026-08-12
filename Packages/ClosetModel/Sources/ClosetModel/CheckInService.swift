@@ -37,6 +37,22 @@ public enum CheckInService {
     /// Customer toast when the follow-up fit note fails to save.
     public static let fitFeedbackSaveFailedMessage = "Couldn't save fit feedback — try again"
 
+    public static let deleteFailedMessage = "Couldn't remove this entry — try again"
+
+    /// 删一条打卡记录（记错了日子）。删除住在服务层——表现层出现 `context.delete`
+    /// 只可能是 create 失败的错误善后（`WiringLintTests` 守着这条）。
+    /// 防重复窗口读的是同一批 WearRecord，删完即时生效，列表与推荐不会各说各话。
+    @discardableResult
+    public static func deleteRecord(_ record: WearRecord, in context: ModelContext) -> Bool {
+        context.delete(record)
+        guard ModelSave.save(context, label: "wearRecordDelete") else {
+            context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
+            AppLog.error("wear record delete failed \(AppLog.ref(record.id))", .data)
+            return false
+        }
+        return true
+    }
+
     /// 合身反馈的**唯一**写入入口（打卡后追问 + 手动打卡共用）：
     /// 空白 = 清除；非 `FitVerdict` 的脏值拒绝（`recordWear` 的宽松签名保留给历史用例，
     /// 合法性守卫收敛在这里）；失败还原内存值 + rollback。

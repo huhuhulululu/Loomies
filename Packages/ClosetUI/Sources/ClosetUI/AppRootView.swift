@@ -116,6 +116,10 @@ public struct MeView: View {
                     NavigationLink("Favorites") {
                         FavoritesView(wardrobe: wardrobe)
                     }
+                    // 打卡此前只写不读：合身备注记错了改不回来，历史也看不到
+                    NavigationLink(WearHistoryViewModel.title) {
+                        WearHistoryView(wardrobe: wardrobe)
+                    }
                 }
                 Section("Profile") {
                     if let person = wardrobe.owner {

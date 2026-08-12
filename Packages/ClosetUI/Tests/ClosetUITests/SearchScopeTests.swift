@@ -45,7 +45,8 @@ struct SearchScopeTests {
 
         vm.scope = .allClosets
         vm.run(in: ctx)
-        #expect(Set(vm.results.map(\.name)) == ["Blue Shirt", "Blue Sarong"])
+        // 数组断言：SearchService 明确按 (name, id) 双键排序，Set 会把这个契约丢掉
+        #expect(vm.results.map(\.name) == ["Blue Sarong", "Blue Shirt"])
         #expect(vm.effectiveWardrobeID == nil)
         #expect(vm.isCrossCloset)
     }

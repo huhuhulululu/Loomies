@@ -3,7 +3,8 @@ import ClosetCore
 
 /// 属性录入控件（D83）：温区 / 颜色 / 风格属性——三者是推荐引擎的输入，
 /// 此前无录入面导致天气门、配色打分、体型加权在真实数据上空转。
-/// 复用于单品详情、快速添加、入库确认三处，避免三套语义。
+/// 温区 / 颜色三处复用：单品详情、手动新增（AddPieceSheet）、入库确认；
+/// 风格属性（Cut details）只在详情页——新增时问剪裁细节太重，详情页补录即可。
 
 extension GarmentColorPalette.Entry {
     /// 色板 → SwiftUI 颜色（Core 侧只存 0…1 分量，保持零 SwiftUI 依赖）。
@@ -107,7 +108,7 @@ public struct StyleAttributePicker: View {
     }
 }
 
-/// 简单换行 chip 组（避免引入布局依赖；数量有限，横向滚动即可）。
+/// 横向滚动 chip 组（非换行——大字号下靠滚动而非折行）（避免引入布局依赖；数量有限，横向滚动即可）。
 struct FlowChips: View {
     let attributes: [StyleAttribute]
     let selected: Set<StyleAttribute>

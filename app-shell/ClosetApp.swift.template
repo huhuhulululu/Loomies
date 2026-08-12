@@ -13,28 +13,28 @@ struct ClosetApp: App {
     let container: ModelContainer
 
     init() {
-        // 主域：CloudKit 私有库（7 实体同步）
-        let mainSchema = Schema([
-            Person.self, Wardrobe.self, StorageLocation.self, Item.self,
-            Outfit.self, WearRecord.self, CalendarPlan.self,
-        ])
+        // ⚠️ 实体清单**只有一份**，在 `LoomiesSchemaV1`——此处绝不重列。
+        //    D84 的立论正是「清单存在两处」，这份模板曾是漏网的第二处
+        //    （lint 靠扩展名不同绕开了它，于是它可以静默漂移）。
+        //
+        // 主域：CloudKit 私有库。与生产 `LoomiesStore.mainConfiguration` 的唯一差别
+        // 就是 cloudKitDatabase 这一行——M0 打开同步时照此改，别重写装配。
         let mainConfig = ModelConfiguration(
-            "main", schema: mainSchema,
+            LoomiesStore.mainConfigurationName,
+            schema: LoomiesStore.mainSchema,
             cloudKitDatabase: .private("CLOUDKIT_CONTAINER_ID"))
 
-        // 本地域：身体维度（D5，不进 CloudKit）
-        let localConfig = ModelConfiguration(
-            "local", schema: Schema([PersonBodyProfile.self]),
-            cloudKitDatabase: .none)
+        // 本地域：身体维度（D5，永不进 CloudKit）
+        let localConfig = LoomiesStore.localConfiguration()
 
         do {
-            // for: 列全部实体类型；每个 configuration 声明各自 schema 子集
             container = try ModelContainer(
-                for: Person.self, Wardrobe.self, StorageLocation.self, Item.self,
-                    Outfit.self, WearRecord.self, CalendarPlan.self, PersonBodyProfile.self,
+                for: LoomiesStore.fullSchema,
+                migrationPlan: LoomiesMigrationPlan.self,
                 configurations: mainConfig, localConfig)
         } catch {
-            fatalError("ModelContainer 初始化失败: \(error)")
+            // 生产入口用 AppLog.errRef，不展开 error（NSFilePath 会外流）
+            fatalError("ModelContainer init failed: \(AppLog.errRef(error))")
         }
     }
 

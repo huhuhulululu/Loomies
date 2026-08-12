@@ -230,7 +230,13 @@ public struct PendingWardrobeDelete: Identifiable, Equatable, Sendable {
 
 public struct WardrobeManageView: View {
     @Environment(\.modelContext) private var context
-    @Query(sort: \Wardrobe.name) private var wardrobes: [Wardrobe]
+    /// 不带 sort：同名衣柜跨 owner 合法，单键排序的行序会随 fetch 漂移——
+    /// 而这是个带滑动删除的破坏性列表，行序不稳 = 确认框里的名字可能不是刚划的那行。
+    @Query private var allWardrobes: [Wardrobe]
+    /// (name, id) 双键——与 People 分区、listWithDepth 同一约定
+    private var wardrobes: [Wardrobe] {
+        allWardrobes.sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+    }
     @Query private var people: [Person]
     @State private var newName = ""
     @State private var newCity = ""

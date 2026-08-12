@@ -68,7 +68,20 @@ struct SchemaGuardTests {
         case .destructive(let violations):
             let detail = violations.map { "[\($0.kind.rawValue)] \($0.entity) \($0.detail)" }
                 .joined(separator: "\n")
-            Issue.record(Comment(rawValue: "DESTRUCTIVE schema change (DESIGN §11.1 one-way door):\n\(detail)"))
+            // 指纹的每一行都来自 SwiftData 反射结果的**字符串描述**，那不是有稳定性
+            // 契约的 API。工具链升级若把 `Optional<String>` 印成 `Swift.Optional<Swift.String>`
+            // 之类，golden 的旧行会**全体消失** → 门以最高危形态报破坏性变更，而 schema
+            // 一个字没动。此时若盲目 record 重录，正好把真实的删除也一起洗白。
+            let removedEntities = Set(violations.map(\.entity))
+            let looksLikeToolchainDrift =
+                violations.count >= 20 && removedEntities.count >= 6
+            let hint = looksLikeToolchainDrift
+                ? "\n\n⚠️ 全实体大面积「removed」——先怀疑工具链的类型描述漂移，"
+                    + "不是真的删了字段。核对方式：git diff 看 schema 源码是否真有改动；"
+                    + "若确属描述漂移，先规范化 valueType 渲染再对比，**不要**直接 record 重录。"
+                : ""
+            Issue.record(Comment(rawValue:
+                "DESTRUCTIVE schema change (DESIGN §11.1 one-way door):\n\(detail)\(hint)"))
         }
     }
 
@@ -99,9 +112,14 @@ struct SchemaGuardTests {
         // config 名是 store 文件名来源，改名即丢已发布用户数据
         #expect(main.name == "main")
         #expect(local.name == "local")
-        // CloudKitDatabase 不可比较 → 用描述断言（D5：两域都不进 CloudKit）
-        #expect(String(describing: main.cloudKitDatabase).localizedCaseInsensitiveContains("none"))
-        #expect(String(describing: local.cloudKitDatabase).localizedCaseInsensitiveContains("none"))
+        // CloudKitDatabase 不可比较 → 用描述断言。子串匹配会被 `.private("…none…")`
+        // 之类蒙混，故用**完全相等**；本地域是 D5 铁律（永久锁），主域是当前状态。
+        let noneDescription = String(describing: ModelConfiguration.CloudKitDatabase.none)
+        #expect(String(describing: local.cloudKitDatabase) == noneDescription,
+                "本地域进 CloudKit = D5 破了（身体数据永不同步）")
+        // ⚠️ MVP-PLAN M0 的退出门要求主库将来开 CloudKit 同步——届时这条应改为
+        // 断言 .private 的容器标识符，**不要**顺手放宽成子串匹配。
+        #expect(String(describing: main.cloudKitDatabase) == noneDescription)
     }
 
     @Test func domainsPartitionAllModelsWithoutOverlap() {
@@ -146,15 +164,32 @@ struct SchemaGuardTests {
     // MARK: - 接线 lint（app-shell 不参与 swift test，先用 lint 兜住漂移）
 
     /// 实体清单不得再在 app-shell 里手搓——加实体漏改一处 = 启动崩溃。
+    /// 实体清单只有一份。**扫描 app-shell 下所有文件，含 .template**——
+    /// 此前 lint 靠扩展名把历史模板排除在外，而那份模板正是漏网的第二份清单
+    /// （D84 的立论就是「清单存在两处」，当时只砍掉了会编译的那一处）。
     @Test func appShellUsesSingleContainerEntryPoint() throws {
-        let shell = URL(fileURLWithPath: #filePath)
+        let shellDir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("app-shell/ClosetApp/ClosetApp.swift")
-        let text = try String(contentsOf: shell, encoding: .utf8)
-        #expect(text.contains("LoomiesStore.makeContainer"))
-        // 历史参考件 ClosetApp.swift.template 不在此检查范围（扩展名不同）
-        #expect(!text.contains("Schema(["), "app-shell must not hand-roll the entity list")
+            .appendingPathComponent("app-shell", isDirectory: true)
+        let entry = shellDir.appendingPathComponent("ClosetApp/ClosetApp.swift")
+        #expect(try String(contentsOf: entry, encoding: .utf8)
+            .contains("LoomiesStore.makeContainer"))
+
+        var handRolled: [String] = []
+        var scanned = 0
+        let fm = FileManager.default
+        let en = fm.enumerator(at: shellDir, includingPropertiesForKeys: nil)
+        while let url = en?.nextObject() as? URL {
+            let ext = url.pathExtension
+            guard ext == "swift" || ext == "template" else { continue }
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scanned += 1
+            if text.contains("Schema([") { handRolled.append(url.lastPathComponent) }
+        }
+        #expect(scanned >= 2, "扫描器失效（只看到 \(scanned) 个文件）")
+        #expect(handRolled.isEmpty,
+                Comment(rawValue: "手搓实体清单：\(handRolled)"))
     }
 }
