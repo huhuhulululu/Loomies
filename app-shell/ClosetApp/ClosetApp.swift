@@ -139,6 +139,16 @@ struct OnboardingScreen: View {
                     Text("Optional — pick a look-alike. You can refine measurements later.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    // 同意门必须与它守的控件同屏（D101）：D98 把快选接进了门，
+                    // 却没给这一屏任何授权入口——选完必被拒，用户无处授权。
+                    Toggle(BodyDataConsent.grantTitle, isOn: Binding(
+                        get: { vm.hasBodyDataConsent },
+                        set: { $0 ? vm.grantBodyDataConsent() : vm.revokeBodyDataConsent() }))
+                    if !vm.hasBodyDataConsent {
+                        Text(BodyDataConsent.explainer)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     Picker("Body type", selection: $vm.popularShapePick) {
                         Text("Skip for now").tag(Optional<PopularShape>.none)
                         Text("Hourglass").tag(Optional(PopularShape.hourglass))
@@ -147,6 +157,7 @@ struct OnboardingScreen: View {
                         Text("Rectangle").tag(Optional(PopularShape.rectangle))
                         Text("Inverted triangle").tag(Optional(PopularShape.invertedTriangle))
                     }
+                    .disabled(!vm.hasBodyDataConsent)
                 } header: {
                     Text("Body (optional)")
                 }

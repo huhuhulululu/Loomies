@@ -354,3 +354,67 @@ struct OnboardingNameIsOptionalTests {
         #expect(try ctx.fetch(FetchDescriptor<Person>()).first?.name == "Ada")
     }
 }
+
+/// D101（新一轮审计 HIGH）：D98 把 onboarding 体型快选接进了同意门，
+/// **却没在那个屏上加任何同意控件**——选择器摆在那里、看起来可选，
+/// 选完点继续必被拒，而用户在 onboarding 里没有任何办法授权。
+/// 门必须与它守的那个控件同屏出现。
+@MainActor
+struct OnboardingConsentAffordanceTests {
+
+    func isolated(granted: Bool) -> BodyDataConsent {
+        let suite = UserDefaults(suiteName: "onb-aff-\(UUID().uuidString)")!
+        let c = BodyDataConsent(defaults: suite)
+        c.setGranted(granted)
+        return c
+    }
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// VM 必须暴露「当前是否已授权」与「就地授权」，否则那个屏无从渲染同意控件。
+    @Test func viewModelExposesConsentStateAndGrant() throws {
+        let vm = OnboardingViewModel(bodyDataConsent: isolated(granted: false))
+        #expect(!vm.hasBodyDataConsent)
+        vm.grantBodyDataConsent()
+        #expect(vm.hasBodyDataConsent)
+    }
+
+    /// 就地授权之后，同一个 VM 能把体型选择走完（此前是死路）。
+    @Test func grantingInPlaceUnblocksTheQuickPick() throws {
+        let ctx = try makeContext()
+        let vm = OnboardingViewModel(bodyDataConsent: isolated(granted: false))
+        vm.city = "Austin"
+        vm.popularShapePick = .pear
+        #expect(!vm.finish(in: ctx))                  // 未授权：被拒
+        #expect(vm.message == BodyDataConsent.requiredMessage)
+        vm.grantBodyDataConsent()
+        #expect(vm.finish(in: ctx))                   // 授权后走得通
+        #expect(try ctx.fetch(FetchDescriptor<PersonBodyProfile>()).count == 1)
+    }
+
+    /// 撤回授权后选择也要跟着清掉——不得留一个「已选但存不了」的悬空状态。
+    @Test func revokingConsentClearsThePick() throws {
+        let vm = OnboardingViewModel(bodyDataConsent: isolated(granted: true))
+        vm.popularShapePick = .apple
+        vm.revokeBodyDataConsent()
+        #expect(!vm.hasBodyDataConsent)
+        #expect(vm.popularShapePick == nil)
+    }
+
+    /// onboarding 屏必须真的渲染同意控件（结构门：D98 漏的正是这一步）。
+    @Test func onboardingScreenRendersAConsentControl() throws {
+        let shell = WiringLintTests.productionSources().first {
+            $0.path.contains("/app-shell/") && $0.lastPathComponent == "ClosetApp.swift"
+        }
+        let text = try String(contentsOf: try #require(shell), encoding: .utf8)
+        #expect(text.contains("hasBodyDataConsent"),
+                "体型选择器与它的同意门必须同屏——否则那个控件永远拒绝")
+        #expect(text.contains("grantBodyDataConsent"))
+    }
+}

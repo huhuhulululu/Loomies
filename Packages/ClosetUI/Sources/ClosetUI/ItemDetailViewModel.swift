@@ -124,6 +124,9 @@ public final class ItemDetailViewModel {
             name: name,
             chestFlatWidthInches: Double(chestFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
             waistFlatWidthInches: Double(waistFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
+            // D101：此前这里漏传臀宽，于是网格徽章（走 mark(item:)，带臀宽）
+            // 与详情页对同一件衣服给出不同判定
+            hipFlatWidthInches: Double(hipFlat.trimmingCharacters(in: .whitespacesAndNewlines)),
             profile: profile
         ) {
             fitLabel = FitMarkCopy.label(v)

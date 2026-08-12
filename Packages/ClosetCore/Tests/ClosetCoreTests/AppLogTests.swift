@@ -86,6 +86,9 @@ struct AppLogTests {
             #"\(item.name"#, #"\(wardrobe.name"#, #"\(outfit.name"#,
             #"\(location.name"#, #"\(dest.name"#, #"\(w.name"#,
             #"\(error)"#, #"locationCity ??"#,
+            // D101：`String(describing: error)` 与 `\(error)` 等价危险，
+            // 而旧清单只拦后者——AppLog 自己的 timed() 就从这个洞里漏了出去
+            "String(describing: error)",
         ]
         var violations: [String] = []
         let fm = FileManager.default
@@ -101,8 +104,16 @@ struct AppLogTests {
         }
         for url in files {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            // D101：旧写法要求**同一行**里出现 AppLog.——而 `Self.error(...)`
+            // 这种同文件内的转发调用不带 AppLog. 前缀，泄漏就从这里漏过去了。
+            // 改为：AppLog.swift 全文件扫描，其余文件仍按 AppLog. 行过滤。
+            let isLogFile = url.lastPathComponent == "AppLog.swift"
             for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
-            where line.contains("AppLog.") {
+            where isLogFile || line.contains("AppLog.") {
+                // 注释行不算违规——规则文本本身会提到被禁的写法
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("*"),
+                      !trimmed.hasPrefix("/*") else { continue }
                 for pat in forbidden where line.contains(pat) {
                     violations.append("\(url.lastPathComponent):\(n + 1) ~ \(pat)")
                 }

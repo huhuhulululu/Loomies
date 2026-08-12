@@ -245,14 +245,38 @@ public final class CopilotViewModel {
     }
 
     private func emptyReason(anchors: [Item], wornCount: Int, available: Int) -> String {
-        if available == 0 { return "No available pieces in this closet." }
-        if available < 3 { return "Need more pieces (top/bottom/shoes) to complete a look." }
-        if wornCount > 0 && wornCount >= available {
-            return "All pieces worn in last 7 days — toggle off anti-repeat in Debug, or wait."
+        CopilotEmptyReason.text(
+            available: available, wornCount: wornCount,
+            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed)
+    }
+}
+
+/// 空态理由（D101）。两条纪律：
+/// 1. **不甩锅给已经放宽的门**——D89 之后防重复会在会清空候选时自动降级，
+///    此时空结果的原因不在它，却对用户说「都在近 7 天穿过」，还让他去关
+///    一个已经没在起作用的开关，是双重误导；
+/// 2. **用用户的语言**——「grammar filters」「toggle off in Debug」是开发者词汇，
+///    却在 release 里直接显示给真实用户看。每条理由都要带一个能做的下一步。
+public enum CopilotEmptyReason {
+    public static func text(
+        available: Int, wornCount: Int, anchorCount: Int, repeatGateRelaxed: Bool
+    ) -> String {
+        if available == 0 {
+            return "Nothing available in this closet yet — add a few pieces to get picks."
         }
-        if !anchors.isEmpty {
-            return "No legal completion for these anchors + occasion/weather filters."
+        if available < 3 {
+            return "Add a top, a bottom and shoes and you'll get a full look."
         }
-        return "No outfits matched occasion/weather/grammar filters."
+        // 只有防重复**真的**在起作用时才归因于它
+        if !repeatGateRelaxed, wornCount > 0, wornCount >= available {
+            return "You've worn everything here in the past week — wait a day, "
+                + "or add something new."
+        }
+        if anchorCount > 0 {
+            return "Nothing in this closet finishes that pick for today's weather "
+                + "and occasion — try a different piece."
+        }
+        return "Nothing here fits today's weather and occasion — "
+            + "try another occasion, or add pieces for this one."
     }
 }

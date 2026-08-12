@@ -287,3 +287,34 @@ struct TabSkeletonTests {
         #expect(!line.contains("入库 / 日历"), "入库不再是 tab")
     }
 }
+
+/// D101（审计 HIGH）：`@State` 初值不随参数更新——把衣柜锁在 `CopilotView` 的
+/// `@State` 初值里，切柜后 Today 会一直停在旧衣柜上（其余三个 tab 持 `let wardrobe`，
+/// 天然跟随）。SwiftUI 的身份行为在仓内测不出来（无 ViewInspector），
+/// 只能钉住写法：这类 View 的挂载点必须带 `.id(wardrobe.id)`。
+struct StateBackedTabIdentityTests {
+
+    @Test func todayTabIsRebuiltWhenTheClosetChanges() throws {
+        let root = WiringLintTests.productionSources().first {
+            $0.lastPathComponent == "AppRootView.swift"
+        }
+        let text = try String(contentsOf: try #require(root), encoding: .utf8)
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let mount = try #require(lines.firstIndex { $0.contains("CopilotView(wardrobe:") })
+        // 挂载点之后若干行内必须出现 .id(wardrobe.id)
+        let window = lines[mount..<min(mount + 8, lines.count)].joined(separator: "\n")
+        #expect(window.contains(".id(wardrobe.id)"),
+                "CopilotView 的 VM 是 @State 初值，不带 .id 就不会跟随切柜")
+    }
+
+    /// 反向锁：VM 若改成从 `let wardrobe` 每次求值（不再是 @State 初值），
+    /// 这条门就该被重新审视，而不是留着一个没人懂的 .id。
+    @Test func copilotViewStillInitializesItsViewModelInState() throws {
+        let view = WiringLintTests.productionSources().first {
+            $0.lastPathComponent == "CopilotView.swift"
+        }
+        let text = try String(contentsOf: try #require(view), encoding: .utf8)
+        #expect(text.contains("_vm = State(initialValue:"),
+                "若已改为非 @State 持有，请一并重新评估 AppRootView 上的 .id")
+    }
+}

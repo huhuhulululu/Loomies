@@ -16,6 +16,10 @@ public struct AppRootView: View {
     public var body: some View {
         TabView {
             CopilotView(wardrobe: wardrobe)
+                // Today 的 VM 是 @State 初值——参数变了它不会重建，
+                // 切柜后会一直停在旧衣柜上（其余三个 tab 持 let wardrobe，天然跟随）。
+                // 用视图身份强制重建：换柜 = 换内容，重置瞬时状态正是想要的（D101）。
+                .id(wardrobe.id)
                 .tabItem { Label("Today", systemImage: "sparkles") }
             ClosetGridView(wardrobe: wardrobe)
                 .tabItem { Label("Closet", systemImage: "square.grid.2x2") }
@@ -177,7 +181,10 @@ public struct MeView: View {
                         confirmDeleteAll = true
                     }
                     .accessibilityHint(DataLifecycleService.deleteAllButtonAccessibilityHint)
-                    Text("Uninstalling the app does not erase iCloud-synced data. Use Delete all data to exercise your deletion rights.")
+                    // D101：此前手写「卸载不会抹掉 iCloud 同步的数据」——两个域的
+                    // cloudKitDatabase 都是 .none，什么都没同步。改用 D90 写好却
+                    // 一直零调用点的那句正确披露。
+                    Text("\(ItemImageStore.backupDisclosure) Use Delete all data to exercise your deletion rights.")
                         .font(.caption2)
                         .foregroundStyle(DS.muted)
                     if let dataMessage {

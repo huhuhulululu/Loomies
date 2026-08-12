@@ -32,6 +32,23 @@ public final class OnboardingViewModel {
     /// 身体维度同意门（默认未同意；DESIGN §2.2）。测试可注入独立 suite。
     let bodyDataConsent: BodyDataConsent
 
+    /// 同意状态与就地授权（D101）。D98 把体型快选接进了同意门，却没给
+    /// onboarding 屏任何授权控件——选择器摆在那儿，选完必被拒，用户在那一屏
+    /// 无处授权。**门必须与它守的控件同屏**。
+    public var hasBodyDataConsent: Bool { bodyDataConsent.isGranted }
+
+    public func grantBodyDataConsent() {
+        bodyDataConsent.setGranted(true)
+        message = ""
+    }
+
+    /// 撤回时把选择一并清掉——不留「已选但存不了」的悬空状态。
+    public func revokeBodyDataConsent() {
+        bodyDataConsent.setGranted(false)
+        popularShapePick = nil
+        message = ""
+    }
+
     public init(bodyDataConsent: BodyDataConsent = .shared) {
         self.bodyDataConsent = bodyDataConsent
     }

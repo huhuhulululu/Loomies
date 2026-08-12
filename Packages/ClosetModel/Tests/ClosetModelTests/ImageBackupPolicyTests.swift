@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SwiftData
 @testable import ClosetModel
 import ClosetCore
 
@@ -38,5 +39,65 @@ struct ImageBackupPolicyTests {
             #expect(!text.contains("our server"))
             #expect(!text.contains("we can"))
         }
+    }
+}
+
+/// D101（审计 confirmed）：**正确的文案存在却没人用，而 UI 手写了一句假的**。
+/// D90 写好了 `ItemImageStore.backupDisclosure`（照片进设备备份、我们收不到副本），
+/// 它零 UI 调用点；与此同时 Me → Data 手写着「卸载不会抹掉 iCloud 同步的数据」——
+/// 而两个 store 的 `cloudKitDatabase` 都是 `.none`，**什么都没同步**。
+struct BackupDisclosureIsTheOneTruthTests {
+
+    static func productionSources() -> [URL] {
+        let packages = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let appShell = packages.deletingLastPathComponent()
+            .appendingPathComponent("app-shell", isDirectory: true)
+        var files: [URL] = []
+        let fm = FileManager.default
+        for root in [packages, appShell] {
+            let en = fm.enumerator(at: root, includingPropertiesForKeys: nil)
+            while let url = en?.nextObject() as? URL {
+                guard url.pathExtension == "swift",
+                      url.path.contains("/Sources/") || url.path.contains("/app-shell/"),
+                      !url.path.contains("/.build/") else { continue }
+                files.append(url)
+            }
+        }
+        return files
+    }
+
+    /// 同步没开就不许出现「已同步」的话术。
+    @Test func noShippedCopyClaimsCloudSyncWhileItIsOff() throws {
+        // 前提：两个域都没开 CloudKit
+        #expect(String(describing: LoomiesStore.mainConfiguration(inMemory: true).cloudKitDatabase)
+            == String(describing: ModelConfiguration.CloudKitDatabase.none))
+        var violations: [String] = []
+        for url in Self.productionSources() {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            for (n, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let s = line.trimmingCharacters(in: .whitespaces)
+                guard !s.hasPrefix("//"), !s.hasPrefix("///") else { continue }
+                // 只看字符串字面量里的话术
+                guard s.contains("\"") else { continue }
+                if s.localizedCaseInsensitiveContains("icloud-synced")
+                    || s.localizedCaseInsensitiveContains("synced to icloud") {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ \(s)")
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue: "\(violations)"))
+    }
+
+    /// D90 那句正确的披露必须真的被 UI 用上（不是躺在常量里）。
+    @Test func theCorrectDisclosureHasAUICallSite() throws {
+        var used = false
+        for url in Self.productionSources()
+        where url.lastPathComponent != "ItemImageStore.swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            if text.contains("backupDisclosure") { used = true; break }
+        }
+        #expect(used, "正确的备份披露零 UI 调用点，而 UI 手写了一句假的")
     }
 }

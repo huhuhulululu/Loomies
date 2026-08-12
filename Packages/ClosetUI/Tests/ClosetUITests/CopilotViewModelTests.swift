@@ -170,8 +170,10 @@ struct CopilotViewModelTests {
         vm.wornWithin7DaysIDs = otherWorn
         vm.refresh()
         #expect(vm.suggestions.isEmpty)
-        #expect(!vm.statusMessage.contains("All pieces worn"))
-        #expect(vm.statusMessage.contains("No outfits matched"))
+        // 别柜的穿着记录不得让本柜被说成「都穿过了」（原意保留）；
+        // D101 后文案改用用户语言，故断言意图而非旧的实现措辞。
+        #expect(!vm.statusMessage.localizedCaseInsensitiveContains("worn"))
+        #expect(vm.statusMessage.localizedCaseInsensitiveContains("weather"))
     }
 
     @Test func largeClosetAllowsFullAuto() throws {
@@ -462,5 +464,61 @@ struct CopilotViewModelTests {
         #expect(CopilotView.lookPagerChevronHitArea > CopilotView.lookPagerChevronVisualSize)
         #expect((CopilotView.lookPagerChevronHitArea - CopilotView.lookPagerChevronVisualSize)
             .truncatingRemainder(dividingBy: 2) == 0)
+    }
+}
+
+/// D101（审计 HIGH）：空态理由的两处不诚实。
+/// 1. 「All pieces worn in last 7 days」只按裸计数下结论，**不看防重复是否已降级**——
+///    D89 之后硬门会在会清空候选时自动放宽，此时空结果的原因根本不是防重复，
+///    却对用户这么说（还让他去关一个已经没在起作用的开关）。
+/// 2. 「toggle off anti-repeat in Debug」「grammar filters」是**开发者语言**，
+///    却在 release 里直接显示给真实用户。
+@MainActor
+struct CopilotEmptyReasonHonestyTests {
+
+    @Test func reasonNeverBlamesAntiRepeatWhenItWasRelaxed() throws {
+        // 防重复已降级 → 空结果的原因不在它，文案不得甩锅给它
+        let reason = CopilotEmptyReason.text(
+            available: 8, wornCount: 8, anchorCount: 0, repeatGateRelaxed: true)
+        #expect(!reason.localizedCaseInsensitiveContains("worn in last 7 days"))
+    }
+
+    /// 真的是防重复清空的（没降级）→ 可以这么说，但不得让用户去点 Debug 开关。
+    @Test func reasonMayBlameAntiRepeatOnlyWhenItActuallyApplied() {
+        let reason = CopilotEmptyReason.text(
+            available: 8, wornCount: 8, anchorCount: 0, repeatGateRelaxed: false)
+        #expect(reason.localizedCaseInsensitiveContains("worn"))
+        #expect(!reason.localizedCaseInsensitiveContains("debug"))
+        #expect(!reason.localizedCaseInsensitiveContains("toggle"))
+    }
+
+    /// 全部理由都必须是用户语言：不出现 debug / grammar / filter 这类实现词。
+    @Test func everyReasonIsInCustomerLanguage() {
+        let cases: [(Int, Int, Int, Bool)] = [
+            (0, 0, 0, false), (2, 0, 0, false), (8, 8, 0, false),
+            (8, 8, 0, true), (8, 0, 2, false), (8, 0, 0, false),
+        ]
+        for (available, worn, anchors, relaxed) in cases {
+            let r = CopilotEmptyReason.text(
+                available: available, wornCount: worn,
+                anchorCount: anchors, repeatGateRelaxed: relaxed)
+            #expect(!r.isEmpty)
+            for word in ["debug", "grammar", "filters", "toggle"] {
+                #expect(!r.localizedCaseInsensitiveContains(word),
+                        Comment(rawValue: "开发者语言泄漏到用户面：\(r)"))
+            }
+        }
+    }
+
+    /// 每条理由都要给**下一步**，不是只报告失败。
+    @Test func everyReasonSuggestsSomethingToDo() {
+        for (available, worn, anchors) in [(0, 0, 0), (2, 0, 0), (8, 8, 0), (8, 0, 2)] {
+            let r = CopilotEmptyReason.text(
+                available: available, wornCount: worn,
+                anchorCount: anchors, repeatGateRelaxed: false)
+            let actionable = ["add", "try", "pick", "wait", "change", "tag"]
+                .contains { r.localizedCaseInsensitiveContains($0) }
+            #expect(actionable, Comment(rawValue: "没有下一步：\(r)"))
+        }
     }
 }

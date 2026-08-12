@@ -87,7 +87,10 @@ public enum AppLog {
             return value
         } catch {
             let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
-            Self.error(String(format: "%@ failed in %.1fms: %@", label, ms, String(describing: error)), cat)
+            // 违反的正是本文件 40 行前自己声明的规则：`String(describing: error)`
+            // 会把 Cocoa 错误的 userInfo（NSFilePath/NSURL = 容器 UUID 绝对路径，
+            // 准设备标识符）整包写进日志，再随诊断导出外流（D101）。
+            Self.error(String(format: "%@ failed in %.1fms: %@", label, ms, Self.errRef(error)), cat)
             throw error
         }
     }

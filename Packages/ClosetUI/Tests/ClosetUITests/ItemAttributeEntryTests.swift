@@ -305,3 +305,65 @@ struct CareNotesRoundTripTests {
         _ = item
     }
 }
+
+/// D101（审计 HIGH）：同一件衣服在**网格与详情页**必须给出同一个合身判定。
+/// D100 把臀宽接进了 `FitMarkService`，但详情页的 `refreshFit` 没传它——
+/// 网格徽章走 `mark(item:profile:)`（带臀宽），详情页走展开参数（丢臀宽），
+/// 于是腰上宽松、臀上卡的裤子：网格显示「紧」，点进去显示「合身」。
+@MainActor
+struct FitMarkSurfaceAgreementTests {
+
+    func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    @Test func gridAndDetailAgreeWhenHipIsTheBindingConstraint() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let jeans = Item(name: "Jeans"); jeans.slotRaw = "bottom"; jeans.wardrobe = w
+        jeans.statusRaw = "available"
+        jeans.waistFlatWidthInches = 16      // 腰宽松
+        jeans.hipFlatWidthInches = 19        // 臀部紧
+        ctx.insert(jeans)
+        let profile = PersonBodyProfile(personID: UUID())
+        profile.waistInches = 28
+        profile.hipInches = 40
+        ctx.insert(profile)
+        try ctx.save()
+
+        // 网格徽章的判定
+        let grid = try #require(FitMarkService.mark(item: jeans, profile: profile))
+        #expect(grid == .tight)
+
+        // 详情页的判定必须一致
+        let vm = ItemDetailViewModel(item: jeans)
+        vm.refreshFit(profile: profile)
+        #expect(vm.fitLabel == FitMarkCopy.label(grid),
+                "同一件衣服在两个界面给出不同合身判定")
+    }
+
+    /// 详情页里改臀宽后，判定要跟着变（字段真的参与了计算）。
+    @Test func editingHipChangesTheDetailVerdict() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let jeans = Item(name: "Jeans"); jeans.slotRaw = "bottom"; jeans.wardrobe = w
+        jeans.statusRaw = "available"; jeans.waistFlatWidthInches = 16
+        ctx.insert(jeans)
+        let profile = PersonBodyProfile(personID: UUID())
+        profile.waistInches = 28; profile.hipInches = 40
+        ctx.insert(profile)
+        try ctx.save()
+
+        let vm = ItemDetailViewModel(item: jeans)
+        vm.refreshFit(profile: profile)
+        let waistOnly = vm.fitLabel
+
+        vm.hipFlat = "19"
+        vm.refreshFit(profile: profile)
+        #expect(vm.fitLabel != waistOnly, "臀宽没参与详情页的合身计算")
+    }
+}
