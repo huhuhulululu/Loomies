@@ -34,6 +34,10 @@ public enum ImageReconcileService {
                     referenced.insert(derived)
                 }
             }
+            // 用户原始照片旁挂档（D111）同属「被引用」
+            if let src = ItemImageStore.sourcePhotoRelativePath(relativePath: rel) {
+                referenced.insert(src)
+            }
         }
 
         // 孤儿文件：目录扫描减去 DB 引用集（纯文件操作，无 DB 依赖）

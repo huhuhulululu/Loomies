@@ -121,6 +121,55 @@ public enum ItemImageStore {
         return components.isEmpty ? name : (components.joined(separator: "/") + "/" + name)
     }
 
+    // MARK: - 用户原始照片旁挂档（D111）
+
+    /// 用户加的那张照片，与层图同目录同 stem：`ItemImages/<stem>@source.jpg`。
+    ///
+    /// 此前入库只落**归一后的叠衣层**（紧 bbox 裁剪 + 512×768 画布 + 重编码），
+    /// 用户拍的原图仅存在于 `IntakeViewModel.originalImage` 内存里，确认即清空——
+    /// 而相机路径根本不写相册，所以那张照片被**永久丢弃**。
+    /// 导出文案却承诺「your original photos」，兑现不了。
+    ///
+    /// 存的是压过的副本（长边 ≤2048），因此对外一律称「the photo you added」，
+    /// 不称 original——文案不得比实物说得大。
+    public static func sourcePhotoRelativePath(relativePath: String?) -> String? {
+        guard let relativePath, !relativePath.isEmpty else { return nil }
+        var components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        guard let last = components.popLast(), !last.isEmpty else { return nil }
+        let stem = last.contains(".")
+            ? String(last[last.startIndex..<last.lastIndex(of: ".")!])
+            : String(last)
+        let name = "\(stem)\(sourcePhotoSuffix).jpg"
+        return components.isEmpty ? name : (components.joined(separator: "/") + "/" + name)
+    }
+
+    public static let sourcePhotoSuffix = "@source"
+
+    /// 长边上限：全分辨率相机原图 2-4MB × 百件 = 几百 MB，代价与用途不成比例。
+    /// 2048 足够重新抠图与外部查看。
+    public static let sourcePhotoMaxPixel = 2048
+
+    /// 落旁挂档。解不出来的数据返回 nil——不落一个读不出的假文件冒充照片。
+    @discardableResult
+    public static func saveSourcePhoto(_ data: Data, layerRelativePath: String) -> String? {
+        guard let rel = sourcePhotoRelativePath(relativePath: layerRelativePath),
+              let url = absoluteURL(relativePath: rel),
+              let scaled = ItemImageDerivatives.downscaledJPEG(
+                data, maxPixel: sourcePhotoMaxPixel, quality: 0.85)
+        else { return nil }
+        do {
+            try scaled.write(to: url, options: .atomic)
+            return rel
+        } catch {
+            AppLog.error("source photo save failed: \(AppLog.errRef(error))", .data)
+            return nil
+        }
+    }
+
+    public static func sourcePhotoExists(relativePath: String?) -> Bool {
+        fileExists(relativePath: sourcePhotoRelativePath(relativePath: relativePath))
+    }
+
     public static func derivedFileExists(
         relativePath: String?, variant: ItemImageVariant
     ) -> Bool {
@@ -154,5 +203,7 @@ public enum ItemImageStore {
             delete(relativePath: derivedRelativePath(
                 relativePath: relativePath, variant: variant))
         }
+        // 旁挂原图同批删——否则用户「删了这件」之后照片还留在盘上（删除权没兑现）
+        delete(relativePath: sourcePhotoRelativePath(relativePath: relativePath))
     }
 }

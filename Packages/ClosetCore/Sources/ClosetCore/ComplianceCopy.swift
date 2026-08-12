@@ -22,9 +22,12 @@ public enum NetworkSurfaceCatalog {
         Surface(
             id: "weather",
             title: "Weather",
-            sends: "The city name you set for a closet — no closet contents, no photos, no identifiers.",
-            trigger: "When Today loads or you change a closet's city.",
-            optOut: "Leave the closet's city empty; the app falls back to an offline climate estimate.",
+            sends: "What you type in a city field, and the city you save for a closet — "
+                + "no closet contents, no photos, no identifiers.",
+            trigger: "While you type in a city field (to look up matching cities, including "
+                + "during first-time setup), and when Today loads a forecast.",
+            optOut: "Type the city and pick from the list only if you want the lookup; afterwards "
+                + "you can clear a closet's city and the app falls back to an offline estimate.",
             hosts: OpenMeteoWeatherProvider.hosts),
         Surface(
             id: "barcode",
@@ -139,7 +142,27 @@ public enum ComplianceCopy {
                 + "They are left out of data exports unless you explicitly include them."),
     ]
 
-    public static let policyDocuments: [PolicyDocument] = [
+    /// 隐私政策的「Analytics」正文。
+    ///
+    /// D111：D105 把状态行改成按实况生成了，**75 行之外的政策正文却仍是硬编码**——
+    /// 而政策是两者中风险更高的那份（它是对外承诺，不是一行状态提示）。
+    /// 接上 SDK 那天，先变成谎话的正是这里。
+    public static func analyticsPolicyBody(hasSink: Bool) -> String {
+        let head = "Anonymous usage statistics are off by default and are opt-in from Me → Privacy. "
+        let tail = "Only the event names and non-identifying fields on our published allowlist "
+            + "may ever be sent; body measurements and images are permanently excluded."
+        return hasSink
+            ? head + "When the switch is on, statistics are sent to our analytics provider. " + tail
+            : head + "This build has no analytics service connected, so nothing is sent even when "
+                + "the switch is on. If that changes, " + tail.prefix(1).lowercased() + tail.dropFirst()
+    }
+
+    /// 政策全文。`hasSink` 必须由调用方从 `TelemetryGate` 取实况传入（同 `telemetryStatusLine`）。
+    public static func policyDocuments(hasSink: Bool) -> [PolicyDocument] {
+        privacyAndTerms(analyticsBody: analyticsPolicyBody(hasSink: hasSink))
+    }
+
+    private static func privacyAndTerms(analyticsBody: String) -> [PolicyDocument] { [
         PolicyDocument(
             title: "Privacy Policy",
             lastUpdated: "August 2026",
@@ -159,17 +182,13 @@ public enum ComplianceCopy {
                         + "the barcode you scanned to the Open Facts databases — that barcode "
                         + "identifies a specific product you own. Nothing else is transmitted: not "
                         + "your photos, item names, looks, or measurements."),
-                PolicySection(
-                    heading: "Analytics",
-                    body: "Anonymous usage statistics are off by default and are opt-in from "
-                        + "Me → Privacy. This build has no analytics service connected, so nothing "
-                        + "is sent even when the switch is on. If that changes, only the event names "
-                        + "and non-identifying fields on our published allowlist may ever be sent; "
-                        + "body measurements and images are permanently excluded."),
+                PolicySection(heading: "Analytics", body: analyticsBody),
                 PolicySection(
                     heading: "Your data rights",
-                    body: "Me → Data → Export my data produces a JSON file plus your original "
-                        + "photos so you can take everything with you. Me → Data → Delete all data "
+                    body: "Me → Data → Export my data produces a JSON file plus, for each piece, "
+                        + "the photo you added (kept at up to 2048 px) and the cut-out layer the app "
+                        + "made from it — so you can take everything with you. Pieces added before "
+                        + "this feature shipped have the cut-out only. Me → Data → Delete all data "
                         + "erases closets, pieces, looks, wear history, plans, measurements, and "
                         + "local photos from this device. Uninstalling the app alone does not erase "
                         + "data that was synced elsewhere."),
@@ -205,7 +224,7 @@ public enum ComplianceCopy {
                         + "responsible for purchasing decisions, garment damage, or laundry outcomes "
                         + "that follow from using its suggestions."),
             ]),
-    ]
+    ] }
 
     /// 帮助与反馈：反馈通道复用既有诊断导出（不虚构邮箱/工单系统）。
     public static let feedbackTitle = "Send feedback"

@@ -299,6 +299,16 @@ public final class IntakeViewModel {
                 if let rel = ItemImageStore.save(data: layerPNG, for: item.id, ext: "png") {
                     item.localImageRelativePath = rel
                     lastWrittenLayerImagePath = rel // test hook：回滚测试精确断言此文件
+                    // D111：层图是**归一裁剪过**的，带不走原样，也没法重新抠。
+                    // 相机路径不写相册（只转手 jpegData），不存这一份 = 永久丢弃用户的照片。
+                    // 失败只记日志不打断：衣物本体与层图都已就绪，为一份旁挂档拦下整个入库
+                    // 与代价不成比例（导出届时按实际有的份数如实说话）。
+                    if let source = originalImage,
+                       ItemImageStore.saveSourcePhoto(source, layerRelativePath: rel) == nil {
+                        AppLog.error(
+                            "intakeConfirm source photo save failed item=\(AppLog.ref(item.id))",
+                            .intake)
+                    }
                 } else {
                     // 磁盘写失败：衣物本体仍入库，但层图丢失不得静默——诚实提示可重拍。
                     statusMessage = Self.layerImageSaveFailedMessage

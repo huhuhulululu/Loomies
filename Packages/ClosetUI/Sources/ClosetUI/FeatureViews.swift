@@ -713,7 +713,7 @@ public struct AboutView: View {
             }
             Section("Policies") {
                 // 应用内全文（外链到未上线域名 = 死链，违反 UI 诚实铁律）
-                ForEach(ComplianceCopy.policyDocuments) { doc in
+                ForEach(ComplianceCopy.policyDocuments(hasSink: TelemetryGate.shared.hasSink)) { doc in
                     NavigationLink(doc.title) { PolicyDocumentView(document: doc) }
                 }
             }

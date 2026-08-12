@@ -39,7 +39,7 @@ public struct HelpView: View {
             }
             Section("Policies") {
                 // 应用内全文，不外链到尚不存在的域名（死链 = 不诚实）
-                ForEach(ComplianceCopy.policyDocuments) { doc in
+                ForEach(ComplianceCopy.policyDocuments(hasSink: TelemetryGate.shared.hasSink)) { doc in
                     NavigationLink(doc.title) { PolicyDocumentView(document: doc) }
                 }
             }

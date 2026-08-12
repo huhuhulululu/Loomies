@@ -70,6 +70,15 @@ public enum ExportBundleService {
             photos.append(PhotoEntry(
                 sourcePath: url.path,
                 archiveName: "\(item.id.uuidString).\(ext)"))
+            // 用户加的那张照片（D111）：层图是归一裁剪过的，带不走原样。
+            // 存量件没有旁挂档 —— 跳过即可，不虚报。
+            if let srcRel = ItemImageStore.sourcePhotoRelativePath(relativePath: rel),
+               ItemImageStore.fileExists(relativePath: srcRel),
+               let srcURL = ItemImageStore.absoluteURL(relativePath: srcRel) {
+                photos.append(PhotoEntry(
+                    sourcePath: srcURL.path,
+                    archiveName: "\(item.id.uuidString)@source.jpg"))
+            }
         }
         // 归档内顺序确定（导出可复现）
         photos.sort { $0.archiveName < $1.archiveName }
