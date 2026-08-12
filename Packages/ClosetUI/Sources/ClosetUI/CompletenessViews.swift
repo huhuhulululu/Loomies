@@ -520,14 +520,15 @@ public struct ClosetCityEditView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @State private var city: String = ""
     @State private var message = ""
+    /// 城市辅助输入（D107）：选中候选后存标准名，同名城市分得开
+    @State private var picker = CityPickerViewModel()
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
         Form {
-            TextField("City", text: $city)
+            CityPickerField(vm: picker, title: "City")
             Text("Used for Open-Meteo live weather (online) and offline climate fallback.")
                 .font(.caption).foregroundStyle(DS.muted)
             if !message.isEmpty {
@@ -542,7 +543,8 @@ public struct ClosetCityEditView: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
                     // Stay open on ModelSave fail — no silent dismiss.
-                    let ok = ProfileLabels.applyCity(city, to: wardrobe, in: context)
+                    let ok = ProfileLabels.applyCity(
+                        picker.storedValue ?? "", to: wardrobe, in: context)
                     if let flash = ProfileLabels.editSaveFailureFlash(succeeded: ok) {
                         message = flash
                     } else {
@@ -551,7 +553,7 @@ public struct ClosetCityEditView: View {
                 }
             }
         }
-        .onAppear { city = wardrobe.locationCity ?? "" }
+        .onAppear { picker.preload(wardrobe.locationCity) }
     }
 }
 

@@ -111,6 +111,8 @@ struct RootView: View {
 struct OnboardingScreen: View {
     @Bindable var vm: OnboardingViewModel
     var onFinish: () -> Void
+    /// 城市辅助输入（D107）：选中候选后写回 vm.city 的是**标准名**
+    @State private var cityPicker = CityPickerViewModel()
 
     var body: some View {
         NavigationStack {
@@ -120,8 +122,12 @@ struct OnboardingScreen: View {
                     // 标成可选，别让它当激活闸门（D98）
                     TextField("Name (optional)", text: $vm.displayName)
                         .textContentType(.name)
-                    TextField("Home city", text: $vm.city)
-                        .textContentType(.addressCity)
+                    // 城市辅助输入（D107）：从候选里选，存的是标准名，
+                    // 天气据此查——「Springfield」到底是哪个不再靠猜
+                    CityPickerField(vm: cityPicker)
+                        .onChange(of: cityPicker.query) { _, _ in
+                            vm.city = cityPicker.storedValue ?? ""
+                        }
                 }
                 // 场合构成（D97，DESIGN §474 个性化三题之一）。可跳过——
                 // 不答就是不答，系统用中性默认，不记成用户的选择。

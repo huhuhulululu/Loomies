@@ -73,6 +73,20 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         return try OpenMeteoJSON.parseGeocode(data)
     }
 
+    /// 城市候选搜索（D107 辅助输入）。空结果不抛错——没搜到就是没搜到。
+    public func searchCities(name: String, limit: Int = 8) async throws -> [CityMatch] {
+        var comps = URLComponents(string: "https://\(Self.geocodeHost)/v1/search")
+        comps?.queryItems = [
+            URLQueryItem(name: "name", value: name),
+            URLQueryItem(name: "count", value: String(max(1, limit))),
+            URLQueryItem(name: "language", value: "en"),
+            URLQueryItem(name: "format", value: "json"),
+        ]
+        guard let url = comps?.url else { throw PublicAPIError.invalidURL }
+        let data = try await transport.get(url: url)
+        return CitySearch.ordered(try OpenMeteoJSON.parseGeocodeMatches(data))
+    }
+
     public struct ForecastDay: Equatable, Sendable {
         public var maxF: Double
         public var precipProbabilityPercent: Int?
@@ -116,6 +130,29 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
 
 /// JSON parse helpers (fixtures + live share the same decoder path).
 public enum OpenMeteoJSON {
+    /// 候选城市列表（D107）。此前只取第一条、丢掉 `admin1`/`country`——
+    /// 于是「Springfield 到底是哪个」用户和 App 都不知道。
+    /// **空结果不是错误**（没搜到就是没搜到，不得让 UI 显示「网络错误」）。
+    public static func parseGeocodeMatches(_ data: Data) throws -> [CityMatch] {
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { throw PublicAPIError.decodeFailed }
+        guard let results = root["results"] as? [[String: Any]] else { return [] }
+        return results.compactMap { entry in
+            // 无坐标的条目跳过——进了候选也查不了天气
+            guard let lat = entry["latitude"] as? Double,
+                  let lon = entry["longitude"] as? Double,
+                  let city = TextNormalize.blankToNil(entry["name"] as? String)
+            else { return nil }
+            return CityMatch(
+                city: city,
+                region: TextNormalize.blankToNil(entry["admin1"] as? String),
+                country: TextNormalize.blankToNil(entry["country"] as? String),
+                countryCode: entry["country_code"] as? String,
+                latitude: lat, longitude: lon,
+                timezone: entry["timezone"] as? String)
+        }
+    }
+
     public static func parseGeocode(_ data: Data) throws -> OpenMeteoWeatherProvider.GeoPlace {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let results = root["results"] as? [[String: Any]],
