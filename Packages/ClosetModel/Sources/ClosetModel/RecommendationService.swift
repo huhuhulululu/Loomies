@@ -13,12 +13,15 @@ public enum RecommendationService {
         daytimeTempF: Double,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
+        bodyShapeWeight: Double = 1.0,
+        colorSeason: PersonalColorSeason? = nil,
         coldBias: Int = 0,
         maxSuggestions: Int = 3
     ) -> [ScoredOutfit] {
         detailed(for: wardrobe, anchors: anchors, occasion: occasion,
                  daytimeTempF: daytimeTempF, wornWithin7DaysIDs: wornWithin7DaysIDs,
-                 bodyShape: bodyShape, coldBias: coldBias,
+                 bodyShape: bodyShape, bodyShapeWeight: bodyShapeWeight,
+                 colorSeason: colorSeason, coldBias: coldBias,
                  maxSuggestions: maxSuggestions).suggestions
     }
 
@@ -31,6 +34,8 @@ public enum RecommendationService {
         daytimeTempF: Double,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
+        bodyShapeWeight: Double = 1.0,
+        colorSeason: PersonalColorSeason? = nil,
         coldBias: Int = 0,
         maxSuggestions: Int = 3
     ) -> OutfitCompleter.Result {
@@ -49,7 +54,10 @@ public enum RecommendationService {
             context: FilterContext(occasion: occasion, daytimeTempF: daytimeTempF,
                                    wornWithin7DaysIDs: wornWithin7DaysIDs,
                                    coldBias: coldBias),
-            scoring: ScoringContext(bodyShape: bodyShape),
+            scoring: ScoringContext(
+                bodyShape: bodyShape,
+                bodyShapeWeight: bodyShapeWeight,
+                colorSeason: colorSeason),
             maxSuggestions: maxSuggestions)
     }
 }

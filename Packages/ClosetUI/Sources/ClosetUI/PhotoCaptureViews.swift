@@ -136,8 +136,8 @@ public struct ItemThumbnailView: View {
     let item: Item
     var height: CGFloat = 120
     /// 派生档（D95）：网格方块解全分辨率原图是百件网格卡顿的直接来源。
-    /// 高度 > 200pt 的用途（详情/试衣间预览）取 detail 档。
-    private var variant: ItemImageVariant { height > 200 ? .detail : .grid }
+    /// 高度 ≥ 200pt 的用途（详情/试衣间预览）取 detail 档。
+    private var variant: ItemImageVariant { ItemImageVariant.forDisplayHeight(height) }
 
     public var body: some View {
         Group {

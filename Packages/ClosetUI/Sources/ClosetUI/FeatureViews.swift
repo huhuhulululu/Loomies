@@ -237,6 +237,7 @@ struct TransferSheet: View {
 public struct BodyProfileView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var vm: BodyProfileViewModel
 
     /// 身体维度单独同意（DESIGN §2.2）：未同意时**只出说明卡**，录入面整段不渲染。
@@ -334,7 +335,8 @@ public struct BodyProfileView: View {
                 .pickerStyle(.segmented)
                 // 肤色圆点：表型 catalog 模特即时预览
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 72), spacing: 8)],
+                    columns: AccessibilityGridColumns.items(
+                        for: dynamicTypeSize, regularMinimum: 72, spacing: 8),
                     spacing: 10
                 ) {
                     ForEach(AvatarBodyPhenotype.allCases, id: \.rawValue) { p in
@@ -380,7 +382,8 @@ public struct BodyProfileView: View {
                 Text("Which looks most like you?")
                     .font(.subheadline.weight(.medium))
                 LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                    columns: AccessibilityGridColumns.items(
+                        for: dynamicTypeSize, regularCount: 3, spacing: 12),
                     spacing: 12
                 ) {
                     ForEach(BodyProfileViewModel.allPopular, id: \.rawValue) { shape in

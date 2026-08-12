@@ -10,6 +10,37 @@ public struct GarmentColor: Sendable, Equatable {
     }
 }
 
+extension PersonalColorSeason {
+    /// Spring / autumn sit on the warm side of the wheel; summer / winter on the cool side.
+    public var prefersWarmHues: Bool {
+        switch self {
+        case .spring, .autumn: return true
+        case .summer, .winter: return false
+        case .unknown: return true
+        }
+    }
+
+    /// Warm arc: red–yellow plus red-violet (0…70 and 330…360).
+    public static func isWarmHue(_ hueDegrees: Double) -> Bool {
+        guard hueDegrees.isFinite else { return false }
+        var h = hueDegrees.truncatingRemainder(dividingBy: 360)
+        if h < 0 { h += 360 }
+        return h <= 70 || h >= 330
+    }
+
+    /// Mean signed match over chromatic pieces: +1 all in-season, −1 all off-season, 0 unknown/neutral-only.
+    public func colorAffinity(colors: [GarmentColor]) -> Double {
+        guard self != .unknown else { return 0 }
+        let chromatic = colors.filter { !$0.isNeutral && $0.hueDegrees.isFinite }
+        guard !chromatic.isEmpty else { return 0 }
+        let wantWarm = prefersWarmHues
+        let signed = chromatic.reduce(0.0) { acc, c in
+            acc + (Self.isWarmHue(c.hueDegrees) == wantWarm ? 1 : -1)
+        }
+        return signed / Double(chromatic.count)
+    }
+}
+
 /// 两色在色轮上的关系。
 public enum ColorRelation: String, Sendable, Equatable {
     case neutral        // 含中性色，百搭

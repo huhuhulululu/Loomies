@@ -21,6 +21,8 @@ public final class CopilotViewModel {
     /// 上次刷新时防重复硬门是否被降级为降权（UI 出诚实说明）。
     public private(set) var repeatGateRelaxed: Bool = false
     public var bodyShape: BodyShape?
+    /// Measurement confidence from the same profile that produced `bodyShape`.
+    public var bodyShapeWeight: Double = 0
     public var coldStartThreshold: Int = 8
     public private(set) var anchorIDs: Set<UUID> = []
     public private(set) var suggestions: [ScoredOutfit] = []
@@ -84,8 +86,10 @@ public final class CopilotViewModel {
     @discardableResult
     public func applyBodyProfile(_ profile: PersonBodyProfile?) -> Bool {
         let next = profile.flatMap { BodyProfileService.bodyShape(from: $0) }
-        let changed = next != bodyShape
+        let nextWeight = profile.map { BodyProfileService.styleWeightFactor(for: $0) } ?? 0
+        let changed = next != bodyShape || nextWeight != bodyShapeWeight
         bodyShape = next
+        bodyShapeWeight = nextWeight
         return changed
     }
 
@@ -217,6 +221,8 @@ public final class CopilotViewModel {
                 daytimeTempF: daytimeTempF,
                 wornWithin7DaysIDs: worn,
                 bodyShape: bodyShape,
+                bodyShapeWeight: bodyShapeWeight,
+                colorSeason: PersonalColorSeason.parse(wardrobe.owner?.personalColorSeasonRaw),
                 coldBias: wardrobe.owner?.coldBias ?? 0,
                 maxSuggestions: 3)
         }

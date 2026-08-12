@@ -12,7 +12,18 @@ public struct OutfitScore: Sendable, Equatable {
 
 public struct ScoringContext: Sendable {
     public let bodyShape: BodyShape?
-    public init(bodyShape: BodyShape? = nil) { self.bodyShape = bodyShape }
+    /// 0 = guessed-absent, 0.5 = visual pick, 0.85 = provisional, 1.0 = measured.
+    public let bodyShapeWeight: Double
+    public let colorSeason: PersonalColorSeason?
+    public init(
+        bodyShape: BodyShape? = nil,
+        bodyShapeWeight: Double = 1.0,
+        colorSeason: PersonalColorSeason? = nil
+    ) {
+        self.bodyShape = bodyShape
+        self.bodyShapeWeight = bodyShapeWeight
+        self.colorSeason = (colorSeason == .unknown) ? nil : colorSeason
+    }
 }
 
 /// outfit 打分（纯函数，透明可解释）。当前含配色协调 + 60-30-10 平衡；
@@ -43,15 +54,26 @@ public enum OutfitScorer {
                 reasons.append("Many colors — try one main color")
             }
         }
-        // 体型×属性加权（BodyShapeStyling 表）。en-US 理由文案（首发美区）。
-        if let shape = context.bodyShape {
+        // 体型×属性加权（BodyShapeStyling 表）。测量置信度缩放该项，快选不得与实测同权。
+        if let shape = context.bodyShape, context.bodyShapeWeight > 0 {
             let affinity = BodyShapeStyling.affinity(items: outfit.items, shape: shape.popularCategory)
+            let delta = 0.2 * affinity * context.bodyShapeWeight
             if affinity > 0 {
-                value += 0.2 * affinity
+                value += delta
                 reasons.append("Flatters your body shape")
             } else if affinity < 0 {
-                value += 0.2 * affinity
+                value += delta
                 reasons.append("Cut may not suit your shape")
+            }
+        }
+        if let season = context.colorSeason {
+            let affinity = season.colorAffinity(colors: colors)
+            if affinity > 0 {
+                value += 0.15 * affinity
+                reasons.append("Colors suit your \(season.displayName.lowercased()) season")
+            } else if affinity < 0 {
+                value += 0.15 * affinity
+                reasons.append("Colors sit outside your \(season.displayName.lowercased()) season")
             }
         }
         return OutfitScore(

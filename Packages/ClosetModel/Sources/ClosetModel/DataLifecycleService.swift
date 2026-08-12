@@ -37,6 +37,7 @@ public enum DataLifecycleService {
         public var name: String
         public var coldBias: Int
         public var personalColorSeasonRaw: String?
+        public var primaryOccasionRaw: String?
     }
 
     public struct WardrobeDTO: Codable, Sendable, Equatable {
@@ -146,7 +147,8 @@ public enum DataLifecycleService {
 
         let personDTOs = persons
             .map { PersonDTO(id: $0.id.uuidString, name: $0.name, coldBias: $0.coldBias,
-                             personalColorSeasonRaw: $0.personalColorSeasonRaw) }
+                             personalColorSeasonRaw: $0.personalColorSeasonRaw,
+                             primaryOccasionRaw: $0.primaryOccasionRaw) }
             .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
         let wardrobeDTOs = wardrobes

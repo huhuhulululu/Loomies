@@ -83,4 +83,28 @@ struct RecommendationServiceTests {
             #expect(!s.outfit.itemIDs.contains(foreign.id.uuidString))
         }
     }
+
+    /// Shipped service path: personal-color season must move the score, not sit unused.
+    @Test func personalColorSeasonMovesShippedScore() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "A"); ctx.insert(w)
+        func warm(_ name: String, _ slot: String) -> Item {
+            let i = mk(ctx, w, name, slot)
+            i.colorHue = 0
+            i.colorIsNeutral = false
+            return i
+        }
+        let top = warm("top", "top")
+        _ = warm("bottom", "bottom")
+        _ = warm("shoes", "shoes")
+        try ctx.save()
+        let autumn = RecommendationService.suggestions(
+            for: w, anchors: [top], occasion: "work", daytimeTempF: 75,
+            colorSeason: .autumn, maxSuggestions: 1)
+        let winter = RecommendationService.suggestions(
+            for: w, anchors: [top], occasion: "work", daytimeTempF: 75,
+            colorSeason: .winter, maxSuggestions: 1)
+        #expect(!autumn.isEmpty && !winter.isEmpty)
+        #expect(autumn[0].score.value > winter[0].score.value)
+    }
 }

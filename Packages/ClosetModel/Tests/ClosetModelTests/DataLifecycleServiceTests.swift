@@ -70,6 +70,24 @@ struct DataLifecycleServiceTests {
         #expect(json.contains("bustInches"))
     }
 
+    /// Onboarding primary occasion is a stored person field — export must carry it.
+    @Test func exportRoundTripsPrimaryOccasion() throws {
+        let ctx = try makeContext()
+        let (person, _, _) = try seedCloset(in: ctx)
+        person.primaryOccasionRaw = "gala"
+        try ctx.save()
+
+        let snap = try DataLifecycleService.exportSnapshot(in: ctx)
+        #expect(snap.persons[0].primaryOccasionRaw == "gala")
+
+        let data = try DataLifecycleService.exportJSONData(in: ctx)
+        let decoded = try JSONDecoder().decode(DataLifecycleService.ExportSnapshot.self, from: data)
+        #expect(decoded.persons[0].primaryOccasionRaw == "gala")
+        let json = try DataLifecycleService.exportJSONString(in: ctx)
+        #expect(json.contains("primaryOccasionRaw"))
+        #expect(json.contains("gala"))
+    }
+
     /// M1: barcode must round-trip through ItemDTO (export must not silently drop it).
     @Test func exportRoundTripsBarcode() throws {
         let ctx = try makeContext()

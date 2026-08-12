@@ -406,6 +406,7 @@ struct ActivityView: UIViewControllerRepresentable {
 public struct ClosetGridView: View {
     let wardrobe: Wardrobe
     @Environment(\.modelContext) private var context
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showIntake = false
     @State private var showSearch = false
     @State private var showFittingRoom = false
@@ -698,7 +699,11 @@ public struct ClosetGridView: View {
 
     private var grid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
+            LazyVGrid(
+                columns: AccessibilityGridColumns.items(
+                    for: dynamicTypeSize, regularMinimum: 104, spacing: 12),
+                spacing: 12
+            ) {
                 ForEach(items, id: \.id) { item in
                     // 选择模式下整格是勾选按钮——不得既进详情又勾选（手势打架）
                     if isSelecting {

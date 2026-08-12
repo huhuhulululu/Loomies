@@ -67,6 +67,32 @@ struct OutfitScorerTests {
         #expect(hi.value > lo.value)
     }
 
+    @Test func personalColorSeasonMovesTheScore() {
+        let warmLook = outfit([(0, false), (28, false)]) // red + orange
+        let autumn = ScoringContext(colorSeason: .autumn)
+        let winter = ScoringContext(colorSeason: .winter)
+        let autumnScore = OutfitScorer.score(warmLook, context: autumn)
+        let winterScore = OutfitScorer.score(warmLook, context: winter)
+        #expect(autumnScore.value > winterScore.value)
+        #expect(autumnScore.reasons.contains { $0.localizedCaseInsensitiveContains("autumn") })
+        #expect(winterScore.reasons.contains { $0.localizedCaseInsensitiveContains("winter") })
+        #expect(OutfitScorer.score(warmLook, context: ctx).value != autumnScore.value)
+    }
+
+    @Test func bodyShapeWeightScalesTheShapeTerm() {
+        let flattering = Outfit(items: [CandidateItem(id: "a", slot: .top, attributes: [.wrap])])
+        let measured = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 1.0)
+        let guessed = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 0.5)
+        let ignored = ScoringContext(bodyShape: .hourglass, bodyShapeWeight: 0)
+        let full = OutfitScorer.score(flattering, context: measured)
+        let half = OutfitScorer.score(flattering, context: guessed)
+        let none = OutfitScorer.score(flattering, context: ignored)
+        #expect(full.value > half.value)
+        #expect(half.value > none.value)
+        #expect(none.value == 1.0)
+        #expect(none.reasons.contains { $0.localizedCaseInsensitiveContains("body shape") } == false)
+    }
+
     /// en-US primary market: reasons must not leak Chinese UI strings.
     @Test func reasonsAreEnglishForUSMarket() {
         let look = outfit([(0, true), (0, false)])

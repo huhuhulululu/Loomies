@@ -117,6 +117,20 @@ struct DerivedThumbnailTests {
         #expect(Set(ItemImageVariant.allCases.map(\.suffix)).count
                 == ItemImageVariant.allCases.count)
     }
+
+    /// Every declared size class is reachable from the production selector.
+    /// Item detail is a 200pt frame — that height must request `.detail`, not the 480px grid.
+    @Test func displayHeightSelectorReachesEveryVariant() {
+        #expect(ItemImageVariant.forDisplayHeight(120) == .grid)
+        #expect(ItemImageVariant.forDisplayHeight(199) == .grid)
+        #expect(ItemImageVariant.forDisplayHeight(200) == .detail)
+        #expect(ItemImageVariant.forDisplayHeight(320) == .detail)
+        let reached = Set([
+            ItemImageVariant.forDisplayHeight(120),
+            ItemImageVariant.forDisplayHeight(200),
+        ])
+        #expect(reached == Set(ItemImageVariant.allCases))
+    }
 }
 
 /// D95：派生文件必须被**全链认账**——孤儿清理不得把它们当垃圾扫掉，

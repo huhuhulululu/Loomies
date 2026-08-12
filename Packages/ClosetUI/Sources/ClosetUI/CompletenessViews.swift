@@ -466,7 +466,7 @@ public struct PersonalColorView: View {
                 }
                 .pickerStyle(.inline)
             } footer: {
-                Text("Optional style hint (R11). Not used for fit math.")
+                Text("Optional. Weights today's color score toward this season. Not used for fit math.")
                     .font(.caption2)
             }
             if !message.isEmpty {

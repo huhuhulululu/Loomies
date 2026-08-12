@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import ClosetUI
+import ClosetModel
 
 /// 结构性接线门。来源是一次实证失败：D83 把属性录入控件接进了 `QuickAddSheet`——
 /// 一个自 46dc6ff 起零呈现点的死 View——而 commit / decisions.md / ARCHITECTURE.md
@@ -316,5 +317,40 @@ struct StateBackedTabIdentityTests {
         let text = try String(contentsOf: try #require(view), encoding: .utf8)
         #expect(text.contains("_vm = State(initialValue:"),
                 "若已改为非 @State 持有，请一并重新评估 AppRootView 上的 .id")
+    }
+}
+
+/// D104: every declared on-disk image size class must be reachable from production.
+struct ImageVariantReachabilityTests {
+    @Test func itemThumbnailUsesTheSharedSelector() throws {
+        let thumb = try #require(WiringLintTests.productionSources().first {
+            $0.lastPathComponent == "PhotoCaptureViews.swift"
+        })
+        let text = try String(contentsOf: thumb, encoding: .utf8)
+        #expect(text.contains("ItemImageVariant.forDisplayHeight"),
+                "ItemThumbnailView must not re-inline a height cut that can miss .detail")
+    }
+
+    @Test func itemDetailFrameRequestsTheDetailDerivative() throws {
+        let detail = try #require(WiringLintTests.productionSources().first {
+            $0.lastPathComponent == "FeatureViews.swift"
+        })
+        let text = try String(contentsOf: detail, encoding: .utf8)
+        #expect(text.contains("ItemThumbnailView(item: vm.item, height: 200)"),
+                "Detail hero is the 200pt frame that must map to .detail")
+        #expect(ItemImageVariant.forDisplayHeight(200) == .detail)
+    }
+
+    @Test func closetAndFeatureGridsUseTheA11yColumnHelper() throws {
+        let closet = try String(
+            contentsOf: try #require(WiringLintTests.productionSources().first {
+                $0.lastPathComponent == "AppRootView.swift"
+            }), encoding: .utf8)
+        let feature = try String(
+            contentsOf: try #require(WiringLintTests.productionSources().first {
+                $0.lastPathComponent == "FeatureViews.swift"
+            }), encoding: .utf8)
+        #expect(closet.contains("AccessibilityGridColumns.items"))
+        #expect(feature.contains("AccessibilityGridColumns.items"))
     }
 }

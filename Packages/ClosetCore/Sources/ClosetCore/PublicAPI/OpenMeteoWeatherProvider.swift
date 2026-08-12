@@ -1,8 +1,9 @@
 import Foundation
 
 /// Live daytime temperature via **Open-Meteo** (https://open-meteo.com) — free, no API key.
-/// Flow: geocode city → forecast daily max °F (clothing “day high” proxy for DESIGN daytime band).
-/// Network failures should be wrapped by `CompositeWeatherProvider` → offline climate table.
+/// Flow: geocode city → hourly °F → `DaytimeTemperature.representative` (7–19 local).
+/// Daily max is not a stand-in: night highs must not drive clothing. Network failures
+/// should be wrapped by `CompositeWeatherProvider` → offline climate table.
 public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
     public var transport: any PublicAPITransport
     public var geocodeLimit: Int
@@ -93,9 +94,8 @@ public struct OpenMeteoWeatherProvider: WeatherProviding, Sendable {
         comps?.queryItems = [
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
-            URLQueryItem(
-                name: "daily",
-                value: "temperature_2m_max,precipitation_probability_max"),
+            URLQueryItem(name: "hourly", value: "temperature_2m"),
+            URLQueryItem(name: "daily", value: "precipitation_probability_max"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
             URLQueryItem(name: "timezone", value: cityTZ != nil ? timeZoneIdentifier! : "auto"),
             URLQueryItem(name: "start_date", value: day),
@@ -133,23 +133,48 @@ public enum OpenMeteoJSON {
         try parseForecastDay(data).maxF
     }
 
-    public static func parseForecastDay(_ data: Data) throws -> OpenMeteoWeatherProvider.ForecastDay {
+    /// Hourly series as (local hour, °F). Hour is taken from the ISO-like `T` field.
+    public static func parseHourlyF(_ data: Data) throws -> [(hour: Int, tempF: Double)] {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let daily = root["daily"] as? [String: Any],
-              let temps = daily["temperature_2m_max"] as? [Any],
-              let first = temps.first
+              let hourly = root["hourly"] as? [String: Any],
+              let times = hourly["time"] as? [String],
+              let temps = hourly["temperature_2m"] as? [Any],
+              times.count == temps.count
         else { throw PublicAPIError.decodeFailed }
-        let maxF: Double
-        if let d = first as? Double { maxF = d.rounded() }
-        else if let n = first as? NSNumber { maxF = n.doubleValue.rounded() }
-        else { throw PublicAPIError.decodeFailed }
+        var out: [(hour: Int, tempF: Double)] = []
+        out.reserveCapacity(times.count)
+        for (stamp, raw) in zip(times, temps) {
+            guard let hour = hourComponent(from: stamp) else { continue }
+            let temp: Double
+            if let d = raw as? Double { temp = d }
+            else if let n = raw as? NSNumber { temp = n.doubleValue }
+            else { continue }
+            out.append((hour, temp))
+        }
+        return out
+    }
+
+    public static func parseForecastDay(_ data: Data) throws -> OpenMeteoWeatherProvider.ForecastDay {
+        let series = try parseHourlyF(data)
+        guard let daytime = DaytimeTemperature.representative(hourlyF: series) else {
+            throw PublicAPIError.decodeFailed
+        }
         var precip: Int?
-        if let arr = daily["precipitation_probability_max"] as? [Any], let p0 = arr.first {
+        if let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let daily = root["daily"] as? [String: Any],
+           let arr = daily["precipitation_probability_max"] as? [Any],
+           let p0 = arr.first {
             if let d = p0 as? Double { precip = Int(d.rounded()) }
             else if let n = p0 as? NSNumber { precip = n.intValue }
             else if let i = p0 as? Int { precip = i }
         }
-        return .init(maxF: maxF, precipProbabilityPercent: precip)
+        return .init(maxF: daytime.rounded(), precipProbabilityPercent: precip)
+    }
+
+    static func hourComponent(from stamp: String) -> Int? {
+        guard let t = stamp.firstIndex(of: "T") else { return nil }
+        let digits = stamp[stamp.index(after: t)...].prefix(while: \.isNumber)
+        return Int(digits)
     }
 }
 
@@ -189,7 +214,7 @@ public struct CompositeWeatherProvider: WeatherProviding, WeatherSnapshotProvidi
             throw CancellationError()
         } catch {
             AppLog.notice(
-                "weather primary failed (\(error)); using offline climate",
+                "weather primary failed (\(AppLog.errRef(error))); using offline climate",
                 .weather)
             if let snap = fallback as? any WeatherSnapshotProviding {
                 return try await snap.daySnapshot(forCity: city, on: date)

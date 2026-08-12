@@ -54,4 +54,16 @@ struct WeatherProvidingTests {
         #expect(PersonalColorSeason.parse(nil) == .unknown)
         #expect(PersonalColorSeason.spring.displayName == "Spring")
     }
+
+    @Test func personalColorSeasonAffinityPrefersInSeasonHues() {
+        let warm = [GarmentColor(hueDegrees: 0, isNeutral: false)]
+        let cool = [GarmentColor(hueDegrees: 220, isNeutral: false)]
+        #expect(PersonalColorSeason.autumn.colorAffinity(colors: warm) > 0)
+        #expect(PersonalColorSeason.winter.colorAffinity(colors: warm) < 0)
+        #expect(PersonalColorSeason.winter.colorAffinity(colors: cool) > 0)
+        #expect(PersonalColorSeason.unknown.colorAffinity(colors: warm) == 0)
+        #expect(PersonalColorSeason.autumn.colorAffinity(colors: [
+            GarmentColor(hueDegrees: 0, isNeutral: true)
+        ]) == 0)
+    }
 }

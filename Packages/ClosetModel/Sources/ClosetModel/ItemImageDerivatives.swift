@@ -24,6 +24,11 @@ public enum ItemImageVariant: String, CaseIterable, Sendable {
 
     /// 落盘文件名后缀（与原图同目录，`<stem>@grid.jpg`）。
     public var suffix: String { "@\(rawValue)" }
+
+    /// Display-point height → derivative. Detail starts at 200pt (item detail frame).
+    public static func forDisplayHeight(_ height: CGFloat) -> ItemImageVariant {
+        height >= 200 ? .detail : .grid
+    }
 }
 
 /// 图像派生的纯函数层（CoreGraphics/ImageIO；与 `GarmentLayerNormalizer` 同层）。

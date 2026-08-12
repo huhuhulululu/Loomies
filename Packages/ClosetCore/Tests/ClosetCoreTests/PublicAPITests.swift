@@ -4,6 +4,27 @@ import Foundation
 
 struct PublicAPITests {
 
+    /// Night 90 / day 62 / evening 90. A daily-max stand-in would read 90.
+    static func daytimeWindowJSON(precip: Int? = 40) -> Data {
+        hourlyJSON(tempAtHour: { $0 >= 7 && $0 < 19 ? 62 : 90 }, precip: precip)
+    }
+
+    static func hourlyJSON(tempAtHour: (Int) -> Double, precip: Int?) -> Data {
+        var times: [String] = []
+        var temps: [String] = []
+        for h in 0..<24 {
+            times.append(String(format: "\"2026-08-06T%02d:00\"", h))
+            temps.append(String(format: "%.1f", tempAtHour(h)))
+        }
+        let daily: String
+        if let precip {
+            daily = ",\"daily\":{\"time\":[\"2026-08-06\"],\"precipitation_probability_max\":[\(precip)]}"
+        } else {
+            daily = ""
+        }
+        return Data("{\"hourly\":{\"time\":[\(times.joined(separator: ","))],\"temperature_2m\":[\(temps.joined(separator: ","))]} \(daily)}".utf8)
+    }
+
     @Test func openMeteoGeocodeParsesFixture() throws {
         let json = """
         {"results":[{"id":1,"name":"New York","latitude":40.7128,"longitude":-74.006,"country_code":"US"}]}
@@ -14,14 +35,22 @@ struct PublicAPITests {
         #expect(place.countryCode == "US")
     }
 
-    @Test func openMeteoDailyMaxParsesFixture() throws {
-        let json = """
-        {"daily":{"time":["2026-08-06"],"temperature_2m_max":[78.4],"precipitation_probability_max":[62]}}
-        """.data(using: .utf8)!
+    @Test func openMeteoForecastUsesDaytimeWindowNotNightHigh() throws {
+        let json = Self.daytimeWindowJSON(precip: 62)
         let t = try OpenMeteoJSON.parseDailyMaxF(json)
-        #expect(t == 78)
+        #expect(t == 62)
         let day = try OpenMeteoJSON.parseForecastDay(json)
         #expect(day.precipProbabilityPercent == 62)
+        #expect(day.maxF == 62)
+        let series = try OpenMeteoJSON.parseHourlyF(json)
+        #expect(DaytimeTemperature.representative(hourlyF: series) == 62)
+    }
+
+    @Test func openMeteoForecastRejectsDailyMaxOnlyPayload() {
+        let dailyOnly = Data("{\"daily\":{\"temperature_2m_max\":[90.0]}}".utf8)
+        #expect(throws: PublicAPIError.decodeFailed) {
+            _ = try OpenMeteoJSON.parseForecastDay(dailyOnly)
+        }
     }
 
     @Test func weatherSnapshotSuggestsOuterwearWhenWetOrCool() {
@@ -37,16 +66,14 @@ struct PublicAPITests {
         let geo = """
         {"results":[{"name":"Miami","latitude":25.76,"longitude":-80.19,"country_code":"US"}]}
         """.data(using: .utf8)!
-        let fc = """
-        {"daily":{"time":["2026-08-06"],"temperature_2m_max":[89.0]}}
-        """.data(using: .utf8)!
+        let fc = Self.daytimeWindowJSON(precip: nil)
         let transport = FixtureTransport(fixtures: [
             "geocoding-api.open-meteo.com": geo,
             "api.open-meteo.com": fc,
         ])
         let p = OpenMeteoWeatherProvider(transport: transport)
         let t = try await p.daytimeTemperatureF(forCity: "Miami", on: Date())
-        #expect(t == 89)
+        #expect(t == 62)
     }
 
     /// Nested Open-Meteo hosts: short key `api.open-meteo.com` is a substring of
@@ -54,7 +81,7 @@ struct PublicAPITests {
     /// gets the forecast body (decodeFailed flake under Dictionary iteration order).
     @Test func fixtureTransportPrefersLongestHostMatch() async throws {
         let geo = #"{"results":[{"name":"X","latitude":1.0,"longitude":2.0}]}"#.data(using: .utf8)!
-        let fc = #"{"daily":{"temperature_2m_max":[70.0]}}"#.data(using: .utf8)!
+        let fc = Self.daytimeWindowJSON(precip: nil)
         let transport = FixtureTransport(fixtures: [
             "api.open-meteo.com": fc,
             "geocoding-api.open-meteo.com": geo,
@@ -69,7 +96,7 @@ struct PublicAPITests {
         let place = try OpenMeteoJSON.parseGeocode(geoData)
         #expect(place.latitude == 1.0)
         let t = try OpenMeteoJSON.parseDailyMaxF(fcData)
-        #expect(t == 70)
+        #expect(t == 62)
     }
 
     @Test func compositeFallsBackWhenPrimaryFails() async throws {
@@ -94,7 +121,7 @@ struct PublicAPITests {
                 return #"{"results":[{"name":"X","latitude":40.0,"longitude":-74.0\#(tz)}]}"#
                     .data(using: .utf8)!
             }
-            return #"{"daily":{"temperature_2m_max":[70.0]}}"#.data(using: .utf8)!
+            return PublicAPITests.daytimeWindowJSON(precip: nil)
         }
     }
 
@@ -114,6 +141,8 @@ struct PublicAPITests {
         #expect(qs.contains("end_date=2026-03-11"))
         // 日界口径两端一致：请求显式带城市时区，而非 auto
         #expect(qs.contains("timezone=Asia%2FTokyo") || qs.contains("timezone=Asia/Tokyo"))
+        #expect(qs.contains("hourly=temperature_2m"))
+        #expect(!qs.contains("temperature_2m_max"))
     }
 
     /// Geocode 未返回 timezone（历史 fixture / 罕见响应）→ 退回设备本地历 + auto。

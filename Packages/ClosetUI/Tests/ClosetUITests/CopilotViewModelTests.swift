@@ -95,6 +95,7 @@ struct CopilotViewModelTests {
         #expect(vm.applyBodyProfile(profile) == true)
         #expect(vm.bodyShape != nil)
         #expect(vm.bodyShape?.popularCategory == .hourglass)
+        #expect(vm.bodyShapeWeight == 0.5) // visual pick, not a measured tape
         #expect(vm.applyBodyProfile(profile) == false) // no change
 
         profile.popularShapeOverrideRaw = PopularShape.pear.rawValue

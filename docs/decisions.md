@@ -1121,3 +1121,18 @@ DESIGN §F2 快速层已标注 v1.0 未接 + 指向本条——**把 mock 说成
 晚宴礼服在休闲日成为合法候选——**场合硬门（DESIGN §F4 第二条）被架空**，
 详情页还显示一个用户从没选过的场合。三条入库路径都去掉了这个追加。
 「没选场合」本就由三值语义处理（空集 = 未知 = 不硬过滤），不需要偷塞一个具体值。
+
+## D104 — 第二轮审计 medium 批之二：日间天气、打分权重、导出与诚实声明（2026-08-12）
+
+**日间温度走小时窗**：Open-Meteo 生产路径此前请求 `temperature_2m_max`（全日最高），
+`DaytimeTemperature.representative` 零调用点。夜间高温会推毛衣——正是 DESIGN §F4
+点名的竞品差评。改为 `hourly=temperature_2m`，解析后喂同一代表函数；只有日最高的
+旧 payload 直接 decodeFailed，不再静默当白天。
+
+**季型与体型置信度进入同一打分函数**：`ScoringContext` 增加 `colorSeason` /
+`bodyShapeWeight`。暖季抬暖色、冷季抬冷色；快选体型 0.5、实测 1.0。Me 文案改为
+「weights today's color score」，不再假装只是 style hint。
+
+**导出带上 onboarding 场合题**：`PersonDTO.primaryOccasionRaw`。详情 200pt 帧取
+`.detail` 派生（`forDisplayHeight`，≥200）。`Mannequin3DView` 从架构目录的 live
+路径降为能力探针。Closet / Body 网格在 accessibility 字号收成单列。

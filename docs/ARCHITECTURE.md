@@ -14,7 +14,7 @@
 |------|------|------|------|
 | ClosetCore | `Packages/ClosetCore/` | 引擎 + AppLog + Weather/FitMark/Telemetry + **BodyAvatar + BodyMorph + MannequinSegmentScales / AvatarBodySex / MannequinMeshCatalog（USDZ 名）** | `swift test` |
 | ClosetModel | `Packages/ClosetModel/` | SwiftData + BodyProfile 双轨（快选/实测/`presentationSexRaw`）+ ItemStatus/… | `swift test` |
-| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView → Mannequin3DView（USDZ 优先 / 程序化 fallback）+ 2D 叠衣 + AvatarBackdrop + Me 精调/性别** | `swift test` + build |
+| ClosetUI | `Packages/ClosetUI/` | 全 tab + **BodyAvatarView（2D catalog + 叠衣，产品视觉）+ AvatarBackdrop + Me 精调/性别**。`Mannequin3DView` 是未接线能力探针，不是最终视觉 | `swift test` + build |
 | ClosetIntake | `Packages/ClosetIntake/` | F1 入库 capability seam：抠图/打标/OCR 协议 + mock + IntakeViewModel + VisionMattingService（编译验证） | `swift test` + Vision swift build |
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
@@ -86,6 +86,8 @@ Onboarding → 入库(Intake) → 管理(网格/转移/删除/检索)
 | ClosetIntake | MattingService, TaggingService, OCRService, IntakeViewModel | 入库能力缝 |
 <!-- /AUTO-MANAGED:module-table -->
 
+> **能力探针 / 未接线（D104）**：`Mannequin3DView` 与 USDZ 解析仍在仓里，但产品面 7 处 `usesMannequin3D: false`，且 `NudeBodyBaseSpec.allowsMeshOrSimulationAsFinalVisual == false` 在编译期关掉网格最终视觉。ARCHITECTURE 不得把它写成 live avatar 路径。复活条件：开关打开 + 至少一处产品调用点。
+
 ### 纸娃娃叠衣链路（D40 / D75）
 
 ```
@@ -128,7 +130,7 @@ Item[] / ScoredOutfit.itemIDs
 - **Photoreal shape 维度**：命名 `photoreal_{sex}_{phenotype}_{shape}_{front|yaw###}`，resolve 链 shape 专属 → 表型 → 通用（D69 防换人守卫不变）；shape 真图命中时 View 旁路 preset warp（`BodyMorphParams.removingShapePreset`，防「真体型 + 拉伸」双重效果）；认证白名单已收 shape token。**资产 QA 门 `PhotorealInventoryQATests`**：矩阵账本（缺格 == 已知待补清单，当前 = eastAsian 13 张锁脸转角）、全库严格 2:3 尺寸、命名合法性——出图落盘必先过此门（任务清单见 BODY-AVATAR-IMAGE-PROMPTS §10）。
 - **设备传感器单例**：`SharedDeviceMotion` 是全 App 唯一 `CMMotionManager`（Apple 明文单实例），引用计数启停 + 弱引用自愈；`DepthParallaxMotion` 薄壳幂等 start/stop；View 侧 `onChange(reduceMotion)` 带可见性守卫（离屏视图树不得重启传感器）。
 - **位图缓存边界**：`BodyAvatarImageCache` / `BodyMorphImageCache` 走 `NSCache` 按字节 cost 限额（128MB/96MB + countLimit 兜底；条目数限容会让解码位图峰值数百 MB → jetsam），近似 LRU 且内存压力自动清；负缓存语义保留（miss 也存，缺资产不得每 tick 打盘）——morph 缓存补齐 miss 负缓存；bundle probe 表 512 上限（key 域数据驱动防泄漏）；`bundleUIImage/NSImage` 平台原图独立计费缓存（morph render 输入不再每次读盘+全量解码）。
-- **a11y**：`.combine` 只圈文本列、CTA 保持独立 VO target（入库拍摄、Closet 空态同规则）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44` / `measureStepperHitArea=44` / `orbitChevronHitArea=44`。
+- **a11y**：`.combine` 只圈文本列、CTA 保持独立 VO target（入库拍摄、Closet 空态同规则）；hero orbit `accessibilityAdjustableAction`（`orbitAdjustableStep`）；tap target 下限 `orbitDotHitArea=24` / `lookPagerChevronHitArea=44` / `measureStepperHitArea=44` / `orbitChevronHitArea=44`。Closet 网格与 Body 表型/体型格在 `DynamicTypeSize >= .accessibility1` 收成单列（`AccessibilityGridColumns`）。
 - **测试隔离**：`ITEM_IMAGE_ROOT` per-process 临时目录——**全部触盘套件**（Model/Intake/UI 三包共 12+ 套件）init 装 `ItemImageTestRoot.install()`，勿写真机目录（reconcile 类测试在真目录上会误删）；异步测试用 rendezvous 替代 wall-clock sleep。
 - **存储目录 fail-closed**：`ItemImageStore` 基目录取不到时不退 tmp（tmp 被系统按存储压力清空 = 全部单品图必然反向孤儿）——`rootDirectory: URL?` 返回 nil → save 诚实失败。
 
