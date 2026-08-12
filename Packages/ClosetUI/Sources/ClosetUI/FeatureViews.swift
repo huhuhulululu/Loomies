@@ -91,6 +91,14 @@ public struct ItemDetailView: View {
                 Text("\(ItemNotes.remaining(vm.notes)) left")
                     .font(.caption2).foregroundStyle(DS.muted)
             }
+            // 「距上次洗涤已穿几次」（D106，DESIGN §219 点名的零成本差异点）——
+            // 只做显性化，不给洗衣建议（面料/体感/季节 App 都不知道）
+            if let laundry = vm.laundryCaption {
+                Section("Laundry") {
+                    Text(laundry).font(.caption).foregroundStyle(DS.muted)
+                        .accessibilityLabel(laundry)
+                }
+            }
             // 转移历史（D94）：东西从哪来的，此前完全没有痕迹
             if !vm.transferHistory.isEmpty {
                 Section("Move history") {

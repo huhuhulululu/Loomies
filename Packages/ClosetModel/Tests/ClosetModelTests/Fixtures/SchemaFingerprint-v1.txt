@@ -15,6 +15,7 @@ ENTITY Item domain=main
   A colorIsNeutral type=Bool opt=0 uniq=0 trans=0 hasDefault=1
   A hipFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0
   A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A lastWashedAt type=Optional<Date> opt=1 uniq=0 trans=0 hasDefault=0
   A localImageRelativePath type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A name type=String opt=0 uniq=0 trans=0 hasDefault=1
   A notes type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0

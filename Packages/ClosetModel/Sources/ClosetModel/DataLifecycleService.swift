@@ -78,6 +78,8 @@ public enum DataLifecycleService {
         /// 护理与备注（D93）——导出必须带上，否则「带走你的全部数据」不成立
         public var careRaw: [String] = []
         public var notes: String?
+        /// 上次洗完时刻（D106）——加了字段就得能带走
+        public var lastWashedAt: String?
     }
 
     public struct OutfitDTO: Codable, Sendable, Equatable {
@@ -186,7 +188,8 @@ public enum DataLifecycleService {
                     hipFlatWidthInches: $0.hipFlatWidthInches,
                     localImageRelativePath: $0.localImageRelativePath,
                     barcode: $0.barcode,
-                    careRaw: $0.careRaw, notes: $0.notes
+                    careRaw: $0.careRaw, notes: $0.notes,
+                    lastWashedAt: $0.lastWashedAt.map { iso.string(from: $0) }
                 )
             }
             .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现

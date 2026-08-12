@@ -108,6 +108,9 @@ public final class Item {
     // 护理与备注（D93，DESIGN §90/§95）——加法 schema，不破冻
     /// CareSymbol rawValue 数组（结构化护理，可由洗标 OCR 填充）
     public var careRaw: [String] = []
+    /// 上次**洗完**的时刻（D106）：从洗衣/干洗状态回到可用的那一刻。
+    /// nil = 从没洗过（那是另一句话，不得说成「距上次洗涤 N 次」）。
+    public var lastWashedAt: Date?
     /// 自由备注。**不可信输入**（DESIGN §321）：长度上限与归一在 `ItemNotes`，
     /// 落库前必过 `ItemNotes.sanitize`。
     public var notes: String?

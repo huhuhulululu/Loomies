@@ -14,11 +14,18 @@ public enum ItemStatusService {
             return false
         }
         let old = item.statusRaw
+        let previousWashedAt = item.lastWashedAt
         item.statusRaw = statusRaw
+        // D106：**洗完**才算——从洗衣/干洗回到可用的那一刻打锚点。
+        // 送洗当刻不算（否则当天就清零），外借/闲置回来也不算（那不是洗）。
+        if LaundryTracking.isWashState(old), statusRaw == "available" {
+            item.lastWashedAt = Date()
+        }
         item.revision += 1
         guard ModelSave.save(context, label: "itemStatus") else {
             // rollback() 不清内存值只清脏标记 → 先手动还原字段（TransferService 同款），再 rollback
             item.statusRaw = old
+            item.lastWashedAt = previousWashedAt
             item.revision -= 1
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("status save failed item=\(AppLog.ref(item.id)): \(old)→\(statusRaw)", .data)
