@@ -21,13 +21,19 @@ public enum TransferService {
 
     /// Moves item. Returns `false` when ModelSave fails (in-memory wardrobe/missing rolled back).
     @discardableResult
-    public static func transfer(_ item: Item, to wardrobe: Wardrobe, in context: ModelContext) -> Bool {
+    public static func transfer(
+        _ item: Item, to wardrobe: Wardrobe, in context: ModelContext, on date: Date = Date()
+    ) -> Bool {
         let previousWardrobe = item.wardrobe
         let previousLocation = item.location
         let previousRevision = item.revision
         item.wardrobe = wardrobe
         item.location = nil   // 位置属源柜（同柜不变量），转移即脱离
         item.revision += 1
+        // 历史与移动**同一次 save**：失败一起回滚，历史不得声称发生过没发生的事
+        let record = TransferRecord(
+            itemID: item.id, from: previousWardrobe?.id, to: wardrobe.id, date: date)
+        context.insert(record)
 
         // 重算所有引用该单品的搭配的缺件状态（marking + restore 都在此）
         let affected = item.outfits ?? []
@@ -43,11 +49,52 @@ public enum TransferService {
                 recomputeMissing(outfit)
                 propagateToCalendarPlans(outfit, in: context)
             }
+            // 断关系 + rollback：pending insert 的历史一并丢弃（delete 只删行，脏标记滞留）
+            record.itemID = nil
             context.rollback()   // 失败变更不得滞留，否则污染下一次无关 save
             AppLog.error("transfer save failed item=\(AppLog.ref(item.id))", .data)
             return false
         }
         return true
+    }
+
+    // MARK: - 批量转移（D94）
+
+    /// 批量结果。**逐项如实**：搬了几件、几件本来就在那、几件失败。
+    public struct BatchOutcome: Sendable, Equatable {
+        public let moved: Int
+        public let alreadyThere: Int
+        public let failed: Int
+
+        /// 零项不提（噪音），且**全失败不得说成 "Moved 0"** 这种像成功的话。
+        public var summary: String {
+            var parts: [String] = []
+            if moved > 0 { parts.append("Moved \(moved) \(moved == 1 ? "piece" : "pieces")") }
+            if alreadyThere > 0 { parts.append("\(alreadyThere) already there") }
+            if failed > 0 {
+                parts.append("\(failed) couldn't be moved")
+            }
+            guard !parts.isEmpty else { return "Nothing to move." }
+            return parts.joined(separator: " · ") + "."
+        }
+    }
+
+    /// 逐件走同一条 `transfer` 路径——批量不另开一套语义
+    /// （搭配缺件重算、历史、原子性全都跟着走）。
+    @discardableResult
+    public static func transferAll(
+        _ items: [Item], to wardrobe: Wardrobe, in context: ModelContext, on date: Date = Date()
+    ) -> BatchOutcome {
+        var moved = 0, already = 0, failed = 0
+        // 顺序确定：同名按 id 决胜（批量结果可复现）
+        for item in items.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+            if item.wardrobe?.id == wardrobe.id {
+                already += 1
+                continue
+            }
+            if transfer(item, to: wardrobe, in: context, on: date) { moved += 1 } else { failed += 1 }
+        }
+        return BatchOutcome(moved: moved, alreadyThere: already, failed: failed)
     }
 
     /// 重算某搭配的缺件状态：有成员不在本搭配所属衣柜 → 缺件。

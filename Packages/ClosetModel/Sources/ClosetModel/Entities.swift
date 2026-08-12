@@ -141,6 +141,26 @@ public final class WearRecord {
     public init(date: Date, outfitID: UUID? = nil) { self.date = date; self.outfitID = outfitID }
 }
 
+/// 转移历史（D94，缺口 #12）。DESIGN 的 Item 属性清单里一直挂着「转移历史」，
+/// 而实现只是改 `item.wardrobe`——东西去哪了、什么时候走的，没有任何痕迹。
+///
+/// **软 UUID 引用**（与 `WearRecord` 同法，不用关系）：删掉一个衣柜不该把
+/// 「它曾经在这里」这段事实一并抹掉，而级联关系会。
+@Model
+public final class TransferRecord {
+    public var id: UUID = UUID()
+    public var date: Date = Date.distantPast
+    public var itemID: UUID?
+    public var fromWardrobeID: UUID?
+    public var toWardrobeID: UUID?
+    public init(itemID: UUID, from: UUID?, to: UUID?, date: Date = Date()) {
+        self.itemID = itemID
+        self.fromWardrobeID = from
+        self.toWardrobeID = to
+        self.date = date
+    }
+}
+
 @Model
 public final class CalendarPlan {
     public var id: UUID = UUID()

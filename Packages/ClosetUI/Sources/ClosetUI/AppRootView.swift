@@ -393,6 +393,10 @@ public struct ClosetGridView: View {
     @State private var showIntake = false
     @State private var showSearch = false
     @State private var showFittingRoom = false
+    /// 批量转移（D94）：多选模式与已选 id
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var showBatchMove = false
     @State private var searchVM = SearchViewModel()
     /// 作用域切换器只在多柜时出现；跨柜结果行需按各自衣柜主人取 body profile
     @Query(sort: \Wardrobe.name) private var allWardrobes: [Wardrobe]
@@ -481,6 +485,39 @@ public struct ClosetGridView: View {
                         Image(systemName: "tshirt")
                     }
                     .accessibilityLabel(FittingRoomView.entryAccessibilityLabel)
+                }
+                // 批量转移（D94）：整柜搬家时逐件点 Move 是折磨
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        isSelecting.toggle()
+                        if !isSelecting { selectedIDs = [] }
+                    } label: {
+                        Image(systemName: isSelecting
+                              ? "checkmark.circle.fill" : "checkmark.circle")
+                    }
+                    .accessibilityLabel(isSelecting
+                                        ? BatchMoveCopy.exitSelectionLabel
+                                        : BatchMoveCopy.enterSelectionLabel)
+                }
+                if isSelecting {
+                    // .bottomBar 在 macOS 不可用；用 primaryAction 保持跨平台可编译
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(BatchMoveCopy.moveTitle(count: selectedIDs.count)) {
+                            showBatchMove = true
+                        }
+                        .disabled(selectedIDs.isEmpty)
+                    }
+                }
+            }
+            .sheet(isPresented: $showBatchMove) {
+                BatchMoveSheet(
+                    wardrobe: wardrobe,
+                    items: items.filter { selectedIDs.contains($0.id) }
+                ) { summary in
+                    seedFlash = summary
+                    seedFlashToken += 1
+                    isSelecting = false
+                    selectedIDs = []
                 }
             }
             .sheet(isPresented: $showFittingRoom) {
@@ -588,55 +625,84 @@ public struct ClosetGridView: View {
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
+    /// 网格单元。选择模式与普通模式**共用同一份渲染**，避免两套视觉漂移。
+    @ViewBuilder
+    private func gridCell(_ item: Item, selected: Bool) -> some View {
+        VStack(spacing: 6) {
+            ZStack(alignment: .bottomTrailing) {
+                ItemThumbnailView(item: item, height: 120)
+                VStack(alignment: .trailing, spacing: 2) {
+                    if item.statusRaw != "available" {
+                        Text(ItemStatusService.displayName(item.statusRaw))
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.orange.opacity(0.9))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                    }
+                    if let fit = fitBadge(for: item) {
+                        Text(fit)
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(DS.accent.opacity(0.9))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(6)
+                if selected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.white, DS.accent)
+                        .padding(6)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                }
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.radius)
+                    .strokeBorder(selected ? DS.accent : .clear, lineWidth: 2))
+            Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
+            // Location when set (Me Storage / detail assign) — same meta as Search.
+            let meta = ClosetItemRowCopy.metaLine(for: item)
+            if item.location != nil {
+                Text(meta)
+                    .font(.caption2)
+                    .foregroundStyle(DS.muted)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            item.location == nil
+                ? item.name
+                : "\(item.name). \(ClosetItemRowCopy.metaLine(for: item))")
+    }
+
     private var grid: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)], spacing: 12) {
                 ForEach(items, id: \.id) { item in
+                    // 选择模式下整格是勾选按钮——不得既进详情又勾选（手势打架）
+                    if isSelecting {
+                        Button {
+                            if selectedIDs.contains(item.id) { selectedIDs.remove(item.id) }
+                            else { selectedIDs.insert(item.id) }
+                        } label: {
+                            gridCell(item, selected: selectedIDs.contains(item.id))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(
+                            selectedIDs.contains(item.id) ? .isSelected : [])
+                    } else {
                     NavigationLink {
                         ItemDetailView(item: item, bodyProfile: ownerBodyProfile)
                     } label: {
-                        VStack(spacing: 6) {
-                            ZStack(alignment: .bottomTrailing) {
-                                ItemThumbnailView(item: item, height: 120)
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    if item.statusRaw != "available" {
-                                        Text(ItemStatusService.displayName(item.statusRaw))
-                                            .font(.caption2)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(.orange.opacity(0.9))
-                                            .foregroundStyle(.white)
-                                            .clipShape(Capsule())
-                                    }
-                                    if let fit = fitBadge(for: item) {
-                                        Text(fit)
-                                            .font(.caption2.weight(.semibold))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(DS.accent.opacity(0.9))
-                                            .foregroundStyle(.white)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                .padding(6)
-                            }
-                            Text(item.name).font(.caption).lineLimit(1).foregroundStyle(DS.ink)
-                            // Location when set (Me Storage / detail assign) — same meta as Search.
-                            let meta = ClosetItemRowCopy.metaLine(for: item)
-                            if item.location != nil {
-                                Text(meta)
-                                    .font(.caption2)
-                                    .foregroundStyle(DS.muted)
-                                    .lineLimit(1)
-                            }
-                        }
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(
-                            item.location == nil
-                                ? item.name
-                                : "\(item.name). \(ClosetItemRowCopy.metaLine(for: item))")
+                        gridCell(item, selected: false)
                     }
                     .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(16)

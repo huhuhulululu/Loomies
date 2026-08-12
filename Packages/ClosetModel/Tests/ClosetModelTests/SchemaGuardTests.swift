@@ -90,7 +90,7 @@ struct SchemaGuardTests {
     @Test func fingerprintShapeIsSane() {
         let lines = Self.fingerprintLines()
         #expect(lines.first?.hasPrefix("VERSION ") == true)
-        #expect(lines.filter { $0.hasPrefix("ENTITY ") }.count == 8)
+        #expect(lines.filter { $0.hasPrefix("ENTITY ") }.count == 9)
         #expect(lines.filter { $0.hasPrefix("  A ") }.count >= 60)
         #expect(lines.filter { $0.hasPrefix("  R ") }.count >= 14)
         // 渲染确定（连跑两次一致）——排序生效的回归锁
@@ -157,8 +157,9 @@ struct SchemaGuardTests {
     @Test func containerBuildsWithMigrationPlan() throws {
         let container = try LoomiesStore.makeContainer(inMemory: true)
         let names = Set(container.schema.entities.map(\.name))
-        #expect(names.count == 8)
+        #expect(names.count == 9)
         #expect(names.contains("PersonBodyProfile"))
+        #expect(names.contains("TransferRecord"))
     }
 
     // MARK: - 接线 lint（app-shell 不参与 swift test，先用 lint 兜住漂移）

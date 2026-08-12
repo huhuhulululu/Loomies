@@ -91,6 +91,20 @@ public struct ItemDetailView: View {
                 Text("\(ItemNotes.remaining(vm.notes)) left")
                     .font(.caption2).foregroundStyle(DS.muted)
             }
+            // 转移历史（D94）：东西从哪来的，此前完全没有痕迹
+            if !vm.transferHistory.isEmpty {
+                Section("Move history") {
+                    ForEach(vm.transferHistory, id: \.id) { record in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(TransferHistory.line(record, resolving: vm.closetNames))
+                                .font(.caption)
+                            Text(record.date, style: .date)
+                                .font(.caption2).foregroundStyle(DS.muted)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
             Section("Fit measures (inches, flat)") {
                 TextField("Chest flat width", text: $vm.chestFlat)
                 TextField("Waist flat width", text: $vm.waistFlat)
@@ -152,7 +166,10 @@ public struct ItemDetailView: View {
         } message: {
             Text("This cannot be undone. Favorite looks keep a missing-piece flag.")
         }
-        .onAppear { vm.refreshFit(profile: bodyProfile) }
+        .onAppear {
+            vm.refreshFit(profile: bodyProfile)
+            vm.loadHistory(in: context)
+        }
         // Live FitMark as the customer types flat widths / changes type (before Save).
         .onChange(of: vm.chestFlat) { _, _ in vm.refreshFit(profile: bodyProfile) }
         .onChange(of: vm.waistFlat) { _, _ in vm.refreshFit(profile: bodyProfile) }
@@ -833,5 +850,88 @@ public struct FavoritesView: View {
             chest: p.fineChest, waist: p.fineWaist,
             hip: p.fineHip, shoulder: 1, height: p.fineHeight)
         return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
+    }
+}
+
+/// 批量转移文案与面（D94，缺口 #12）。整柜搬家时逐件点 Move 是折磨。
+public enum BatchMoveCopy {
+    public static let enterSelectionLabel = "Select pieces to move"
+    public static let exitSelectionLabel = "Done selecting"
+    public static func moveTitle(count: Int) -> String {
+        count == 0 ? "Move…" : "Move \(count) \(count == 1 ? "piece" : "pieces")…"
+    }
+    /// 与单件 Move 同一句（不得两处各写各的）。`@MainActor` 源常量在 nonisolated
+    /// 上下文不能当默认值，故用计算属性取。
+    @MainActor
+    public static var noDestinationMessage: String { TransferViewModel.noOtherWardrobesMessage }
+}
+
+/// 批量移动目的地选择。逐件走同一条 `TransferService.transfer`（历史与缺件重算跟着走）。
+public struct BatchMoveSheet: View {
+    let wardrobe: Wardrobe
+    let items: [Item]
+    let onDone: (String) -> Void
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var allWardrobes: [Wardrobe]
+    @State private var destinationID: UUID?
+    @State private var message = ""
+
+    public init(wardrobe: Wardrobe, items: [Item], onDone: @escaping (String) -> Void) {
+        self.wardrobe = wardrobe
+        self.items = items
+        self.onDone = onDone
+    }
+
+    private var destinations: [Wardrobe] {
+        WardrobeSwitcher.ordered(allWardrobes.filter { $0.id != wardrobe.id })
+    }
+
+    public var body: some View {
+        NavigationStack {
+            Form {
+                if destinations.isEmpty {
+                    Text(BatchMoveCopy.noDestinationMessage)
+                        .accessibilityLabel(BatchMoveCopy.noDestinationMessage)
+                } else {
+                    Picker("Move to", selection: $destinationID) {
+                        Text("Choose…").tag(Optional<UUID>.none)
+                        ForEach(destinations, id: \.id) { w in
+                            Text(WardrobeSwitcher.menuTitle(w, among: destinations))
+                                .tag(Optional(w.id))
+                        }
+                    }
+                    Section {
+                        Text("\(items.count) selected")
+                            .font(.caption).foregroundStyle(DS.muted)
+                    }
+                }
+                if !message.isEmpty {
+                    Text(message).font(.caption).foregroundStyle(.orange)
+                        .accessibilityLabel(message)
+                }
+            }
+            .navigationTitle(BatchMoveCopy.moveTitle(count: items.count))
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Move") {
+                        guard let id = destinationID,
+                              let dest = destinations.first(where: { $0.id == id }) else { return }
+                        let outcome = TransferService.transferAll(items, to: dest, in: context)
+                        // 有失败就留在表单说清楚，不静默关闭当成功
+                        guard outcome.failed == 0 else {
+                            message = outcome.summary
+                            return
+                        }
+                        onDone(outcome.summary)
+                        dismiss()
+                    }
+                    .disabled(destinationID == nil || items.isEmpty)
+                }
+            }
+        }
     }
 }

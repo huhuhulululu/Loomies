@@ -30,6 +30,16 @@ public final class ItemDetailViewModel {
 
     /// 护理组合互斥提示（不阻止——洗标本身可能印得矛盾，用户说了算）
     public var careConflictWarning: String? { CareSymbol.conflictWarning(care) }
+
+    /// 转移历史（D94）与衣柜名映射；`load` 时取一次，不逐行 fetch。
+    public private(set) var transferHistory: [TransferRecord] = []
+    public private(set) var closetNames: [UUID: String] = [:]
+
+    /// 详情页出现时调用。历史是只读的，与表单字段互不影响。
+    public func loadHistory(in context: ModelContext) {
+        transferHistory = TransferHistory.forItem(item.id, in: context)
+        closetNames = TransferHistory.closetNames(in: context)
+    }
     /// Me Storage location — nil = unassigned. Save applies via `StorageLocationService.assign`.
     public var locationID: UUID?
     public private(set) var fitLabel: String?

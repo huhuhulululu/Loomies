@@ -70,6 +70,12 @@ ENTITY StorageLocation domain=main
   R items dest=Item rule=nullify inverse=location opt=1 toOne=0
   R parent dest=StorageLocation rule=nullify inverse=children opt=1 toOne=1
   R wardrobe dest=Wardrobe rule=nullify inverse=locations opt=1 toOne=1
+ENTITY TransferRecord domain=main
+  A date type=Date opt=0 uniq=0 trans=0 hasDefault=1
+  A fromWardrobeID type=Optional<UUID> opt=1 uniq=0 trans=0 hasDefault=0
+  A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
+  A itemID type=Optional<UUID> opt=1 uniq=0 trans=0 hasDefault=0
+  A toWardrobeID type=Optional<UUID> opt=1 uniq=0 trans=0 hasDefault=0
 ENTITY Wardrobe domain=main
   A id type=UUID opt=0 uniq=0 trans=0 hasDefault=1
   A locationCity type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0

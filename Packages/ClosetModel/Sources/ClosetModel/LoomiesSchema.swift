@@ -12,7 +12,7 @@ public enum LoomiesSchemaV1: VersionedSchema {
     /// 主域（CloudKit 可同步面，当前 cloudKitDatabase: .none）。
     public static let mainModels: [any PersistentModel.Type] = [
         Person.self, Wardrobe.self, StorageLocation.self, Item.self,
-        Outfit.self, WearRecord.self, CalendarPlan.self,
+        Outfit.self, WearRecord.self, CalendarPlan.self, TransferRecord.self,
     ]
 
     /// 本地域（D5：身体维度独立存储，永不进 CloudKit）。

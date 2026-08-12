@@ -19,7 +19,17 @@ public enum DataLifecycleService {
         public var outfits: [OutfitDTO]
         public var wearRecords: [WearRecordDTO]
         public var plans: [PlanDTO]
+        /// 转移历史（D94）——可携带性：加了表就必须能带走
+        public var transfers: [TransferDTO] = []
         public var bodyProfiles: [BodyProfileDTO]?
+    }
+
+    public struct TransferDTO: Codable, Sendable, Equatable {
+        public var id: String
+        public var date: String
+        public var itemID: String?
+        public var fromWardrobeID: String?
+        public var toWardrobeID: String?
     }
 
     public struct PersonDTO: Codable, Sendable, Equatable {
@@ -150,6 +160,17 @@ public enum DataLifecycleService {
                                parentID: $0.parent?.id.uuidString) }
             .sorted { ($0.name, $0.id) < ($1.name, $1.id) }   // 同名按 id 决胜——导出快照可复现
 
+        let transferDTOs = ((try? context.fetch(FetchDescriptor<TransferRecord>())) ?? [])
+            .map {
+                TransferDTO(
+                    id: $0.id.uuidString, date: iso.string(from: $0.date),
+                    itemID: $0.itemID?.uuidString,
+                    fromWardrobeID: $0.fromWardrobeID?.uuidString,
+                    toWardrobeID: $0.toWardrobeID?.uuidString)
+            }
+            // 时间倒序 + id 决胜——导出快照可复现
+            .sorted { ($0.date, $0.id) > ($1.date, $1.id) }
+
         let itemDTOs = items
             .map {
                 ItemDTO(
@@ -231,6 +252,7 @@ public enum DataLifecycleService {
             outfits: outfitDTOs,
             wearRecords: wearDTOs,
             plans: planDTOs,
+            transfers: transferDTOs,
             bodyProfiles: bodyDTOs
         )
     }
@@ -353,6 +375,7 @@ public enum DataLifecycleService {
 
         // 先断关系多的一侧，再删根；SwiftData 会处理 cascade。
         let deletedPlans = try wipeAll(CalendarPlan.self)
+        _ = try wipeAll(TransferRecord.self)   // 转移历史一并抹掉（删除权覆盖每一张表）
         let deletedWearRecords = try wipeAll(WearRecord.self)
         let deletedOutfits = try wipeAll(Outfit.self)
         let deletedItems = try wipeAll(Item.self)
