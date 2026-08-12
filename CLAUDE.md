@@ -8,7 +8,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 - 核心机制 = **copilot**（用户掌舵、App 跑腿，D19）——推荐永远可被用户覆盖，不做全自动决策
 - ClosetCore 保持纯 Swift（零 iOS SDK 依赖，Foundation only），依赖方向只能 UI → Model → Core
 - SwiftData 双域 ModelConfiguration（D5）；遥测字段走 TelemetryEvents/Payload 白名单
-- 每包独立 `swift test` 必须全绿（Core 265 / Model 206 / UI 285 / Intake 42 = 798）
+- 每包独立 `swift test` 必须全绿（Core 272 / Model 208 / UI 294 / Intake 42 = 816）
 - **Schema 单向门（D84）**：改实体前先读 `docs/decisions.md` D84；破坏性变更会让 `SchemaGuardTests` 硬失败，加法式变更需 `LOOMIES_SCHEMA_GOLDEN=record swift test --package-path Packages/ClosetModel --filter SchemaGuard` 重录 golden 并进 diff 审查；改 app-shell 装配后必须 `xcodebuild` 真编译验证（不参与 swift test）
 - Debug：`LOOMIES_DEBUG=1` 或 scheme 参数 `-debugVerbose` / `-debugPanel`；Me → 调试台 / Export diagnostics
 
