@@ -101,7 +101,19 @@ public final class IntakeViewModel {
     /// `brand != nil || size != nil` 上——而用户自己敲、条码富化写入都会让它非空；
     /// 模拟器/macOS 走 `MockOCRService(info: LabelInfo())`（两个字段恒 nil），
     /// 真机 OCR 认不出品牌时用户手敲——两条路上那句话都是**假的**。
-    public private(set) var brandOrSizeFromLabel = false
+    /// 洗标 OCR **这一张**读出了哪些字段（D199）。
+    ///
+    /// D193 建这个标记时用的是 `brand != nil || size != nil` 的布尔——
+    /// 于是只读出品牌时，界面仍然说「Brand **and size** were read from the label photo」，
+    /// 而尺码是用户自己敲的。写真机验收清单时撞到这条：**判据对了，措辞还在说大**。
+    public private(set) var labelReadFields: Set<LabelField> = []
+
+    public enum LabelField: String, Sendable, CaseIterable {
+        case brand, size
+    }
+
+    /// 有没有任何字段是从洗标读出来的（决定那句披露出不出）。
+    public var brandOrSizeFromLabel: Bool { !labelReadFields.isEmpty }
 
     /// D193：颜色是**从像素投票猜的**吗（D124）。
     ///
@@ -191,14 +203,16 @@ public final class IntakeViewModel {
         d.occasions = tags?.occasions ?? []
         d.warmth = tags?.warmth
         var ocrFailed = false
-        var labelFilled = false
+        var readFields: Set<LabelField> = []
         if let ocr {
             do {
                 let label = try await ocr.readLabel(imageData)
                 d.brand = label.brand
                 d.size = label.size
                 // D193：判据是「**这一张**真读出东西了吗」，不是「字段非空」。
-                labelFilled = label.brand != nil || label.size != nil
+                // D199：还要记**读出了哪几个**——只读出品牌时不许说「品牌和尺码」。
+                if label.brand != nil { readFields.insert(.brand) }
+                if label.size != nil { readFields.insert(.size) }
             } catch {
                 ocrFailed = true
                 AppLog.error("intake OCR failed: \(AppLog.errRef(error))", .intake)
@@ -211,7 +225,7 @@ public final class IntakeViewModel {
         preparedLayer = nil
         originalImage = imageData
         mattingFailed = !mattingSucceeded
-        brandOrSizeFromLabel = labelFilled
+        labelReadFields = readFields
         colorFromPhoto = colorWasGuessed
         if !mattingSucceeded {
             statusMessage = Self.mattingFailedMessage
@@ -487,7 +501,7 @@ public final class IntakeViewModel {
         originalImage = nil
         mattingFailed = false
         preparedLayer = nil            // D194：上一张备好的层图不得留给下一张
-        brandOrSizeFromLabel = false   // D193：上一张的判断不得留给下一张
+        labelReadFields = []           // D193：上一张的判断不得留给下一张
         colorFromPhoto = false
         isProcessing = false
         lastError = nil

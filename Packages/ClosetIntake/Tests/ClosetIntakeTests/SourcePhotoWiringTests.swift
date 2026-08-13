@@ -111,7 +111,9 @@ struct RecognitionDisclosureTests {
 
     /// 读到的东西要说清是**读**出来的，与猜的分开。
     @Test func theLabelDisclosureSaysItWasRead() {
-        let text = IntakeServiceFactory.labelReadDisclosure.lowercased()
+        // D199：这句话按**真读出来的字段**生成，不再是一个恒定串。
+        let text = (IntakeServiceFactory.labelReadDisclosure(
+            fields: [.brand, .size]) ?? "").lowercased()
         #expect(text.contains("read"))
         #expect(text.contains("check"), "读出来的也要请用户核对（OCR 会错）")
     }
@@ -202,9 +204,8 @@ struct DisclosureWiringTests {
 
     /// 两条披露讲的是不同的事，不得互相替代。
     @Test func theTwoDisclosuresSayDifferentThings() {
-        #expect(IntakeServiceFactory.prefillDisclosure
-                != IntakeServiceFactory.labelReadDisclosure)
-        #expect(IntakeServiceFactory.labelReadDisclosure
-            .localizedCaseInsensitiveContains("read"))
+        let label = IntakeServiceFactory.labelReadDisclosure(fields: [.brand, .size]) ?? ""
+        #expect(IntakeServiceFactory.prefillDisclosure != label)
+        #expect(label.localizedCaseInsensitiveContains("read"))
     }
 }

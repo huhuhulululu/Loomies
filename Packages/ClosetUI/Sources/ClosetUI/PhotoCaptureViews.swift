@@ -508,8 +508,9 @@ public struct AddPieceSheet: View {
                         // 非空会被用户手敲和条码富化写成真，而模拟器/macOS 的
                         // MockOCR 两个字段恒 nil——两条路上这句话都是假的。
                         // 颜色那句同样补上：猜出来的色点与手选的形态不可区分。
-                        if intakeVM.brandOrSizeFromLabel {
-                            Text(IntakeServiceFactory.labelReadDisclosure)
+                        if let disclosure = IntakeServiceFactory.labelReadDisclosure(
+                            fields: intakeVM.labelReadFields) {
+                            Text(disclosure)
                                 .font(DS.Text.micro)
                                 .foregroundStyle(DS.muted)
                         }

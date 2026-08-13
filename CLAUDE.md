@@ -8,7 +8,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 - 核心机制 = **copilot**（用户掌舵、App 跑腿，D19）——推荐永远可被用户覆盖，不做全自动决策
 - ClosetCore 保持纯 Swift（零 iOS SDK 依赖，Foundation only），依赖方向只能 UI → Model → Core
 - SwiftData 双域 ModelConfiguration（D5）；遥测字段走 TelemetryEvents/Payload 白名单
-- 每包独立 `swift test` 必须全绿（Core 534 / Model 420 / UI 607 / Intake 79 = 1640）
+- 每包独立 `swift test` 必须全绿（Core 534 / Model 420 / UI 607 / Intake 82 = 1643）
 - **Schema 单向门（D84）**：改实体前先读 `docs/decisions.md` D84；破坏性变更会让 `SchemaGuardTests` 硬失败，加法式变更需 `LOOMIES_SCHEMA_GOLDEN=record swift test --package-path Packages/ClosetModel --filter SchemaGuard` 重录 golden 并进 diff 审查；改 app-shell 装配后必须 `xcodebuild` 真编译验证（不参与 swift test）；**任何 `#if os(iOS)` 块同理**——macOS 的 swift test 根本编不到它（D92 实证：并发 Sendable 错误只有 xcodebuild 报）
 - **结构门写完必须撞一次**（D160-D163）：用一次**真实的破坏**去撞你刚写的门，看它是否当场点名。本仓实测里初版判据常比意图松——四种形态：只 grep 旧符号名（挡不住下一个同类）、断言符号存在而非用在决策点、固定字数窗口、同义词串味（一个实体的说法替另一个背书）。
   - **最危险的方向**：「不存在」断言 + 有限作用域 = 看不见的地方等于不存在（假绿，无征兆）；「存在」断言作用域过小只会误红（烦，但看得见）
@@ -27,6 +27,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 | `docs/decisions.md` | ADR — 技术决策及理由 |
 | `docs/BODY-AVATAR-IMAGE-PROMPTS.md` | 人体 croquis 出图/精修 prompt 手册（乳贴+丁字裤·同人锁脸） |
 | `docs/PROJECT-CONTEXT.md` | 项目状态、里程碑、工作流 |
+| `docs/DEVICE-ACCEPTANCE.md` | **真机验收清单** — 自动化照不到的那部分（相机/OCR/跨午夜/渲染/云端）|
 | `preview/` | 预览/设计/文档（`ts-publish.sh` 发布，状态页 :10029） |
 
 ## 验证

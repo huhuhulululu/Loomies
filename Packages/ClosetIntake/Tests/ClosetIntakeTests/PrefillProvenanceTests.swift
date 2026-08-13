@@ -61,6 +61,7 @@ struct PrefillProvenanceTests {
         let vm = makeVM(label: LabelInfo(brand: "Uniqlo", size: "M"))
         await vm.process(TestImages.png(width: 200, height: 300))
         #expect(vm.brandOrSizeFromLabel, "OCR 真读出来了却不说")
+        #expect(vm.labelReadFields == [.brand, .size])
         #expect(vm.draft?.brand == "Uniqlo")
     }
 
@@ -92,10 +93,44 @@ struct PrefillProvenanceTests {
         #expect(vm.colorFromPhoto == false)
     }
 
+    /// D199：**只读出品牌时不许说「品牌和尺码」。**
+    ///
+    /// D193 把判据从「字段非空」修成了「这一张真读出东西了吗」，措辞却没跟上——
+    /// 写真机验收清单时撞到的：判据对了，话还在说大。
+    @Test func theDisclosureNamesOnlyWhatWasActuallyRead() {
+        let brandOnly = try? #require(IntakeServiceFactory.labelReadDisclosure(
+            fields: [.brand]))
+        #expect((brandOnly ?? "").contains("Brand"))
+        #expect(!(brandOnly ?? "").localizedCaseInsensitiveContains("size"), Comment(rawValue:
+            "只读出品牌，却说尺码也是读的：\(brandOnly ?? "nil")"))
+
+        let sizeOnly = try? #require(IntakeServiceFactory.labelReadDisclosure(
+            fields: [.size]))
+        #expect(!(sizeOnly ?? "").localizedCaseInsensitiveContains("brand"))
+
+        let both = try? #require(IntakeServiceFactory.labelReadDisclosure(
+            fields: [.brand, .size]))
+        #expect((both ?? "").contains("Brand and Size"))
+    }
+
+    /// 一个都没读出来就**不出这句话**。
+    @Test func nothingReadMeansNoSentence() {
+        #expect(IntakeServiceFactory.labelReadDisclosure(fields: []) == nil)
+    }
+
+    /// 单复数要对（「was」/「were」，「it」/「them」）——细节不对就露馅。
+    @Test func theGrammarMatchesTheCount() {
+        #expect(IntakeServiceFactory.labelReadDisclosure(fields: [.brand])?
+            .contains(" was read") == true)
+        #expect(IntakeServiceFactory.labelReadDisclosure(fields: [.brand, .size])?
+            .contains(" were read") == true)
+    }
+
     /// 两句披露都得说清「这是猜的 / 这是读的」，且给下一步。
     @Test func bothDisclosuresAreHonest() {
-        let label = IntakeServiceFactory.labelReadDisclosure
-        #expect(label.localizedCaseInsensitiveContains("check"))
+        let label = try? #require(IntakeServiceFactory.labelReadDisclosure(
+            fields: [.brand, .size]))
+        #expect((label ?? "").localizedCaseInsensitiveContains("check"))
         let colour = IntakeServiceFactory.colorGuessDisclosure
         #expect(colour.localizedCaseInsensitiveContains("photo")
                 || colour.localizedCaseInsensitiveContains("guess"))
@@ -117,9 +152,19 @@ struct PrefillProvenanceTests {
         }) else {
             Issue.record("确认页里找不到洗标披露"); return
         }
-        // 往上找它挂在哪个条件上
-        let guardLine = lines[max(0, i - 4)..<i].last { $0.hasPrefix("if ") } ?? ""
-        #expect(guardLine.contains("FromLabel"), Comment(rawValue:
-            "披露仍挂在「字段非空」上：\(guardLine)"))
+        // 往上找它挂在哪个条件上。D199：判据从布尔改成了「读出了哪几个字段」，
+        // 所以认的是 `labelReadFields`（来源），不是 `draft.brand != nil`（非空）。
+        //
+        // 认**整条语句**而不是单行——`if let x = f(\n    args)` 会把参数甩到下一行，
+        // 只看一行就抓不到（本波第一版当场红在这里）。
+        guard let ifStart = lines[max(0, i - 4)...i].lastIndex(where: {
+            $0.hasPrefix("if ")
+        }) else {
+            Issue.record("披露没有挂在任何条件上 —— 它会无条件出现"); return
+        }
+        let statement = lines[ifStart...min(ifStart + 3, lines.count - 1)]
+            .joined(separator: " ")
+        #expect(statement.contains("labelReadFields"), Comment(rawValue:
+            "披露仍挂在「字段非空」上：\(statement.prefix(120))"))
     }
 }

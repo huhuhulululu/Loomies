@@ -61,8 +61,18 @@ public enum IntakeServiceFactory {
 
     /// 洗标读到东西时的说明：**读到的**与**猜的**必须分得开，
     /// 否则用户不知道哪些字段值得信。
-    public static let labelReadDisclosure =
-        "Brand and size were read from the label photo — check them before adding."
+    /// D199：**说清读出来的是哪几个**。此前恒说「Brand and size」，
+    /// 而只读出品牌时尺码是用户自己敲的——判据对了，措辞还在说大。
+    public static func labelReadDisclosure(fields: Set<IntakeViewModel.LabelField>) -> String? {
+        guard !fields.isEmpty else { return nil }
+        let names = IntakeViewModel.LabelField.allCases
+            .filter { fields.contains($0) }
+            .map { $0 == .brand ? "Brand" : "Size" }
+        let subject = names.joined(separator: " and ")
+        let verb = names.count == 1 ? "was" : "were"
+        let object = names.count == 1 ? "it" : "them"
+        return "\(subject) \(verb) read from the label photo — check \(object) before adding."
+    }
 
     /// D193：颜色是**从像素投票猜的**（D124），此前确认页一个字没说——
     /// 它渲染成一个已选色点，与用户手选的形态不可区分，而颜色是打分的输入。
