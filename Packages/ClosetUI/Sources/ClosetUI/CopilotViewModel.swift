@@ -386,18 +386,33 @@ public final class CopilotViewModel {
         return false
     }
 
-    public func refresh() {
-        isRefreshing = true
-        defer {
-            isRefreshing = false
-            // 遥测：模式 / 场合 / 候选数——都是非身份字段（白名单外的键会被丢弃）
-            TelemetryGate.shared.track(.copilotRefresh, payload: [
-                "mode": fullAuto ? "auto" : "anchored",
-                "occasion": occasion,
-                "suggestion_count": String(suggestions.count),
-            ])
-        }
-        let t0 = CFAbsoluteTimeGetCurrent()
+    /// 一次刷新的**纯值快照**（D152）。
+    ///
+    /// 主线程只做这一步：把 SwiftData 的 `Wardrobe` 摊成 `[CandidateItem]`
+    /// 与两个上下文——全是 `Sendable`，之后的计算与 SwiftData 再无关系。
+    /// 带**代际号**：慢的那次回来时若已被新的一次取代，结果必须丢弃
+    ///（D125 搜索、D116 天气各栽过一次，不能再栽第三次）。
+    public struct RefreshRequest: Sendable {
+        let generation: Int
+        let anchorCandidates: [CandidateItem]
+        let pool: [CandidateItem]
+        let filter: FilterContext
+        let scoring: ScoringContext
+        let maxSuggestions: Int
+        /// 落地时算空态文案要用（主线程侧的 `anchors` 不能穿过并发边界）。
+        let anchorIDs: [UUID]
+        let wornHereCount: Int
+    }
+
+    /// 在途代际号。
+    private var refreshGeneration = 0
+
+    /// 快照 + 领代号。返回 nil = **不需要算**（冷启动早退分支已就地给出空态）。
+    ///
+    /// 那条路一个组合都不用枚举，扔进后台只会让空态晚一帧出现。
+    public func makeRefreshRequest() -> RefreshRequest? {
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
         let dbg = DebugSettings.shared
         let forceAnchor = isColdStart || !fullAuto
         let anchors: [Item]
@@ -414,51 +429,109 @@ public final class CopilotViewModel {
                 statusMessage = availableItems.isEmpty
                     ? CopilotColdStartCopy.emptyClosetPrompt
                     : CopilotColdStartCopy.pickOnePrompt
-                lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+                lastRefreshMS = 0
                 lastRefreshAt = Date()
+                isRefreshing = false
                 AppLog.notice("refresh empty: \(statusMessage)", .copilot)
-                return
+                return nil
             }
         } else {
             anchors = []
         }
-
+        isRefreshing = true
         let worn: Set<String> = dbg.disableAntiRepeat ? [] : wornWithin7DaysIDs
-        let result = AppLog.timed("copilot.refresh", .copilot) {
-            RecommendationService.detailed(
-                for: wardrobe, anchors: anchors, occasion: occasion,
-                // D130：天气没取到就**别按一个伪造的温度筛衣服**——
-                // 零下的日子没网，按 70°F 会把大衣全筛掉、端出短袖，
-                // 而那看起来像个正常答案（比不给建议糟得多）。
+        // 跨柜的穿着记录不得触发本柜的「都穿过了」（与旧实现同口径）
+        let availableIDs = Set(availableItems.map { $0.id.uuidString })
+
+        // 与 `RecommendationService.detailed` **同一套映射**：锚定强制同柜、
+        // 候选只从本柜取并排除锚定项。抄一份会让两条路迟早给出不同的推荐。
+        let validAnchors = anchors.filter { $0.wardrobe?.id == wardrobe.id }
+        let anchorIDSet = Set(validAnchors.map(\.id))
+        return RefreshRequest(
+            generation: generation,
+            anchorCandidates: validAnchors.map { $0.toCandidateItem() },
+            pool: (wardrobe.items ?? [])
+                .filter { !anchorIDSet.contains($0.id) }
+                .map { $0.toCandidateItem() },
+            filter: FilterContext(
+                occasion: occasion,
+                // D130：天气没取到就别按伪造的温度筛衣服
                 daytimeTempF: hasResolvedWeather ? daytimeTempF : nil,
                 wornWithin7DaysIDs: worn,
+                coldBias: wardrobe.owner?.coldBias ?? 0),
+            scoring: ScoringContext(
                 bodyShape: bodyShape,
                 bodyShapeWeight: bodyShapeWeight,
                 colorSeason: PersonalColorSeason.parse(wardrobe.owner?.personalColorSeasonRaw),
-                coldBias: wardrobe.owner?.coldBias ?? 0,
-                maxSuggestions: 3)
+                daytimeTempF: hasResolvedWeather ? daytimeTempF : nil),
+            maxSuggestions: 3,
+            anchorIDs: validAnchors.map(\.id),
+            wornHereCount: worn.intersection(availableIDs).count)
+    }
+
+    /// **纯计算**——`nonisolated`，可以在任何线程上跑（输入输出全是 Sendable）。
+    public nonisolated static func computeRefresh(
+        _ request: RefreshRequest
+    ) -> OutfitCompleter.Result {
+        OutfitCompleter.completeDetailed(
+            anchors: request.anchorCandidates,
+            pool: request.pool,
+            context: request.filter,
+            scoring: request.scoring,
+            maxSuggestions: request.maxSuggestions)
+    }
+
+    /// 落地。**代际对不上就丢**——慢的那次回来时状态可能已经变了
+    ///（切了柜、换了场合、改了锚定），把旧结果盖上去等于给用户看一个
+    /// 他刚刚离开的世界。
+    public func applyRefresh(_ result: OutfitCompleter.Result, for request: RefreshRequest) {
+        guard request.generation == refreshGeneration else {
+            AppLog.debug("refresh dropped stale gen=\(request.generation)", .copilot)
+            return
         }
+        isRefreshing = false
         suggestions = result.suggestions
         // 防重复被降级（本柜今天能穿的都在近 7 天穿过）→ 必须说出来，
         // 否则建议与「de-prioritized 7 days」的打卡回执自相矛盾
         repeatGateRelaxed = result.repeatGateRelaxed
-        lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         lastRefreshAt = Date()
-
         selectedSuggestionIndex = 0
         if suggestions.isEmpty {
-            // wornWithin7DaysIDs is a global WearRecord fetch — intersect with THIS
-            // closet's available pieces so another wardrobe's wears can't trigger
-            // the "All pieces worn in last 7 days" message here.
-            let availableIDs = Set(availableItems.map { $0.id.uuidString })
-            let wornHere = worn.intersection(availableIDs)
-            statusMessage = emptyReason(anchors: anchors, wornCount: wornHere.count)
+            let anchorItems = (wardrobe.items ?? []).filter { request.anchorIDs.contains($0.id) }
+            statusMessage = emptyReason(
+                anchors: anchorItems, wornCount: request.wornHereCount)
         } else {
             statusMessage = "Look \(selectedSuggestionIndex + 1) of \(suggestions.count)"
         }
+        TelemetryGate.shared.track(.copilotRefresh, payload: [
+            "mode": fullAuto ? "auto" : "anchored",
+            "occasion": occasion,
+            "suggestion_count": String(suggestions.count),
+        ])
         AppLog.info(
-            "refresh occasion=\(occasion) temp=\(daytimeTempF) anchors=\(anchors.count) worn=\(worn.count) out=\(suggestions.count) \(String(format: "%.1fms", lastRefreshMS))",
+            "refresh occasion=\(occasion) anchors=\(request.anchorCandidates.count) out=\(suggestions.count) \(String(format: "%.1fms", lastRefreshMS))",
             .copilot)
+    }
+
+    /// 同步刷新（测试与不介意阻塞的调用方）。**与异步路径共用同一组三段**——
+    /// 各写一份的那天，两条路会给出不同的推荐。
+    public func refresh() {
+        guard let request = makeRefreshRequest() else { return }
+        let t0 = CFAbsoluteTimeGetCurrent()
+        let result = Self.computeRefresh(request)
+        lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+        applyRefresh(result, for: request)
+    }
+
+    /// 后台刷新（Today 走这条）。计算不快，但界面不冻。
+    public func refreshOffMain() async {
+        guard let request = makeRefreshRequest() else { return }
+        let t0 = CFAbsoluteTimeGetCurrent()
+        let result = await Task.detached(priority: .userInitiated) {
+            Self.computeRefresh(request)
+        }.value
+        lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+        applyRefresh(result, for: request)
     }
 
     private func emptyReason(anchors: [Item], wornCount: Int) -> String {

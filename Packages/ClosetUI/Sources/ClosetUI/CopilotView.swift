@@ -720,7 +720,7 @@ public struct CopilotView: View {
                 // Only auto-refresh when pieces actually landed (save fail keeps cold-start honest).
                 if case .added = outcome {
                     vm.fullAuto = true
-                    vm.refresh()
+                    Task { await vm.refreshOffMain() }
                 }
             } label: {
                 Text("Load samples")
@@ -749,7 +749,7 @@ public struct CopilotView: View {
             .pickerStyle(.segmented)
             .onChange(of: vm.occasion) { _, _ in
                 if !vm.isColdStart {
-                    vm.refresh()
+                    Task { await vm.refreshOffMain() }
                 }
             }
 
@@ -1216,10 +1216,15 @@ public struct CopilotView: View {
             result, antiRepeatEnabled: !DebugSettings.shared.disableAntiRepeat))
     }
 
+    /// D152：**推荐算在后台。** 冷天 240 件衣柜实测 1959ms 同步跑在主线程上——
+    /// 用户在冬天打开 Today，整个界面冻住近两秒。两秒换个线程不会变快，
+    /// 但他至少能滚动、能点，而不是对着卡死的屏幕怀疑 App 挂了。
+    ///
+    /// 过期结果由 `applyRefresh` 的代际检查丢弃（切柜/换场合/改锚定都会作废在途的那次）。
     private func runRefresh() {
         vm.wornWithin7DaysIDs = DebugSettings.shared.disableAntiRepeat
             ? [] : CheckInViewModel.recentlyWornIDs(in: context)
-        vm.refresh()
+        Task { await vm.refreshOffMain() }
     }
 
     private func flash(_ message: String) {
@@ -1256,7 +1261,8 @@ public struct CopilotView: View {
         }
         if !vm.isColdStart {
             vm.fullAuto = true
-            vm.refresh()
+            // 首屏这一处最该异步：用户刚打开 App，冻两秒他会以为没启动起来
+            await vm.refreshOffMain()
         }
         AppLog.debug("Copilot hero polished appear items=\(vm.availableItems.count)", .copilot)
     }
