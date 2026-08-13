@@ -148,9 +148,21 @@ struct TelemetryWiringTests {
     }
 
     /// 产出方不得夹带红线字段：搜索词、单品名、城市、围度一律不进 payload。
+    /// D164：判据从「键名恰好叫 name」改成**看值读了什么**。
+    ///
+    /// 原来只匹配 `"name":` 这种恰好同名的键——而 `"closet_name": wardrobe.name`
+    /// 泄漏的是同一份内容，却一个字都不匹配（实测注入后门照样绿）。
+    /// **危险在值，不在键名**：一个叫 `mode` 的键塞进 `item.name` 同样是泄漏。
+    /// 键名仍然查（叫 `name` 的键本身就可疑），但主判据是值里读了用户内容没有。
     @Test func emittersCarryNoUserContent() throws {
         var violations: [String] = []
         let forbidden = ["text", "name", "city", "query", "bust", "waist", "hip"]
+        /// 值侧读到这些就是把用户内容送出去了（属性访问形态，避免误伤 `"has_text"` 这类布尔）
+        let userContentReads = [
+            ".name", ".notes", ".text", ".query", "locationCity",
+            "bustInches", "waistInches", "hipInches", "highHipInches",
+            ".sizeLabel", ".brand", ".barcode",
+        ]
         for url in Self.productionSources() {
             guard let text = try? String(contentsOf: url, encoding: .utf8),
                   text.contains("TelemetryGate.shared.track(") else { continue }
@@ -163,7 +175,12 @@ struct TelemetryWiringTests {
                 let window = lines[start...n].joined()
                 guard window.contains("track(") else { continue }
                 for key in forbidden where line.contains("\"\(key)\":") {
-                    violations.append("\(url.lastPathComponent):\(n + 1) ~ \(key)")
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ 键名 \(key)")
+                }
+                // 值侧：`"任意键": 读到用户内容` —— 只看冒号之后
+                let value = line.components(separatedBy: "\": ").dropFirst().joined(separator: "\": ")
+                for read in userContentReads where value.contains(read) {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ 值里读了 \(read)")
                 }
             }
         }
