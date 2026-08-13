@@ -3,9 +3,23 @@ import Foundation
 /// 一套搭配（值类型）。
 public struct Outfit: Sendable, Equatable {
     public let items: [CandidateItem]
-    public init(items: [CandidateItem]) { self.items = items }
-    /// 稳定标识：成员 id 排序后拼接（供去重/排序/断言）。
-    public var itemIDs: [String] { items.map(\.id).sorted() }
+
+    /// 稳定标识：成员 id 排序后（供去重/排序/断言）。
+    ///
+    /// D149：此前是**计算属性**，每取一次就重新 map + sort + 分配。
+    /// 而排序口径 `OutfitScorer.ranksBefore` 一次比较要取它四遍
+    ///（两次数近期穿过的件、两次拼字典序字符串），去重路径每套再取一遍。
+    /// 冷天无锚定时 `OutfitCompleter` 会枚举出成百上千套：
+    /// 200 套 ≈ 1500 次比较 × 4 = 六千次分配 + 排序，全在 Today 刷新的主线程上。
+    ///
+    /// `items` 是 `let`——这个值构造完就不会变，构造时算一次即可。
+    /// 语义一个字不变（`OutfitIdentityCostTests` 钉住与旧计算式逐字一致）。
+    public let itemIDs: [String]
+
+    public init(items: [CandidateItem]) {
+        self.items = items
+        self.itemIDs = items.map(\.id).sorted()
+    }
 }
 
 /// 组套器：从已过滤候选池产出 grammar-valid 搭配（DESIGN §F4）。

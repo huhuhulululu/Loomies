@@ -2230,3 +2230,34 @@ StorageLocation/Outfit 五种实体），并先钉住**与手抄那版逐个结�
 
 （替换后 ClosetUI 编译报「no member sortedByName」而 ClosetModel 自己全绿：
 SwiftPM 构建缓存陈旧，`rm -rf .build` 即好。这条本仓踩过，记在这里省下一次排查。）
+
+---
+
+## D149 — 排序热路径上的重复计算 + 一条零调用点取图链（2026-08-13）
+
+**`Outfit.itemIDs` 是计算属性，每取一次就重新 map + sort + 分配。**
+而排序口径 `OutfitScorer.ranksBefore` 一次比较要取它**四遍**（两次数近期穿过的件、
+两次拼字典序字符串），去重路径 `seen.insert(outfit.itemIDs)` 每套再取一遍。
+`OutfitCompleter` 在冷天无锚定时会枚举出成百上千套：200 套 ≈ 1500 次比较 × 4 =
+六千次「分配数组 + 排序 + 拼字符串」，全发生在 Today 刷新的主线程上。
+
+`items` 是 `let`——这个值构造完就不会变，构造时算一次即可。语义一个字不变
+（先钉住「与旧计算式逐字一致」再改，同 D148 的做法）。
+
+**`croquisAssetName` / `croquisImage` 整条链零调用点**：前者只被后者调，后者全仓
+无人调。它们按体型 + 朝向去 bundle 探 croquis 资产，而当前视觉走
+`FullNudeBodyRaster` + 叠衣层，这条路早就不在画面上。删除并留复活条件。
+
+### 工具链陷阱（差点误判成自己的 bug）
+
+改完 `Outfit` 之后 `ClosetModel` 的 `completerRunsOnRealSwiftDataItems` **稳定
+SIGSEGV**——而那个用例只有三件衣服，不存在规模问题。用 `git stash` 确认 HEAD 全绿、
+逐步移除自定义 `==` 二分、串行跑定位到具体用例，十分钟后才想到：
+
+**SwiftPM 的增量构建不保证在底层包 struct 的存储属性变化（内存布局变化）时重编依赖包。**
+依赖包的二进制仍按旧布局访问字段 → 运行时段错误，**且没有任何编译错误**。
+`rm -rf Packages/ClosetModel/.build` 后 362 全绿，一行代码没改。
+
+同一根因的温和面孔本轮也见过（D148）：依赖包报 `has no member sortedByName`
+而底层包自己全绿。**改 Core 的值类型布局后，先清依赖包 `.build` 再怀疑代码。**
+已存入项目 memory。

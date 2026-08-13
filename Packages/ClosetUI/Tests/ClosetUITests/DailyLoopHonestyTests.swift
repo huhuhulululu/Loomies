@@ -123,7 +123,7 @@ struct DailyLoopHonestyTests {
 
         let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 70)
         vm.refresh()
-        let msg = vm.statusMessage ?? ""
+        let msg = vm.statusMessage   // 非可选：原来的 `?? ""` 是条死分支
         for jargon in ["cold start", "anchor at least", "full-auto", "candidate"] {
             #expect(!msg.localizedCaseInsensitiveContains(jargon),
                     Comment(rawValue: "冷启动文案里漏了开发者用语：\(msg)"))

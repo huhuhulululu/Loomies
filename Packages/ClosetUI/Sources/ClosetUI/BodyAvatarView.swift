@@ -721,25 +721,14 @@ public struct BodyAvatarView: View {
     /// without MainActor hops.
     nonisolated static let orbitChevronHitArea: CGFloat = 44
 
-    private func croquisAssetName(for yaw: BodyAvatarYaw) -> String? {
-        var tried: [BodyAvatarYaw] = [yaw, yaw.stepped(by: 1), yaw.stepped(by: -1)]
-        let cardinals: [BodyAvatarYaw] = [.deg0, .deg90, .deg180, .deg270]
-        tried.append(contentsOf: cardinals.sorted {
-            abs($0.rawValue - yaw.rawValue) < abs($1.rawValue - yaw.rawValue)
-        })
-        var seen = Set<Int>()
-        for y in tried where seen.insert(y.rawValue).inserted {
-            let name = BodyAvatarAsset.croquisName(for: shape, yaw: y)
-            if Self.bundleResourceURL(named: name) != nil { return name }
-        }
-        let legacy = BodyAvatarAsset.legacyFrontName(for: shape)
-        return Self.bundleResourceURL(named: legacy) != nil ? legacy : nil
-    }
-
-    private func croquisImage(for yaw: BodyAvatarYaw) -> Image? {
-        guard let name = croquisAssetName(for: yaw) else { return nil }
-        return Self.bundleImage(named: name)
-    }
+    // D149：`croquisAssetName(for:)` / `croquisImage(for:)` 已删——
+    // 一整条**零调用点**的取图链（前者只被后者调，后者全仓无人调）。
+    // 它们按体型 + 朝向去 bundle 里探 croquis 资产，而当前视觉走的是
+    // `FullNudeBodyRaster` + 叠衣层（`garmentLayer`），这条路早已不在画面上。
+    //
+    // 复活条件：重新启用 bundle 里预渲染的 croquis 位图作为底图
+    //（那意味着放弃逐体型光栅化）。届时连同 `BodyAvatarAsset.croquisName`
+    // 的 fallback 顺序一起复审——它当时的 legacy 分支就是为这条路留的。
 
     @ViewBuilder
     private func garmentLayer(_ layer: BodyAvatarLayer, canvas: CGSize) -> some View {
