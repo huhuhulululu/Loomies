@@ -47,36 +47,19 @@ public enum CandidateFilter {
     public static let repeatRelaxedCaption =
         "Everything that fits today was worn recently — showing your best options anyway."
 
-    /// 防重复的**定夺语义**（D89）。DESIGN 自相矛盾：§193/§379 写「近期重复降权」，
-    /// §200 把它列为硬门。取「默认硬门 + 会清空时降级为降权」——
-    /// 硬门来自竞品差评实证（有真实价值），但小衣柜里三件上装本周都穿过时
-    /// 交出空结果是更糟的产品行为（DESIGN §199 对同类问题已给同一处方：
-    /// 覆盖率低于门槛就自动切模式）。
-    ///
-    /// 降级**只放宽防重复**——场合、天气、可用状态仍是硬门（那三条无分歧）。
-    public static func filterWithRepeatFallback(
-        _ items: [CandidateItem], context: FilterContext
-    ) -> Outcome {
-        let strict = filter(items, context: context)
-        guard strict.isEmpty, !context.wornWithin7DaysIDs.isEmpty else {
-            return Outcome(items: strict, repeatGateRelaxed: false, recentlyWornIDs: [])
-        }
-        // 只摘掉防重复这一条，其余门原样
-        let relaxedContext = FilterContext(
-            occasion: context.occasion,
-            daytimeTempF: context.daytimeTempF,
-            wornWithin7DaysIDs: [],
-            coldBias: context.coldBias)
-        let relaxed = filter(items, context: relaxedContext)
-        guard !relaxed.isEmpty else {
-            // 放宽了也没有 → 空结果的原因不是防重复，别对用户说反话
-            return Outcome(items: [], repeatGateRelaxed: false, recentlyWornIDs: [])
-        }
-        return Outcome(
-            items: relaxed,
-            repeatGateRelaxed: true,
-            recentlyWornIDs: Set(relaxed.map(\.id)).intersection(context.wornWithin7DaysIDs))
-    }
+    // D192：`filterWithRepeatFallback` 已删——**全仓零调用点**。
+    //
+    // 它的文档写着「防重复的定夺语义（D89）」，而生产从来没走过它：
+    // 真正跑的是 `OutfitCompleter` 里的内联版（D112 把降级判从单品层搬到了搭配层，
+    // 那才是空屏发生的地方）。一个带权威措辞、未标废弃的死 public API，
+    // 加上五条只守着它的断言——改坏生产那份逻辑，它们一条都不会红。
+    //
+    // 它守的语义没有丢：`SlotExhaustionFallbackTests` 的八条用例直接调
+    // `OutfitCompleter.completeDetailed`，正反两向都钉了 `repeatGateRelaxed`；
+    // 唯一只有那边有的「放宽不放行在洗件」本波已搬过去（第九条）。
+    //
+    // 复活条件：出现一个**只做单品层过滤、不拼搭配**的真实调用方。
+    // 那时连同它的门一起加回来，且门必须打在那个调用方上。
 
     /// 降权排序的**首键**：没穿过的排在穿过的前面。
     /// 返回 nil = 这一键上打平，由调用方继续比下一键（体型预分等）。
@@ -92,15 +75,9 @@ public enum CandidateFilter {
         return aWorn == bWorn ? nil : (!aWorn && bWorn)
     }
 
-    /// 降权 = **排序**影响，不是二次排除：最近穿过的排在没穿过的后面。
-    /// 同类内部按 id 决胜（排序确定性，禁止依赖数组偶然顺序）。
-    public static func rankByRecency(
-        _ items: [CandidateItem], recentlyWornIDs: Set<String>
-    ) -> [CandidateItem] {
-        items.sorted { a, b in
-            recencyOrder(a.id, b.id, recentlyWornIDs: recentlyWornIDs) ?? (a.id < b.id)
-        }
-    }
+    // D192：`rankByRecency` 同样已删（零调用点）。生产的排序在
+    // `OutfitCompleter` 里，它需要体型预分做次键，所以本就不能直接调这个函数——
+    // 两边共用的那一段是上面的 `recencyOrder`（首键），它**有**生产调用点。
 
     public static func filter(_ items: [CandidateItem], context: FilterContext) -> [CandidateItem] {
         // 温度未知 → 没有温区带 → 该门整条跳过（D130）

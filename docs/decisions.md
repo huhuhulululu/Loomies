@@ -3685,3 +3685,61 @@ Log 按钮变灰、Picker 回到 Skip——**当场没有任何可重试的对�
 
 归属上也该在调用方：临时导出目录是 UI 建的、分享面板关掉时也是 UI 删的。
 挪到 `AppRootView` 的删库分支后两处一起扫。
+
+## D192 — Today 的口径漂移 + 两个带权威措辞的死 API（2026-08-13）
+
+### 1. 「Look 1 of N」翻页后不更新
+
+`statusMessage` 只在刷新落地那一处写它（且刚把 index 置 0），
+`selectSuggestion` / next / previous 一个都不写——恒为「Look 1 of 3」。
+而同屏的 hero 印着 `\(index + 1)/\(lookCount)`：翻到最后一套时，
+屏幕上并排显示「3/3」和「Look 1 of 3」。
+
+计数文案抽成 `lookCounter(index:total:)` 纯函数（顺带把越界索引收敛，
+且 total == 0 时返回空串——那行字要留给空态理由），翻页改写它。
+
+**没给生产加测试专用钩子**：建议列表来自引擎，构造它要跑整条推荐链。
+纯函数直接测，「翻页有没有去写它」用结构门钉。
+
+### 2. Today 的场合清单是第二张手抄表
+
+`OccasionMix` 自称与 `CandidateFilter` 同源、明写「不得另开一套」，
+而 Today 的 picker 是 `["work","date","gala","casual"]` + `.capitalized`——
+于是详情页把它叫「Events」、Today 叫「Gala」，同一个东西两个名字。
+
+值集合当时恰好一致，所以还没筛空。**手抄表不跟随 `choices` 才是真风险面**：
+今天不一致的只是名字，明天加一个场合就会不一致到过滤上。
+
+### 3. 删掉两个零调用点的死 API
+
+`filterWithRepeatFallback` 的文档写着「防重复的**定夺语义**（D89）」，
+而生产从来没走过它——真正跑的是 `OutfitCompleter` 里的内联版
+（D112 把降级判从单品层搬到了搭配层，那才是空屏发生的地方）。
+`rankByRecency` 同样零调用点。
+
+一个**带权威措辞、未标废弃**的死 public API，加上五条只守着它的断言——
+改坏生产那份逻辑，它们一条都不会红。这与 D146 删 `refreshAttention` 是同一处置。
+
+**删之前先把它守的语义搬过去**：`SlotExhaustionFallbackTests` 已覆盖五条等价的，
+唯独「放宽不放行在洗件」只有那边有——本波先给生产门补上第九条，再删。
+否则会连同一条真语义的覆盖一起删掉。
+
+复活条件写在原处：出现一个只做单品层过滤、不拼搭配的真实调用方。
+
+### 4. `RecommendationService`：保留但标清「这不是 shipped path」
+
+它同样零调用点，但处置不同——**不删**：它是垂直切片契约，
+`CheckInService` 与 `CopilotViewModel` 的注释都在引用它描述语义。
+
+生产不走它是有原因的：`makeRefreshRequest` 要把快照摊成 `Sendable` 值
+再扔去后台算（D152 三段式），而这个函数持 `Wardrobe` 模型，跨不了 actor 边界。
+
+真正要修的是**证据的自称**：那份测试里有一句注释写着
+「Shipped service path: personal-color season must move the score」——
+而它不是 shipped path。断言本身仍有价值（打分链的语义），
+但把它当成生产证据就是假信心。文件头与那句注释都改成说实话，
+并写下收口条件（`makeRefreshRequest` 改吃纯值时两份合一，测试才重新成为生产证据）。
+
+**同样是零调用点，处置可以不同**：判据是「它的存在会不会让人误以为生产走它」。
+`filterWithRepeatFallback` 会（措辞权威 + 无标注），所以删；
+`RecommendationService` 标清楚之后不会，且它还在被引用来描述语义，所以留。

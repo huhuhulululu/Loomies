@@ -40,7 +40,12 @@ public struct CopilotView: View {
         _vm = State(initialValue: CopilotViewModel.forToday(wardrobe: wardrobe))
     }
 
-    private let occasions = ["work", "date", "gala", "casual"]
+    /// D192：**场合清单只此一处**（`OccasionMix`，它自称与 `CandidateFilter` 同源、
+    /// 明写「不得另开一套」）。这里原来抄了一张 `["work","date","gala","casual"]`
+    /// 并用 `.capitalized` 出标签——于是详情页把它叫「Events」、Today 叫「Gala」，
+    /// 同一个东西两个名字。值集合当时恰好一致，所以还没筛空；
+    /// 手抄表不跟随 `choices` 才是真正的风险面。
+    private var occasions: [String] { OccasionMix.choices }
 
     private var ownerProfile: PersonBodyProfile? {
         guard let pid = vm.wardrobe.owner?.id else { return nil }
@@ -748,7 +753,9 @@ public struct CopilotView: View {
     private var controlsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("Occasion", selection: $vm.occasion) {
-                ForEach(occasions, id: \.self) { Text($0.capitalized).tag($0) }
+                ForEach(occasions, id: \.self) {
+                    Text(OccasionMix.displayTitle($0)).tag($0)
+                }
             }
             .pickerStyle(.segmented)
             .onChange(of: vm.occasion) { _, _ in

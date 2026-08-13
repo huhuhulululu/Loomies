@@ -84,7 +84,12 @@ struct RecommendationServiceTests {
         }
     }
 
-    /// Shipped service path: personal-color season must move the score, not sit unused.
+    /// 个人色季必须真的参与打分，而不是白放着。
+    ///
+    /// D192：这句原来写的是「Shipped service path」——**而它不是**。
+    /// Today 的生产路径在 `CopilotViewModel.makeRefreshRequest` 里自己做映射，
+    /// 本文件验的是一条产品不走的路。断言本身仍有价值（打分链的语义），
+    /// 但别把它当成生产证据。
     @Test func personalColorSeasonMovesShippedScore() throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)

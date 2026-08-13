@@ -63,12 +63,24 @@ public final class CopilotViewModel {
     /// 于是「翻一下轮播」就被记成「照着穿了」。MARKET §8.1 的上线判定
     /// （GO/PIVOT/KILL）建立在这个数上，而 D20 跳过真人验证之后它是唯一的裁决装置：
     /// 量错等于没量。采纳只在 `recordWear` 发。
+    /// 「Look 3 of 5」这句话的**唯一出处**（D192）。
+    /// 越界索引收敛到区间内；没有建议时返回空串——那行字要留给空态理由。
+    public static func lookCounter(index: Int, total: Int) -> String {
+        guard total > 0 else { return "" }
+        let i = min(max(0, index), total - 1)
+        return "Look \(i + 1) of \(total)"
+    }
+
     public func selectSuggestion(at index: Int) {
         guard !suggestions.isEmpty else {
             selectedSuggestionIndex = 0
             return
         }
         selectedSuggestionIndex = min(max(0, index), suggestions.count - 1)
+        // D192：这行字此前只在刷新落地时写一次（且刚把 index 置 0），
+        // 翻页一个都不写它——于是 hero 印「3/3」，它还写着「Look 1 of 3」。
+        statusMessage = Self.lookCounter(
+            index: selectedSuggestionIndex, total: suggestions.count)
     }
 
     public func selectNextLook() {
@@ -533,7 +545,8 @@ public final class CopilotViewModel {
             statusMessage = emptyReason(
                 anchors: anchorItems, wornCount: request.wornHereCount)
         } else {
-            statusMessage = "Look \(selectedSuggestionIndex + 1) of \(suggestions.count)"
+            statusMessage = Self.lookCounter(
+                index: selectedSuggestionIndex, total: suggestions.count)
         }
         TelemetryGate.shared.track(.copilotRefresh, payload: [
             "mode": fullAuto ? "auto" : "anchored",

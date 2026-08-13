@@ -74,6 +74,27 @@ struct SlotExhaustionFallbackTests {
         }
     }
 
+    /// 降级也**不放行在洗/外借件**（第三条硬门原样）。
+    ///
+    /// D192：这条语义原来只被 `AntiRepeatFallbackTests.fallbackKeepsUnavailableItemsOut`
+    /// 守着——而它测的是零调用点的 `filterWithRepeatFallback`，
+    /// 生产跑的是 `OutfitCompleter` 里的内联版。删那个死 API 之前先把这条搬过来，
+    /// 否则会连同一条**真语义**的覆盖一起删掉。
+    @Test func relaxingRepeatDoesNotLetLaundryBackIn() {
+        var pool = workCloset
+        var laundry = item("shoe-wash", .shoes)
+        laundry = CandidateItem(
+            id: laundry.id, slot: laundry.slot, occasions: laundry.occasions,
+            warmth: laundry.warmth, status: .inWash)
+        pool.append(laundry)
+        let result = complete(pool, worn: ["shoe-1"])
+        #expect(!result.suggestions.isEmpty)
+        for s in result.suggestions {
+            #expect(!s.outfit.itemIDs.contains("shoe-wash"),
+                    "放宽防重复顺手把在洗的件放了进来")
+        }
+    }
+
     /// 一件未标温区的单品能绕过天气门 —— 它不该因此**吃掉**降级。
     /// （原报告的第二个变体：加一件衣服反而让全部建议消失。）
     @Test func oneUntaggedItemDoesNotSuppressTheFallback() {
