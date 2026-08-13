@@ -81,3 +81,48 @@ struct SourcePhotoWiringTests {
                 "确认入库没写旁挂原图 —— 用户拍的那张照片被丢了")
     }
 }
+
+/// D123：**披露必须与实际接了什么对齐**。
+///
+/// D102 的教训：`makeTagging`/`makeOCR` 一律返回 mock，而「识别成功」路径上
+/// 用户看到预填好的字段却没有任何提示说那不是识别结果——
+/// 不诚实正好落在最常走的那条路上。现在洗标 OCR 真接了 Vision，
+/// 而**打标仍是 mock**：两件事必须分开说，混成一个开关会让文案再次说错话。
+@MainActor
+struct RecognitionDisclosureTests {
+
+    /// 两个能力位是分开的（合并成一个必然导致文案说谎）。
+    @Test func theTwoCapabilitiesAreTrackedSeparately() {
+        // 打标仍是 mock —— 这条为 true 的那天要连同披露一起改
+        #expect(IntakeServiceFactory.recognitionAvailable == false)
+        // OCR 按平台解析；macOS 测试环境下应为 false
+        #expect(IntakeServiceFactory.labelOCRAvailable == false)
+    }
+
+    /// 未接打标时的披露只能说「类型和场合」是猜的——
+    /// 不能再顺带声称品牌/尺码也是猜的（那是 OCR 读出来的）。
+    @Test func thePrefillDisclosureOnlyClaimsWhatIsGuessed() {
+        let text = IntakeServiceFactory.prefillDisclosure.lowercased()
+        #expect(text.contains("type"))
+        #expect(!text.contains("brand"),
+                "披露仍说品牌是猜的 —— 而它现在是从洗标读出来的")
+        #expect(!text.contains("size"))
+    }
+
+    /// 读到的东西要说清是**读**出来的，与猜的分开。
+    @Test func theLabelDisclosureSaysItWasRead() {
+        let text = IntakeServiceFactory.labelReadDisclosure.lowercased()
+        #expect(text.contains("read"))
+        #expect(text.contains("check"), "读出来的也要请用户核对（OCR 会错）")
+    }
+
+    /// 生产源码里必须真的用上 `VisionOCRService`（否则又是零调用点）。
+    @Test func theFactoryActuallySelectsTheVisionImplementation() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetIntake/IntakeServiceFactory.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("VisionOCRService()"))
+    }
+}

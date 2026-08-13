@@ -7,11 +7,12 @@ public enum IntakeServiceFactory {
     /// Add-piece choose screen: cutout is device-aware; tags/OCR are always starter guesses.
     /// Must not claim Vision fills type/brand (those stay mock until VLM/OCR wire-up).
     public static let photoPipelineCaption =
-        "Cutout uses Vision on a real iPhone (mock in Simulator). Type, brand, and size are starter guesses — edit before saving."
+        "Cutout and label reading use Vision on a real iPhone (mock in Simulator). "
+        + "Type and occasion are starter guesses — edit before saving."
 
     /// In-flight ProgressView while matting/tagging run — must not imply real OCR/VLM pre-fill.
     public static let photoProcessingCaption =
-        "Cutting out the piece… type, brand, and size stay starter guesses — edit before saving."
+        "Cutting out the piece and reading the label… type and occasion stay starter guesses."
 
     /// Barcode field: digits only for now (no DataScanner). Apparel Open*Facts hit rate is thin.
     public static let barcodeEntryCaption =
@@ -34,6 +35,17 @@ public enum IntakeServiceFactory {
         #endif
     }
 
+    /// 洗标 OCR 是否真接了（D123：真机 Vision，模拟器 mock）。
+    /// 与 `recognitionAvailable` 分开——**打标**（类型/场合/温区）仍是 mock，
+    /// 把两件事混成一个开关会让披露文案再次说错话。
+    public static var labelOCRAvailable: Bool {
+        #if canImport(Vision) && os(iOS) && !targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     /// 当前构建是否接了**真的**识别（AI 打标 / 洗标 OCR）。
     ///
     /// D102：`makeTagging` / `makeOCR` 没有任何平台分支，一律返回 mock ——
@@ -46,6 +58,11 @@ public enum IntakeServiceFactory {
     /// 未接识别时的披露：字段是**起点**，不是照片识别出来的。
     public static let prefillDisclosure =
         "Type and occasion start from a common guess, not from your photo — check them before adding."
+
+    /// 洗标读到东西时的说明：**读到的**与**猜的**必须分得开，
+    /// 否则用户不知道哪些字段值得信。
+    public static let labelReadDisclosure =
+        "Brand and size were read from the label photo — check them before adding."
 
     public static func makeTagging(
         defaultTags: ItemTags = ItemTags(
@@ -63,8 +80,14 @@ public enum IntakeServiceFactory {
     public static func makeOCR(
         defaultInfo: LabelInfo = LabelInfo()
     ) -> any OCRService {
-        // Document OCR not wired — always mock empty/defaults.
-        MockOCRService(info: defaultInfo)
+        // D123：真机走 Vision 文本识别（品牌/尺码）；模拟器与 macOS 回退 mock。
+        // 「认得准不准」在 `ClosetCore.LabelTextParser`（纯函数、可测），
+        // 这里只是选实现。
+        #if canImport(Vision) && os(iOS) && !targetEnvironment(simulator)
+        return VisionOCRService()
+        #else
+        return MockOCRService(info: defaultInfo)
+        #endif
     }
 
 }
