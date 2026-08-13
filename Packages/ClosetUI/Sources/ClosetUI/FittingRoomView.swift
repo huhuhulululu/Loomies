@@ -166,23 +166,8 @@ public struct FittingRoomView: View {
         return bodyProfiles.first { $0.personID == pid }
     }
 
-    private var ownerShape: PopularShape {
-        if let p = ownerProfile,
-           let s = BodyProfileService.displayPopularShape(from: p) {
-            return s
-        }
-        return .rectangle
-    }
+    /// D175：推导收进 `OwnerBodyDerivation`（四个视图此前各写一份、零测试）。
+    private var ownerShape: PopularShape { OwnerBodyDerivation.shape(from: ownerProfile) }
 
-    private var ownerMorph: BodyMorphParams {
-        guard let p = ownerProfile else {
-            return BodyMorphParams.preset(for: ownerShape)
-        }
-        let m = BodyProfileService.measurements(from: p)
-        let shape = BodyProfileService.popularShape(from: p)
-        let fine = BodyMorphParams(
-            chest: p.fineChest, waist: p.fineWaist,
-            hip: p.fineHip, shoulder: 1, height: p.fineHeight)
-        return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
-    }
+    private var ownerMorph: BodyMorphParams { OwnerBodyDerivation.morph(from: ownerProfile) }
 }

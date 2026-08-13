@@ -527,13 +527,10 @@ public struct CopilotView: View {
             isColdStart: vm.isColdStart)
     }
 
-    private var heroShape: PopularShape {
-        if let p = ownerProfile,
-           let s = BodyProfileService.displayPopularShape(from: p) {
-            return s
-        }
-        return vm.bodyShape?.popularCategory ?? .rectangle
-    }
+    /// D175：与试衣间/日历/收藏共用同一段推导（此前四处各写一份、零测试）。
+    /// 原来这里多一层 `vm.bodyShape` 兜底——`OwnerBodyDerivationTests`
+    /// 在 25 种档案状态上逐个验过它与共享实现**取值恒等**，故直接收口。
+    private var heroShape: PopularShape { OwnerBodyDerivation.shape(from: ownerProfile) }
 
     private var heroBodySex: AvatarBodySex {
         BodyProfileService.presentationSex(from: ownerProfile)
@@ -1105,17 +1102,9 @@ public struct CopilotView: View {
 
     // MARK: - Data helpers
 
-    private var bodyMorph: BodyMorphParams {
-        if let p = ownerProfile {
-            let m = BodyProfileService.measurements(from: p)
-            let shape = BodyProfileService.popularShape(from: p)
-            let fine = BodyMorphParams(
-                chest: p.fineChest, waist: p.fineWaist,
-                hip: p.fineHip, shoulder: 1, height: p.fineHeight)
-            return BodyMorphParams.resolve(measurements: m, shape: shape, fineTune: fine)
-        }
-        return BodyMorphParams.preset(for: vm.bodyShape?.popularCategory ?? .rectangle)
-    }
+    /// D175：与其余三屏共用同一段推导。无档案时的兜底取值与原写法恒等
+    /// （`vm.bodyShape` 在无档案时必为 nil——`OwnerBodyDerivationTests` 已验）。
+    private var bodyMorph: BodyMorphParams { OwnerBodyDerivation.morph(from: ownerProfile) }
 
     /// 头像上的「这不像我」入口。做成小而明确的可点区域而不是整块可点——
     /// 整块可点会跟已有的 orbit 手势打架（转身也会被当成点击）。
