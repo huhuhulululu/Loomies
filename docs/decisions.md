@@ -2972,3 +2972,45 @@ D171 的置信度里我自己标了一句：`RecordingTransport` 抛 `notFound` 
 
 （推荐那次的破坏顺手造出了 O(n² log n) 的病态形态——975 秒远超原始缺陷的 3 秒。
 撞门时**破坏本身也可能失真**：它证明了门会响，但那个数字不代表历史上的真实劣化。）
+
+---
+
+## D174 — 功能覆盖普查：249 个类型，3 处真缺口（2026-08-13）
+
+用户要求「功能全都测试」。先跑全量（1467 全绿 + iOS 编译），再做真正的部分——
+**逐个功能核对它到底有没有被测到**，而不只是「套件全绿」。
+
+### 判据自己先踩了一次坑
+
+第一版用**文件名**核对：`Services.swift` 没在测试里出现 → 判为未覆盖。
+而它声明的是 `TransferService`，重度覆盖。**又是「认词不认构造」**
+（本 session 第六次）。改成按**声明的公开类型**核对。
+
+### 结果
+
+249 个公开类型，30 个从未在测试中出现。逐个判读：
+
+- **22 个是 SwiftUI View**。本仓无 ViewInspector，View 不可直接单测——
+  纪律是「逻辑抽进 VM/服务，View 只装配」。抽查逻辑信号最高的两个
+  （`ColdBiasEditView` / `PrimaryOccasionEditView`），确认它们把全部判断都
+  委托给了已测的 Core 类型（`ColdBias.clamp`、`OccasionMix.parse`），
+  本身是纯装配。**属正当，不是缺口。**
+- **5 个是间接覆盖**：`GrammarViolation`（`OutfitGrammar` 重度测试）、
+  `NamedRecord`（`sortedByName` 重度测试）、`CityMatch`（纯数据）、
+  `BodyAvatarScale`（`widthScale` 测试中出现 7 次）、`ColorRelation`
+  （`.relation` 出现 11 次）。
+- **3 处真缺口**，都补了：
+
+| 缺口 | 为什么要紧 |
+|---|---|
+| `ColorHarmony.hueDistance` | 配色判定的基础运算，**环绕边界**（359° vs 1°）从没被钉过；下游 `relation` 测了 11 处，全在它上面 |
+| `BodyFitConfidence.userLabel` | **用户可见的置信度标签**——「Measured」还是「Visual pick only」直接决定用户信不信那条合身结论 |
+| `BatchMoveCopy` | 单复数（本仓反复出错处）+ 「与单件 Move 同一句」这条**只写在注释里的规则** |
+
+三组各撞一次：快选标签改成「Measured」→ 两条断言同时报；批量文案与单件走岔 →
+点名两句不同；`hueDistance` 去掉环绕 → 359/1 报 358。
+
+### 一句总结
+
+「套件全绿」和「功能都被测到」是两个命题。前者本 session 每一波都在验，
+后者今天才第一次系统核过——而它找出的三处，有两处是**用户直接读得到的文案**。
