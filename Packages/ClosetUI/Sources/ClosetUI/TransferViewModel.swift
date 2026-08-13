@@ -18,6 +18,18 @@ public final class TransferViewModel {
     /// Customer chip when no destination selected (sheet stays open).
     public static let pickDestinationMessage = "Pick a closet."
 
+    /// 搬家的两条后果，**事先**说清（D187）。
+    ///
+    /// 存放位置是无条件抹掉的（`TransferService` 第 38 行 `item.location = nil`，
+    /// 因为位置属源柜），而且**搬回去也不会恢复**——用户一层层标好的柜格，
+    /// 批量搬一次就没了几十个，而摘要只说「Moved 12 pieces.」。
+    ///
+    /// 搭配变缺件是可逆的（搬回即自动重算），所以只提一句、不吓唬人。
+    /// 单件与批量读同一份——两处各写各的注定走岔（D183 刚栽过）。
+    public static let consequenceNotice =
+        "Moving clears each piece's storage spot — moving it back won't restore it. "
+        + "Looks in this closet that use these pieces will show as missing pieces."
+
     /// Empty destination list — recovery is Me → Wardrobes (no silent Move enable).
     public static let noOtherWardrobesMessage =
         "No other closets. Create one in Me."

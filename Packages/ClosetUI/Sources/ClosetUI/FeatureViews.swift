@@ -284,6 +284,11 @@ struct TransferSheet: View {
                             Text(w.name).tag(Optional(w.id))
                         }
                     }
+                    // D187：搬家会抹掉存放位置（搬回也不恢复），原柜的搭配会变缺件。
+                    // 事先说，不是事后让用户自己发现。
+                    Text(TransferViewModel.consequenceNotice)
+                        .font(.caption).foregroundStyle(DS.muted)
+                        .accessibilityLabel(TransferViewModel.consequenceNotice)
                 }
                 if !vm.message.isEmpty {
                     Text(vm.message)
@@ -931,6 +936,9 @@ public enum BatchMoveCopy {
     /// 上下文不能当默认值，故用计算属性取。
     @MainActor
     public static var noDestinationMessage: String { TransferViewModel.noOtherWardrobesMessage }
+    /// 搬家后果（D187）——与单件读同一份。
+    @MainActor
+    public static var consequenceNotice: String { TransferViewModel.consequenceNotice }
 }
 
 /// 批量移动目的地选择。逐件走同一条 `TransferService.transfer`（历史与缺件重算跟着走）。
@@ -971,6 +979,11 @@ public struct BatchMoveSheet: View {
                     Section {
                         Text("\(items.count) selected")
                             .font(.caption).foregroundStyle(DS.muted)
+                        // D187：与单件面读同一句——批量一次抹掉几十个存放位置，
+                        // 而摘要只说「Moved N pieces.」。
+                        Text(BatchMoveCopy.consequenceNotice)
+                            .font(.caption).foregroundStyle(DS.muted)
+                            .accessibilityLabel(BatchMoveCopy.consequenceNotice)
                     }
                 }
                 if !message.isEmpty {
