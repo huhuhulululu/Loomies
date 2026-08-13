@@ -12,10 +12,17 @@ public enum SearchService {
         public var occasion: String? = nil
         public var statusRaw: String? = nil
         public var wardrobeID: UUID? = nil      // nil = 跨全部衣柜
+        /// D120：色板条目 id（"navy"）。站在店里那一刻，用户脑子里的检索词是
+        /// **颜色 + 品类**，不是名字——而这里此前只有文本/槽位/场合/状态。
+        /// 匹配复用 `GarmentColorPalette.nearest(to:)`（同一套容差与中性/彩色分离），
+        /// 不引入新字段（schema 单向门 D84）。
+        public var colorPaletteID: String? = nil
         public init(text: String = "", slotRaw: String? = nil, occasion: String? = nil,
-                    statusRaw: String? = nil, wardrobeID: UUID? = nil) {
+                    statusRaw: String? = nil, wardrobeID: UUID? = nil,
+                    colorPaletteID: String? = nil) {
             self.text = text; self.slotRaw = slotRaw; self.occasion = occasion
             self.statusRaw = statusRaw; self.wardrobeID = wardrobeID
+            self.colorPaletteID = colorPaletteID
         }
     }
 
@@ -28,6 +35,14 @@ public enum SearchService {
         return all.filter { item in
             if let wid = query.wardrobeID, item.wardrobe?.id != wid { return false }
             if !matches(item, statusRaw: query.statusRaw, slotRaw: query.slotRaw) { return false }
+            if let wanted = TextNormalize.blankToNil(query.colorPaletteID) {
+                // 未标颜色的件**不算命中**：三值语义——未知就是未知，不替用户猜。
+                guard let hue = item.colorHue,
+                      let nearest = GarmentColorPalette.nearest(
+                        to: GarmentColor(hueDegrees: hue, isNeutral: item.colorIsNeutral)),
+                      nearest.id == wanted.lowercased()
+                else { return false }
+            }
             if let occ = query.occasion {
                 let want = occ.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 let has = item.occasionsRaw.contains {
@@ -68,5 +83,16 @@ public enum SearchService {
         slotRaw: String? = nil
     ) -> [Item] {
         items.filter { matches($0, statusRaw: statusRaw, slotRaw: slotRaw) }
+    }
+}
+
+
+extension SearchService {
+    /// 结果计数的用户读法（D120）。
+    ///
+    /// 「你已经有 4 件」——一个能直接读出来的数，而不是相似度分数：
+    /// 那种数字用户既没法验证也没法用。
+    public static func resultsHeadline(count: Int) -> String {
+        count <= 0 ? "Nothing like that yet" : "You already have \(count)"
     }
 }

@@ -851,6 +851,36 @@ public struct ClosetGridView: View {
         return FitMarkCopy.label(v)
     }
 
+    /// 色板 chip（D120）。选中态与 `GarmentAttributeControls` 的 chip 同一套语义 token。
+    private func searchColorChip(_ id: String?, title: String) -> some View {
+        let isOn = searchVM.colorPaletteID == id
+        return Button {
+            searchVM.colorPaletteID = id
+            searchVM.homeWardrobeID = wardrobe.id
+            searchVM.run(in: context)
+        } label: {
+            HStack(spacing: 6) {
+                if let id, let entry = GarmentColorPalette.entry(id: id) {
+                    Circle()
+                        .fill(entry.swatchColor)
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().strokeBorder(DS.hairline, lineWidth: 0.5))
+                }
+                Text(title).font(.caption)
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 32)
+            .background(isOn ? DS.accent.opacity(0.22) : DS.surface)
+            .foregroundStyle(isOn ? DS.accent : DS.ink)
+            .clipShape(Capsule())
+            .overlay(Capsule().strokeBorder(isOn ? DS.accent : DS.hairline, lineWidth: 1))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
     private var searchResults: some View {
         VStack(spacing: 0) {
             TextField("Search name or brand", text: $searchVM.text)
@@ -916,6 +946,29 @@ public struct ClosetGridView: View {
                 .padding(.bottom, 8)
             }
             .accessibilityLabel("Filter search by occasion")
+            // D120：颜色筛。站在店里那一刻，用户脑子里的检索词是**颜色 + 品类**，
+            // 不是名字——而这里此前只能按名字/品牌搜。
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    searchColorChip(nil, title: "Any colour")
+                    ForEach(GarmentColorPalette.entries) { entry in
+                        searchColorChip(entry.id, title: entry.title)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+            .accessibilityLabel("Filter search by colour")
+            // 「你已经有 4 件」——只在真的在筛时出现（不筛时它等于在数整个衣柜）
+            if let headline = searchVM.resultsHeadline {
+                Text(headline)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(DS.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 6)
+                    .accessibilityAddTraits(.isHeader)
+            }
             if searchVM.results.isEmpty {
                 searchEmptyState
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -934,10 +987,14 @@ public struct ClosetGridView: View {
                                 Text(item.name).font(.headline)
                                 Text(meta)
                                     .font(.caption).foregroundStyle(DS.muted)
+                                // 「上次什么时候穿的」是判断「要不要再买一件」的另一半依据
+                                Text(searchVM.wearSummary(for: item))
+                                    .font(.caption2).foregroundStyle(DS.muted)
                             }
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(item.name). \(meta)")
+                        .accessibilityLabel(
+                            "\(item.name). \(meta). \(searchVM.wearSummary(for: item))")
                     }
                 }
                 .listStyle(.plain)

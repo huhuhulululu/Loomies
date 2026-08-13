@@ -25,6 +25,10 @@ public final class SearchViewModel {
     public var slotRaw: String?
     public var occasion: String?
     public var statusRaw: String?
+    /// D120：色板筛。站在店里那一刻，用户脑子里的检索词是**颜色 + 品类**。
+    public var colorPaletteID: String?
+    /// 每件的穿着回读（一次批量取，逐行查会退化成 N 次全表扫描）。
+    public private(set) var wearStats: [UUID: WearStatsService.Stats] = [:]
     /// 用户当前所在衣柜（作用域为 .thisCloset 时的钉柜对象）。
     public var homeWardrobeID: UUID?
     /// 作用域切换器只在多柜时才有意义（单柜用户不该看到无用控件）。
@@ -54,6 +58,19 @@ public final class SearchViewModel {
             || slotRaw != nil
             || occasion != nil
             || statusRaw != nil
+            || colorPaletteID != nil
+    }
+
+    /// 结果计数的用户读法——「你已经有 4 件」。
+    /// 只在**真的在筛**时出现：不筛时它等于在数整个衣柜，那句话没有意义。
+    public var resultsHeadline: String? {
+        guard isFiltering else { return nil }
+        return SearchService.resultsHeadline(count: results.count)
+    }
+
+    /// 某件的穿着摘要（没算到就说没穿过，不留空行）。
+    public func wearSummary(for item: Item) -> String {
+        wearStats[item.id]?.summary ?? WearStatsService.neverWornSummary
     }
 
     /// Empty-list title — filtering vs bare closet (VoiceOver / ContentUnavailable).
@@ -65,15 +82,22 @@ public final class SearchViewModel {
     public var emptyStateDescription: String {
         guard isFiltering else { return "Add a piece or load samples, then search." }
         return canBroadenScope
-            ? "Try another name, brand, type, status, or occasion filter — or search all closets."
-            : "Try another name, brand, type, status, or occasion filter."
+            ? "Try another name, brand, type, colour, status, or occasion filter — or search all closets."
+            : "Try another name, brand, type, colour, status, or occasion filter."
     }
 
     public func run(in context: ModelContext) {
         results = SearchService.searchItems(
             .init(text: text, slotRaw: slotRaw, occasion: occasion,
-                  statusRaw: statusRaw, wardrobeID: effectiveWardrobeID),
+                  statusRaw: statusRaw, wardrobeID: effectiveWardrobeID,
+                  colorPaletteID: colorPaletteID),
             in: context)
+        // D120：「上次什么时候穿的」是判断「要不要再买一件」的另一半依据。
+        // 批量取一次——每行各查一遍在百件规模上是 N 次全表扫描。
+        wearStats = [:]
+        for wardrobe in Set(results.compactMap(\.wardrobe)) {
+            wearStats.merge(WearStatsService.stats(forItemsIn: wardrobe, in: context)) { a, _ in a }
+        }
         // 遥测：只发「有没有输入文字」与结果条数——**绝不发搜索词本身**
         TelemetryGate.shared.track(.searchPerformed, payload: [
             "has_text": String(!TextNormalize.isBlank(text)),

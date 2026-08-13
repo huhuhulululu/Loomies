@@ -225,3 +225,36 @@ struct DailyRitualWiringTests {
                 "授权被拒后开关还显示着「开」")
     }
 }
+
+/// D120 接线门：颜色筛与穿着回读必须真的出现在检索页上——
+/// 它们回答的是 DEMAND-VALIDATION 记录的 #1 JTBD（「我是不是已经有类似的了」）。
+@MainActor
+struct SearchByColourWiringTests {
+
+    private var sourcesDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    @Test func theSearchScreenOffersAColourFilter() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("searchColorChip"), "检索页没有颜色筛")
+        #expect(text.contains("GarmentColorPalette.entries"), "色板没接上")
+    }
+
+    /// 「你已经有 N 件」必须真的渲染——这句话就是这个功能的全部价值。
+    @Test func theCountIsShown() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("searchVM.resultsHeadline"))
+    }
+
+    /// 每行要说「上次什么时候穿的」——那是「要不要再买一件」的另一半依据。
+    @Test func eachRowShowsWhenItWasLastWorn() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("searchVM.wearSummary(for: item)"))
+    }
+}
