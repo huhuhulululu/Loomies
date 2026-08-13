@@ -339,7 +339,20 @@ struct OutboundPayloadPrivacyTests {
         _ = try? await facts.lookup(barcode: "0123456789012")
 
         let urls = await spy.ledger.urls
+        // D172：**覆盖面要断言，不能靠碰巧。**
+        // 上一轮我担心「替身抛错会让后续分支录不到」——查下来条码客户端
+        // 确实会 catch 后继续试下一个域名（三个都录得到）。担心不成立，
+        // 但那是**当前实现**的性质：哪天有人改成首错即退，覆盖面会悄悄缩水，
+        // 而门只断言「非空」的话什么都不会说。所以把覆盖面本身钉住。
+        let paths = Set(urls.map(\.path))
+        let hosts = Set(urls.compactMap(\.host))
         #expect(!urls.isEmpty, "一条请求都没录到 —— 门在空转")
+        #expect(hosts.count >= 4, Comment(rawValue:
+            "只录到 \(hosts.count) 个 host —— 条码的三个目录域名或天气的两个"
+            + "没都走到，覆盖面缩水了：\(hosts.sorted())"))
+        #expect(paths.contains("/v1/search"), "地理编码/城市搜索没走到")
+        #expect(paths.contains { $0.contains("forecast") }, "天气预报没走到")
+        #expect(paths.contains { $0.contains("/api/v2/product/") }, "条码查询没走到")
 
         var offenders: [String] = []
         for url in urls {
