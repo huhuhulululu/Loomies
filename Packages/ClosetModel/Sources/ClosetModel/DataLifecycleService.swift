@@ -24,6 +24,32 @@ public enum DataLifecycleService {
         public var bodyProfiles: [BodyProfileDTO]?
     }
 
+    /// 只删这个人的身体维度（D190）。作用域**严格限定**：人、衣柜、单品、
+    /// 穿着历史一根汗毛都不动——与 `deleteAllUserData` 是两件事。
+    ///
+    /// 同意开关一并关掉：留着一个开着的开关而库里没有数据，下次进来会以为还存着。
+    ///
+    /// 删除动作住在这一层而不是 ViewModel：`WiringLintTests` 的规则是
+    /// 「表现层出现 `context.delete` 只可能是 create 失败的错误善后」——
+    /// 本波第一版把它写在 VM 里，当场被点名。
+    @discardableResult
+    public static func forgetBodyData(
+        personID: UUID, in context: ModelContext,
+        consent: BodyDataConsent = .shared
+    ) -> Bool {
+        let doomed = ((try? context.fetch(FetchDescriptor<PersonBodyProfile>())) ?? [])
+            .filter { $0.personID == personID }
+        for profile in doomed { context.delete(profile) }
+        guard ModelSave.save(context, label: "forgetBodyData") else {
+            context.rollback()
+            AppLog.error("forget body data failed", .data)
+            return false
+        }
+        consent.setGranted(false)
+        AppLog.notice("body data forgotten count=\(doomed.count)", .data)
+        return true
+    }
+
     public struct TransferDTO: Codable, Sendable, Equatable {
         public var id: String
         public var date: String

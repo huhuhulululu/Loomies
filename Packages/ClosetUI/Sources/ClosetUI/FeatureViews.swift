@@ -321,6 +321,8 @@ public struct BodyProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var vm: BodyProfileViewModel
+    /// D190：删身体维度的二次确认（破坏性且不可撤销）。
+    @State private var confirmForgetBody = false
 
     /// 身体维度单独同意（DESIGN §2.2）：未同意时**只出说明卡**，录入面整段不渲染。
     /// 此前这里只是在顶部多加一张卡，其后的四围输入 / Save / 精调滑杆全部照常可用
@@ -566,6 +568,26 @@ public struct BodyProfileView: View {
 
             Section {
                 Button("Save measurements") { vm.save(in: context) }
+            }
+
+            // D190：同意卡印着「You can delete them any time.」，而在此之前
+            // 界面上没有任何入口——撤回开关只在 onboarding（老用户不可达），
+            // 围度也清不回 nil，唯一归零是「删除一切」（连衣柜一起抹）。
+            Section {
+                Button(BodyProfileViewModel.forgetTitle, role: .destructive) {
+                    confirmForgetBody = true
+                }
+            } footer: {
+                Text(BodyProfileViewModel.forgetConfirmMessage)
+            }
+            .confirmationDialog(
+                BodyProfileViewModel.forgetTitle,
+                isPresented: $confirmForgetBody, titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) { vm.forgetBodyData(in: context) }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(BodyProfileViewModel.forgetConfirmMessage)
             }
     }
 

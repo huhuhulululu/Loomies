@@ -156,16 +156,48 @@ public final class BodyProfileViewModel {
         AppLog.info("body save complete=\(isComplete) conf=\(confidence.rawValue)", .data)
     }
 
+    /// 删掉这个人的身体维度并撤回同意（D190）。
+    ///
+    /// `BodyDataConsent.explainer` 印着「You can delete them any time.」，
+    /// 而在此之前**没有任何入口**：撤回开关只存在于 onboarding（老用户不可达），
+    /// 围度也清不回 nil（步进被 clamp 在 18…60），唯一归零是「删除一切」——
+    /// 那会连衣柜、单品、穿着历史、本地照片一起抹。承诺与能力对不上。
+    ///
+    /// 作用域严格限定在身体维度：人、衣柜、单品一根汗毛都不动。
+    /// 撤回同意也一并做——留着一个开着的开关而库里没有数据，
+    /// 下次进来会以为还存着。
+    @discardableResult
+    public func forgetBodyData(in context: ModelContext) -> Bool {
+        guard DataLifecycleService.forgetBodyData(
+            personID: personID, in: context, consent: bodyDataConsent) else {
+            message = Self.forgetFailedMessage
+            return false
+        }
+        profile = nil
+        bustInches = nil; waistInches = nil; hipInches = nil; highHipInches = nil
+        highHipInferred = false
+        selectedPopular = nil
+        fineChest = 1; fineWaist = 1; fineHip = 1; fineHeight = 1
+        recompute()
+        message = Self.forgetDoneMessage
+        AppLog.notice("body data forgotten", .data)
+        return true
+    }
+
+    public static let forgetTitle = "Delete my measurements"
+    public static let forgetConfirmMessage =
+        "This deletes your measurements and body-type pick from this device, and turns "
+        + "body measurements back off. Your closets, pieces and wear history are not touched."
+    public static let forgetDoneMessage = "Measurements deleted."
+    public static let forgetFailedMessage = "Couldn't delete your measurements — try again"
+
     /// 精调即时落库（滑杆松手或 onChange 后调用）。
     public func saveFineTune(in context: ModelContext) {
         guard !consentBlocks() else { return }
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
-        p.fineChest = Self.clampFine(fineChest)
-        p.fineWaist = Self.clampFine(fineWaist)
-        p.fineHip = Self.clampFine(fineHip)
-        p.fineHeight = Self.clampFine(fineHeight)
+        applyForm(to: p)          // D190：整页一起存（fine* 也在 applyForm 里）
         recompute()
         guard ModelSave.save(context, label: "bodyFineTune") else {
             rollbackFailedSave(old, wasNew: wasNew, of: p, in: context)
@@ -182,6 +214,11 @@ public final class BodyProfileViewModel {
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
+        // D190：**页面上任何一次「已保存」，说的都得是整页。**
+        // 此前四围只在显式 Save 时落库，而这里/性别/表型/精调滑杆各自即时落库——
+        // 点满四围、顺手点个快选看到「Saved Pear…」、退出，四围全丢。
+        // 那句 Saved 在用户眼里是对整页说的。
+        applyForm(to: p)
         p.popularShapeOverrideRaw = shape.rawValue
         BodyProfileService.refreshSource(on: p)
         recompute()
@@ -202,6 +239,7 @@ public final class BodyProfileViewModel {
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
+        applyForm(to: p)          // D190：整页一起存
         p.presentationSexRaw = sex.rawValue
         recompute()
         guard ModelSave.save(context, label: "bodySex") else {
@@ -221,6 +259,7 @@ public final class BodyProfileViewModel {
         let wasNew = profile == nil
         let p = ensureProfile(in: context)
         let old = ProfileSnapshot(of: p)
+        applyForm(to: p)          // D190：整页一起存
         p.presentationPhenotypeRaw = phenotype.rawValue
         recompute()
         guard ModelSave.save(context, label: "bodyPhenotype") else {
@@ -362,14 +401,19 @@ public final class BodyProfileViewModel {
         measureProgress = [bustInches, waistInches, hipInches, highHipInches]
             .filter { ($0 ?? 0) > 0 }.count
 
-        // live measurements：三围齐即可推断上臀用于预览
-        if let b = bustInches, let w = waistInches, let h = hipInches, b > 0, w > 0, h > 0 {
-            if let hh = highHipInches, hh > 0 {
-                liveMeasurements = BodyMeasurements(bust: b, waist: w, hip: h, highHip: hh)
-            } else {
-                let hh = BodyProfileService.inferHighHip(waist: w, hip: h)
-                liveMeasurements = BodyMeasurements(bust: b, waist: w, hip: h, highHip: hh)
-            }
+        // D190：预览用**表单里真有的**四围，不偷偷补上臀。
+        //
+        // 其余四屏（Today / 试衣间 / 日历 / 收藏）走 `OwnerBodyDerivation`，
+        // 它要求四围齐全、缺一即中性。这里原来自己用腰臀补了个上臀，
+        // 于是同一份档案：这一页画出曲线，那四页画中性——用户看到两个身体，
+        // 而且跨会话持续（存的是 3/4，重进这一页照样补）。
+        //
+        // 想要曲线并不难：同屏就有「Estimate high hip from waist & hip」按钮，
+        // 按下去会把推断值**存进档案并标记 `highHipInferred`**，五处随即一致。
+        // 预览的职责是「让你看见 App 会画成什么样」，不是比 App 更乐观。
+        if let b = bustInches, let w = waistInches, let h = hipInches,
+           let hh = highHipInches, b > 0, w > 0, h > 0, hh > 0 {
+            liveMeasurements = BodyMeasurements(bust: b, waist: w, hip: h, highHip: hh)
         } else {
             liveMeasurements = nil
         }

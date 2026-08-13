@@ -3553,3 +3553,68 @@ D112 的断关系再 rollback、D114 的先解绑，都已经写在那里面了�
 
 在 `includesUnavailableItems` 的 `didSet` 里剪枝（只在 true → false 时）。
 再打开不会把勾变回来——取消就是取消。
+
+## D190 — 身体这一块的四条（2026-08-13）
+
+### 1. 同一份档案，这一页画曲线，那四页画中性
+
+其余四屏（Today / 试衣间 / 日历 / 收藏）走 `OwnerBodyDerivation`，它要求四围齐全、
+缺一即中性。而 Body 页的**预览**自己用腰臀补了个上臀（`inferHighHip`），
+于是 3/4 的档案在这一页有曲线、在那四页是中性——而且跨会话持续
+（存的是 3/4，重进这一页照样补）。
+
+处置取「预览向 App 看齐」而不是反过来：**预览的职责是让你看见 App 会画成什么样，
+不是比 App 更乐观**。想要曲线并不难——同屏就有「Estimate high hip from waist & hip」
+按钮，按下去会把推断值存进档案并标记 `highHipInferred`（置信度照样知道它是估的），
+五处随即一致。
+
+核查报告说「屏幕上没有任何解释」不准确：页面同屏就写着「Fit confidence: Incomplete」
+「Measures 3/4」。真正的缺陷不是没解释，是**两个数字对着同一份档案给出不同的身体**。
+
+### 2. 同一页两套保存语义
+
+四围只在显式 Save 时落库，而快选 / 性别 / 表型 / 精调滑杆各自即时落库。
+于是：点满四围 → 屏显 Measures 4/4、头像变形 → 顺手点一下快选、
+看到「Saved Pear…」→ 退出 → **四围全丢**。
+
+那句「Saved」在用户眼里是对**整页**说的。所以不是去改文案，
+而是让页面上任何一次即时落库都 `applyForm(to:)` 整页——一页一套语义。
+
+### 3. 说了「随时可以删」，却没有任何入口
+
+`BodyDataConsent.explainer` 印着「You can delete them any time.」，而：
+撤回开关只存在于 onboarding（`allWardrobes` 为空才渲染，老用户不可达）；
+围度也清不回 nil（步进被 clamp 在 18…60）；唯一归零是「删除一切」——
+那会连衣柜、单品、穿着历史、本地照片一起抹。**承诺与能力对不上**，
+且 `DESIGN.md` 的设置页 IA 明写「含单独同意管理」，是未兑现的设计承诺而非取舍。
+
+新增 `DataLifecycleService.forgetBodyData(personID:in:consent:)` + Me → Body 的
+二次确认入口。作用域严格限定在身体维度；同意开关一并关掉——
+留着一个开着的开关而库里没有数据，下次进来会以为还存着。
+
+结构门：同意卡上只要还写着「delete them any time」，界面上就必须有那个入口
+（**承诺与能力同生共死**，与 D185 同型）。
+
+### 4. 详情页改臀宽不刷新实时合身标记
+
+`onChange` 恰好四项：chest / waist / slot / name，**独缺 hip**——
+而那段注释自称「Live FitMark as the customer types flat widths」，hip 正是 flat width 之一。
+下装本来就取腰/臀更紧者（D100），所以少的这一项恰恰是能改变结论的那个。
+
+### 两道旧门先后抓到我
+
+- `WiringLintTests.createFailurePathsRollbackInsteadOfDelete`：我把 `context.delete`
+  写进了 ViewModel。门的规则是「表现层出现它只可能是 create 失败的错误善后」——
+  真正的删除功能该住在 ClosetModel。下沉之后架构也更正：删除逻辑在模型层可测。
+- 这是本 session 第二次被自己体系里的旧门当场拦下（上一次是 D189 的 D114 门）。
+  两次的共同点：**我都先想好了一个「这里没问题」的理由**。
+
+### 撞门时又踩了一次 D172
+
+给「承诺有入口」那道门注入破坏时，第一次报绿。差点判它假绿——
+实际是**破坏根本没落地**：我在 python 里用带 20 个前导空格的整行做匹配串，
+没匹配上，文件原样没动。改成匹配一小段特征串并 `assert` 它存在之后，门当场红。
+
+D172 的教训原样复现：**「注入了但门没红」有两种解释，先验破坏、再判门。**
+这次我在破坏脚本里加了 `assert old in s`，让「没落地」自己报错——
+把那条纪律写进工具，比记住它可靠。
