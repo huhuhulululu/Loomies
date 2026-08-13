@@ -38,6 +38,48 @@ public enum OutfitCompleter {
                          scoring: scoring, maxSuggestions: maxSuggestions).suggestions
     }
 
+    /// 截断前的廉价预排序（D133）。
+    ///
+    /// 每槽位只有 12 件能进组合枚举，而此前的排序键是「体型 affinity → id」——
+    /// 绝大多数用户**没填过身体维度**（那要量三围），affinity 全为 0，
+    /// 于是退化成纯 id 前缀截断：`Item.id` 是随机 UUID，
+    /// **一个 60 件上装的衣柜，进入枚举的是随机的 12 件**。
+    /// 配色最搭的那件、色季最合的那件可能从来没被考虑过——
+    /// 打分层里配色和色季的权重只对「碰巧被抽中的那 12 件」起作用。
+    ///
+    /// 修法不是加大 12（那是指数级代价），是**让截断也看得见配色**。
+    public static func preRank(
+        _ items: [CandidateItem],
+        scoring: ScoringContext,
+        recentlyWornIDs: Set<String> = []
+    ) -> [CandidateItem] {
+        let shape = scoring.bodyShape?.popularCategory
+        func pre(_ item: CandidateItem) -> Double {
+            var score = 0.0
+            if let shape {
+                score += BodyShapeStyling.affinity(items: [item], shape: shape)
+            }
+            if let season = scoring.colorSeason, let color = item.color {
+                score += season.colorAffinity(colors: [color])
+            }
+            // 没有任何上下文时的兜底：**有颜色的排在没颜色的前面**。
+            // 打分层的配色维度只能作用在已知颜色的件上——
+            // 截断把它们挤掉，那几项权重就等于没有。
+            if item.color != nil { score += 0.01 }
+            return score
+        }
+        return items
+            .map { (item: $0, pre: pre($0)) }
+            .sorted { a, b in
+                if let byRecency = CandidateFilter.recencyOrder(
+                    a.item.id, b.item.id, recentlyWornIDs: recentlyWornIDs) {
+                    return byRecency
+                }
+                return a.pre != b.pre ? a.pre > b.pre : a.item.id < b.item.id
+            }
+            .map(\.item)
+    }
+
     public static func completeDetailed(
         anchors: [CandidateItem],
         pool: [CandidateItem],
@@ -58,25 +100,16 @@ public enum OutfitCompleter {
         var outcome = CandidateFilter.Outcome(
             items: strictItems, repeatGateRelaxed: false, recentlyWornIDs: [])
         var filtered = outcome.items.filter { !anchorIDs.contains($0.id) }
-        // 截断前廉价预打分（体型 affinity）：纯 id 前缀截断等于打分前随机抽样
-        //（Item.id 是随机 UUID），大衣柜最合体型的单品可能从未进入枚举。
-        // (预分降序, id 升序) 保确定性；无体型上下文时退化为原 id 序。
-        let preShape = scoring.bodyShape?.popularCategory
+        // 截断前的廉价预排序见 `preRank`（D133 起也看配色/色季，
+        // 不再是「没体型档案就退化成随机抽样」）。
         func options(_ slot: GarmentSlot) -> [CandidateItem] {
-            let scored = filtered.filter { $0.slot == slot }.map { it in
-                (item: it, pre: preShape.map { BodyShapeStyling.affinity(items: [it], shape: $0) } ?? 0)
-            }
             // 降级时最近穿过的排在后面（降权 = 排序影响，不是二次排除）。
             // 首键与 `rankByRecency` 共用同一段逻辑（D105：此前是两份，
-            // 而只有没人用的那份有测试）；次键是体型预分，生产独有。
-            let ordered = scored.sorted { a, b in
-                if let byRecency = CandidateFilter.recencyOrder(
-                    a.item.id, b.item.id, recentlyWornIDs: outcome.recentlyWornIDs) {
-                    return byRecency
-                }
-                return a.pre != b.pre ? a.pre > b.pre : a.item.id < b.item.id
-            }
-            return Array(ordered.prefix(Self.maxOptionsPerSlot).map(\.item))
+            // 而只有没人用的那份有测试）；次键是预分，生产独有。
+            let pool = filtered.filter { $0.slot == slot }
+            let ordered = preRank(
+                pool, scoring: scoring, recentlyWornIDs: outcome.recentlyWornIDs)
+            return Array(ordered.prefix(Self.maxOptionsPerSlot))
         }
 
         /// 组装一遍：按当前 `filtered` 枚举出全部合法搭配并排好序。
