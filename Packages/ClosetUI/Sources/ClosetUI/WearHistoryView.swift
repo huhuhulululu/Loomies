@@ -18,8 +18,17 @@ public final class WearHistoryViewModel {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public static let title = "Wear history"
+    /// D189：**作用域要说出口。** 这一页按 `wardrobeSnapshotID` 过滤，
+    /// 而空态原来只说「Nothing logged yet」——在没打过卡的那个柜里，
+    /// 用户看不出这是分柜视图。日历那边早就披露了（`CalendarScopeCopy`），
+    /// 同一件事两处一个说一个不说。
+    ///
+    /// 口径矛盾也是真的：`WearStatsService` 按单品本身聚合、不看快照柜，
+    /// 于是单品详情说「Worn 5 times」，另一个柜的这一页说「Nothing logged yet」。
     public static let emptyMessage =
-        "Nothing logged yet. Use “Log what I wore” on Today after you get dressed."
+        "Nothing logged yet in this closet — this list shows "
+        + "\(ClosetScopeCopy.onlyThisCloset). "
+        + "Use “Log what I wore” on Today after you get dressed."
     public static let saveFailedMessage = "Couldn't update this entry — try again"
     public static let deleteFailedMessage = CheckInService.deleteFailedMessage
 

@@ -7,10 +7,18 @@ import ClosetCore
 
 /// 日历的**作用域文案**（D102）：日历只列当前衣柜的计划。
 /// 空态必须说清这一点——否则用户会以为计划丢了，而不是「换个柜子看」。
+/// 「只看当前柜」这句话的**唯一出处**（D189）。
+///
+/// 日历早就披露了作用域，而穿着历史同样按柜过滤却只字不提——
+/// 同一件事两处一个说一个不说。收成一处，顺带保证措辞不会走岔。
+public enum ClosetScopeCopy {
+    public static let onlyThisCloset = "only the closet you're in"
+}
+
 public enum CalendarScopeCopy {
     public static let emptyMessage =
         "Save a look from Today, or plan a favorite for a day. "
-        + "This calendar shows only the closet you're in."
+        + "This calendar shows \(ClosetScopeCopy.onlyThisCloset)."
 }
 
 /// Empty calendar list — Attention vs all; points to Today/Favorites (no fake sync).

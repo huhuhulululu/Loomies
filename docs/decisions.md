@@ -3499,3 +3499,57 @@ D131 加那句 advisory 的理由正是「不吭声会让用户以为过滤坏�
 
 处置是**清掉**而不是「照样用」：用户按下「Just decide for me」本身就是一次掌舵动作，
 把它的效果如实呈现（chip 消失）比偷偷保留更诚实，也不违反 copilot 铁律。
+
+## D189 — 日历与打卡的三条：不说作用域 / 攒垃圾行 / 勾着看不见的件（2026-08-13）
+
+### 1. 穿着历史按柜过滤，空态只说「Nothing logged yet」
+
+同一种作用域收窄在日历那边被本仓自己判为**必须披露**
+（`CalendarScopeCopy` 明写「This calendar shows only the closet you're in.」，
+还有一条专门的门盯着），穿着历史两样都没有。
+
+口径矛盾也是真的：`WearStatsService` 按单品本身聚合、不看快照柜
+（D134 的注释明写这条），于是单品详情说「Worn 5 times」，
+而另一个柜的 Wear history 说「Nothing logged yet」。
+
+**要收敛的措辞**：核查报告说这是「撒谎」，不准确——对当前柜它是事实，
+问题是**缺披露**。危害不是「打了几个月卡的柜显示为空」，
+而是「在没打过卡的那个柜看不出这是分柜视图」。
+处置也随之只是补一句，并把那句话收成 `ClosetScopeCopy` 一处。
+
+### 2. 每点一次 Plan 就多一条谁也看不到的搭配
+
+Today 的「Plan」每次都新建一条 `isFavorite: false, source: "copilot-plan"` 的搭配。
+改排（同日再点）复用计划行、换掉 outfit，删计划只删 plan——两条路都不回收它。
+
+它不在收藏列表里（那边只列 `isFavorite`），全仓也没有任何「全部搭配」页面，
+所以**谁也看不到**；却照样进导出、进删除回执、进删柜对话框的
+「This also deletes N looks」（`WardrobeManageView` 数的是 `wardrobe.outfits.count`，
+于是一个用户眼中 0 收藏的柜会被判为非空）。无上限、无 GC。
+
+回收的三条守卫缺一不可，**宁可漏收也不能误删用户的东西**：
+`isFavorite` 的不动；来源不是 `copilot-plan` 的不动（试衣间存了又取消收藏的也算）；
+还被别的计划引用的不动（同一条搭配可以排在两天）。
+
+来源标记收成 `CalendarPlanService.planOnlySource` 一处并加门——
+建的一侧与回收的一侧各写一份字面量的话，改一处不改另一处 = 回收静默失效，
+而**失效是看不见的**：库里悄悄攒行，没有任何界面会露馅。
+
+#### 既有的门抓到了我
+
+第一版在 `reclaimPlanOnlyOutfit` 里手抄了一份 delete + rollback，
+`RollbackDisciplineLintTests.everyOutfitDeletionUnbindsItsPlansFirst`
+（D114 立的）当场点名。我当时的辩解是「上面刚查过没有计划引用它」——
+**而那正是 D114 当初被打破的原样理由**。改成复用 `discardOrphan`：
+D112 的断关系再 rollback、D114 的先解绑，都已经写在那里面了。
+
+不变式要由**结构**维持，不是由论证维持。
+
+### 3. 关掉「含在洗/外借件」，已勾中的仍会被打卡
+
+列表按开关过滤，而 `selectedIDs` 原样留着，`canCheckIn` 只看它非空，
+提交时全柜解析也不看开关。结果：**屏幕上一个勾都看不见，Log 按钮仍可点，
+落库的是被「取消显示」的那件。**
+
+在 `includesUnavailableItems` 的 `didSet` 里剪枝（只在 true → false 时）。
+再打开不会把勾变回来——取消就是取消。

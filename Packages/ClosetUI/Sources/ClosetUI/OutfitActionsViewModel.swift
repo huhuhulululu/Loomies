@@ -41,7 +41,9 @@ public final class OutfitActionsViewModel {
                 itemIDs: scored.outfit.itemIDs,
                 occasion: occasion,
                 in: wardrobe,
-                source: "copilot-plan",
+                // D189：与回收判据同源。两处各写一份字面量的话，
+                // 改一处不改另一处 = 回收静默失效（而失效是看不见的）。
+                source: CalendarPlanService.planOnlySource,
                 isFavorite: false,
                 context: context)
             guard CalendarPlanService.plan(outfit: outfit, on: Date(), in: context) != nil else {

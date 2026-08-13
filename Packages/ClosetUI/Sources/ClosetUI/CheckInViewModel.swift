@@ -25,7 +25,16 @@ public final class CheckInViewModel {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     /// 洗衣/外借件默认不在可选列表（打卡的是「今天穿了」）；用户可显式包含。
-    public var includesUnavailableItems: Bool = false
+    /// 含在洗/外借件。**关掉时要把已勾中的那些一并取消**（D189）——
+    /// 此前只有列表跟着变，选中集原样留着：屏幕上一个勾都看不见，
+    /// Log 按钮仍可点，落库的是被「取消显示」的那件。
+    public var includesUnavailableItems: Bool = false {
+        didSet {
+            guard !includesUnavailableItems, oldValue else { return }
+            let stillVisible = Set(availableItems.map(\.id))
+            selectedIDs.formIntersection(stillVisible)
+        }
+    }
 
     /// 类型安全的合身反馈桥接（Picker 绑定用；脏 raw 读作 nil，不编造）。
     public var fitVerdict: FitVerdict? {

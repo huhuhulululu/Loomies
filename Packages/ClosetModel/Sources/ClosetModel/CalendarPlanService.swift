@@ -75,7 +75,51 @@ public enum CalendarPlanService {
             AppLog.error("calendarPlan save failed", .data)
             return nil
         }
+        // D189：换掉的那条如果只是为了挂日历而建的，就地回收——
+        // 否则每改排一次库里就多一条谁也看不到的行。
+        if let previousOutfit, previousOutfit.id != outfit.id {
+            reclaimPlanOnlyOutfit(previousOutfit, in: context)
+        }
         return plan
+    }
+
+    /// Today 的「Plan」建出来的、只为挂日历而存在的搭配来源标记。
+    /// 与 `OutfitActionsViewModel.planToday` 传给 `saveFavorite` 的值同源。
+    public static let planOnlySource = "copilot-plan"
+
+    /// 回收一条**只为挂日历而建**的搭配（D189）。
+    ///
+    /// Today 每点一次「Plan」就新建一条 `isFavorite: false` 的搭配。
+    /// 它不在收藏列表里（那边只列 `isFavorite`），全仓也没有任何「全部搭配」页面——
+    /// 于是它**谁也看不到**，却照样进导出、进删除回执、进删柜对话框的
+    /// 「This also deletes N looks」。改排一次多一条，无上限、无回收。
+    ///
+    /// 三条守卫缺一不可，宁可漏收也不能误删用户的东西：
+    /// 1. `isFavorite` → 用户存过的，绝不动；
+    /// 2. 来源不是 `copilot-plan` → 用户自己建的（试衣间存了又取消收藏的也算），绝不动；
+    /// 3. 还被别的计划引用 → 同一条搭配可以排在两天。
+    ///
+    /// 在**计划那次 save 成功之后**单独做：失败了只记日志，
+    /// 让一条看不见的行留着，比把已经生效的排期一起回滚要好。
+    @discardableResult
+    public static func reclaimPlanOnlyOutfit(
+        _ outfit: Outfit?, in context: ModelContext
+    ) -> Bool {
+        guard let outfit, !outfit.isFavorite,
+              outfit.sourceRaw == planOnlySource
+        else { return false }
+        let stillPlanned = ((try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? [])
+            .contains { $0.outfit?.id == outfit.id }
+        guard !stillPlanned else { return false }
+        // 删除本身交给 `discardOrphan`——它已经把 D112（断关系再 rollback）与
+        // D114（删搭配前先解绑计划）两条纪律都写在里面了。
+        //
+        // 本波第一版在这里手抄了一份 delete + rollback，`RollbackDisciplineLintTests`
+        // 当场点名：没先调 `unbindPlans`。我当时的辩解是「上面刚查过没有计划引用它」
+        // ——而那正是 D114 被打破的原样理由。**不变式要由结构维持，不是由论证维持。**
+        let done = OutfitFavoriteService.discardOrphan(outfit, in: context)
+        AppLog.debug("plan-only outfit reclaim ok=\(done)", .data)
+        return done
     }
 
     /// 不落盘的 attention 重算——供 deleteItem / transfer 内部调用，
@@ -166,12 +210,15 @@ public enum CalendarPlanService {
     /// 删除计划。 Returns `false` when ModelSave fails.
     @discardableResult
     public static func remove(_ plan: CalendarPlan, in context: ModelContext) -> Bool {
+        let boundOutfit = plan.outfit
         context.delete(plan)
         guard ModelSave.save(context, label: "calendarRemove") else {
             context.rollback()   // 失败删除不得滞留，否则污染下一次无关 save
             AppLog.error("calendarRemove save failed", .data)
             return false
         }
+        // D189：只为这条计划而建的搭配跟着回收（同上，宁可漏收不误删）。
+        reclaimPlanOnlyOutfit(boundOutfit, in: context)
         return true
     }
 
