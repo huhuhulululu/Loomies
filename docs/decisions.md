@@ -2065,3 +2065,49 @@ D111 又补了两条——而**只有测试在按，且测试传的是自己编�
 **刻意不做**：让 `blockers` 非空就红。域名此刻确实不存在（仓里不编造真实世界的
 事实，D111 定的同一条底线），而一条永远红的测试三天内就会被无视——那比没有门更糟。
 这里守的是「口径唯一 + 真的显示出来」，填不填是真人的事。
+
+---
+
+## D143 — 测试钩子按堆地址记名（2026-08-13）
+
+`ModelSave.forceFailureIDs` 存的是 `ObjectIdentifier(context)`——**那就是对象地址**。
+注册过的 context 一旦释放而没人清，这条记录就留在集合里；之后新分配的某个
+`ModelContext` 正好落在同一地址时，它会凭空继承「所有 save 都失败」。
+
+这类污染的特征是：与代码改动无关、与测试顺序有关、复现不了——最贵的那种。
+而全仓 56 处 `forceFailure` 里有 7 处没有紧邻的 `defer` 清理。
+
+处置是**让正确性不依赖清理纪律**：注册表额外持弱引用，查表时要求那个对象仍活着
+且是同一个（`===`），死条目当场清掉。地址被回收也就没得继承了。
+
+那 7 处**不改成 `defer`**：看过之后确认它们是有意的中途清理——清完还要断言
+「恢复之后能正常保存」。加 `defer` 反而是多余的第二次清理。
+
+`ItemImageTestRoot.install()` 每个测试实例调一次 `setenv`（struct suite 每例新建实例，
+五个触盘套件并行 = 上百次），而 POSIX 的 `setenv` 与 `getenv` 并发不安全：
+`setenv` 会重建 `environ` 数组，而 `ProcessInfo.environment` 那边正在读。
+写的值每次都一样，但**竞态与值无关**。改成 `static let` 一次性初始化
+（运行时保证至多一次且线程安全）。
+
+## D144 — 删库的披露少说三类数据，而 VoiceOver 版本更少（2026-08-13）
+
+确认弹窗说的是「closets, pieces, looks, wear history, plans, and local photos」，
+而 `deleteAllUserData` 实际还抹掉了**存放位置树**（用户一层层建起来的柜格）、
+**转移历史**（这件衣服去过哪儿）和 **Person**。用户按下「删除一切」时确实想删一切
+——问题不在删，在于他事后才知道自己删了什么（D139 同一条底线）。
+
+更硬的一条：`deleteAllButtonAccessibilityHint` 只说「closets, pieces, looks,
+and body data」——**视障用户拿到的披露比明眼用户更差**。同一件事两处文案，
+注定走岔；抓到时它们已经岔了。
+
+披露收成**唯一一份** `deleteAllDisclosure`，弹窗与 hint 都读它。
+再加一道结构门：解析 `deleteAllUserData` 里的 `wipeAll(X.self)`，每一张表都必须
+在披露里有对应说法——**新表进删库而没说，当场红**。
+
+回执补 `deletedTransferRecords`：此前那行是 `_ = try wipeAll(TransferRecord.self)`，
+删了多少条没有任何地方说得出来——删除权的账目缺一笔。
+
+**写测试时撞出的计划外一条**：`imageWipeFailed` / `resetConsent` 的注释都写着
+「默认 X 兼容旧回执解码」，而 Swift 合成的 `Decodable` **根本不看默认值**，
+缺键直接 `keyNotFound`——那个保证从来不成立。回执生产上只构造、不解码，
+所以不去加自定义 `init(from:)`（没人要的防御），但注释不许再声称一个不成立的保证。

@@ -297,9 +297,25 @@ public enum DataLifecycleService {
         "Opens the share sheet. Body measurements follow the toggle above."
     }
 
+    /// 删库披露的**唯一一份**（D144）。
+    ///
+    /// 此前弹窗与 a11y hint 各写一份，而且已经走岔了：可见文案说
+    /// 「closets, pieces, looks, wear history, plans, and local photos」，
+    /// hint 只说「closets, pieces, looks, and body data」——**视障用户拿到的
+    /// 披露比明眼用户更差**。两处都还漏了存放位置树（用户一层层建起来的柜格）
+    /// 与转移历史（这件衣服去过哪儿）。
+    ///
+    /// 用户按下「删除一切」时确实想删一切——问题不在删，
+    /// 在于他事后才知道自己删了什么。`DeleteAllDisclosureTests` 有一道结构门：
+    /// 删库里每多抹一张表，这句话必须跟着点名。
+    public static let deleteAllDisclosure =
+        "This permanently removes everything on this device: closets, pieces, looks, "
+        + "wear history, plans, storage spots, where pieces have moved, "
+        + "people and body measurements, and local photos. This cannot be undone."
+
     /// Me → Delete all data button VoiceOver hint (confirm first; permanent wipe).
     public static var deleteAllButtonAccessibilityHint: String {
-        "Asks for confirmation, then permanently removes closets, pieces, looks, and body data from this device."
+        "Asks for confirmation first. " + deleteAllDisclosure
     }
 
     /// Customer toast after Export throws — never dump raw system errors in Me UI.
@@ -327,8 +343,15 @@ public enum DataLifecycleService {
         public var wipedItemImages: Bool
         /// 请求了删图但未全部删成（区分「未请求」——那不是失败）。
         public var imageWipeFailed: Bool = false
-        /// 身体数据同意与遥测开关已归零（默认 false 兼容旧回执解码）。
+        /// 身体数据同意与遥测开关已归零。
         public var resetConsent: Bool = false
+        /// D144：转移历史此前**删了却不记**——删除权的账目缺一笔。
+        public var deletedTransferRecords: Int = 0
+
+        // D144：这几个默认值**不代表「旧回执也解得开」**——原注释这么写着，
+        // 而 Swift 合成的 `Decodable` 根本不看默认值，缺键直接 `keyNotFound`
+        //（写本波的测试时当场撞出来的）。回执生产上只构造、不解码，
+        // 所以不去加自定义 `init(from:)`——但注释不许再声称一个不成立的保证。
 
         /// Customer toast after Delete all — must mention body profiles when wiped (matches confirm copy).
         public var summaryLine: String {
@@ -380,7 +403,9 @@ public enum DataLifecycleService {
 
         // 先断关系多的一侧，再删根；SwiftData 会处理 cascade。
         let deletedPlans = try wipeAll(CalendarPlan.self)
-        _ = try wipeAll(TransferRecord.self)   // 转移历史一并抹掉（删除权覆盖每一张表）
+        // 转移历史一并抹掉（删除权覆盖每一张表）。D144：计数要记进回执——
+        // 此前这里是 `_ =`，删了多少条没有任何地方说得出来
+        let deletedTransferRecords = try wipeAll(TransferRecord.self)
         let deletedWearRecords = try wipeAll(WearRecord.self)
         let deletedOutfits = try wipeAll(Outfit.self)
         let deletedItems = try wipeAll(Item.self)
@@ -415,7 +440,8 @@ public enum DataLifecycleService {
             deletedBodyProfiles: deletedBodyProfiles,
             wipedItemImages: wipedImages,
             imageWipeFailed: wipeItemImages && !wipedImages,
-            resetConsent: true
+            resetConsent: true,
+            deletedTransferRecords: deletedTransferRecords
         )
         AppLog.notice("deleteAllUserData \(receipt.summaryLine)", .data)
         return receipt

@@ -87,3 +87,22 @@ struct DailyRitualInviteWiringTests {
                 "邀请卡被挂进了 else 链 —— D134 同款错位")
     }
 }
+
+/// D144：删库披露必须来自唯一那一份——两处各写一份，注定走岔
+/// （这次抓到时它们已经岔了：a11y hint 少说了穿着历史与计划）。
+@MainActor
+struct DeleteAllDisclosureWiringTests {
+
+    @Test func theDialogReadsTheSharedDisclosure() throws {
+        let text = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/ClosetUI/AppRootView.swift"),
+            encoding: .utf8)
+        #expect(text.contains("DataLifecycleService.deleteAllDisclosure"),
+                "弹窗自己抄了一份披露 —— 下次改删库时只会改到其中一处")
+        #expect(!text.contains("This permanently removes closets, pieces"),
+                "旧的手抄文案还在")
+    }
+}

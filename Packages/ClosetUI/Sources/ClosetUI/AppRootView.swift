@@ -350,7 +350,9 @@ public struct MeView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This permanently removes closets, pieces, looks, wear history, plans, and local photos. Body measurements are also removed. This cannot be undone.")
+                // D144：披露只有一份。此前这里与 a11y hint 各写一份且已走岔——
+                // hint 少说了穿着历史与计划，两处都漏了存放位置与转移历史。
+                Text(DataLifecycleService.deleteAllDisclosure)
             }
             #if os(iOS)
             .sheet(item: Binding(
