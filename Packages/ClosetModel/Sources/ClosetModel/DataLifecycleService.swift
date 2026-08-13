@@ -334,10 +334,12 @@ public enum DataLifecycleService {
     /// 用户按下「删除一切」时确实想删一切——问题不在删，
     /// 在于他事后才知道自己删了什么。`DeleteAllDisclosureTests` 有一道结构门：
     /// 删库里每多抹一张表，这句话必须跟着点名。
+    /// D191：清单本体收到 ClosetCore 的 `DeleteScopeCopy`——
+    /// FAQ 与隐私政策（都在 ClosetCore）要读同一份，而依赖方向是
+    /// UI → Model → Core，它们引用不到这一层。
     public static let deleteAllDisclosure =
-        "This permanently removes everything on this device: closets, pieces, looks, "
-        + "wear history, plans, storage spots, where pieces have moved, "
-        + "people and body measurements, and local photos. This cannot be undone."
+        "This permanently removes everything on this device: "
+        + "\(DeleteScopeCopy.removedList). This cannot be undone."
 
     /// Me → Delete all data button VoiceOver hint (confirm first; permanent wipe).
     public static var deleteAllButtonAccessibilityHint: String {
@@ -449,6 +451,14 @@ public enum DataLifecycleService {
         if wipeItemImages {
             wipedImages = wipeItemImageDirectory()
         }
+        // D191：临时导出残渣（导出 zip / 人体视频）由**调用方**扫，不在这里扫。
+        //
+        // 两个 sweep 都以前缀匹配真 `temporaryDirectory`，而它们的注释早写过
+        // 「`directory` 可注入，避免并行测试互扫」——把它们放进这个函数，
+        // 任何跑 `deleteAllUserData` 的测试都会去扫真 tmp，
+        // 删掉隔壁并行套件正在用的 `export-bundle-…` 目录（本波实测当场红三条）。
+        //
+        // 归属上也该在调用方：临时导出目录是 UI 建的、分享面板关掉时也是 UI 删的。
 
         // 数据已删定 → 同意状态归零（FAQ / 隐私政策都承诺了这条）
         bodyDataConsent.setGranted(false)

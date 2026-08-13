@@ -43,9 +43,13 @@ public struct HelpView: View {
                     NavigationLink(doc.title) { PolicyDocumentView(document: doc) }
                 }
             }
-            Section(ComplianceCopy.feedbackTitle) {
-                Text(ComplianceCopy.feedbackBody)
-                    .font(.caption).foregroundStyle(DS.muted)
+            // D191：没有收件方就不摆这个板块——它教用户「把诊断包发出去」，
+            // 而 App 里没有任何邮箱 / 表单 / 工单（`supportContact` 为 nil）。
+            if ComplianceCopy.showsFeedbackSection(contact: ReleaseFacts.supportContact) {
+                Section(ComplianceCopy.feedbackTitle) {
+                    Text(ComplianceCopy.feedbackBody(contact: ReleaseFacts.supportContact))
+                        .font(.caption).foregroundStyle(DS.muted)
+                }
             }
         }
         .navigationTitle("Help & FAQ")

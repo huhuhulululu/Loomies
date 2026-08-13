@@ -35,7 +35,16 @@ public enum CheckInService {
     }
 
     /// Customer toast when the follow-up fit note fails to save.
-    public static let fitFeedbackSaveFailedMessage = "Couldn't save fit feedback — try again"
+    /// D191：**「try again」在这条路上做不到。**
+    ///
+    /// 打卡本身已经成功（不回滚——谎报整体失败更不诚实），而提示出现之前
+    /// 选区已被清空、Log 按钮同时变灰、Picker 也回到 Skip：
+    /// 用户当场没有任何「再试一次」的对象。
+    ///
+    /// 能做到的那条路是存在的——Wear history 里那条记录可以直接改合身备注
+    ///（走同一个 `setFitFeedback`，不产生重复记录）。文案指那儿。
+    public static let fitFeedbackSaveFailedMessage =
+        "Logged, but the fit note didn't save — add it from Wear history."
 
     public static let deleteFailedMessage = "Couldn't remove this entry — try again"
 

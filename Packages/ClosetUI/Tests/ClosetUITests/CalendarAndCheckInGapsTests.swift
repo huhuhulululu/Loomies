@@ -229,3 +229,34 @@ struct PlanOnlySourceIsSingleSourcedTests {
             "这些地方手写了来源标记：\(offenders) —— 用 CalendarPlanService.planOnlySource"))
     }
 }
+
+/// D191：打卡的「合身备注没保存」提示指向一条**当场做不到**的动作。
+///
+/// 打卡本身已经成功（不回滚），而提示出现之前 `selectedIDs` 已被清空、
+/// `canCheckIn` 随之变 false、Log 按钮变灰、Picker 回到 Skip——
+/// 屏幕上没有任何可以「try again」的东西。
+///
+/// 而能做到的那条路是存在的：Wear history 里那条记录可以直接改合身备注
+///（走同一个 `CheckInService.setFitFeedback`，不产生重复记录）。
+@MainActor
+struct FitNoteFailureCopyTests {
+
+    @Test func itDoesNotTellTheUserToRetrySomethingTheyCannotRetry() {
+        let copy = CheckInService.fitFeedbackSaveFailedMessage
+        #expect(!copy.localizedCaseInsensitiveContains("try again"), Comment(rawValue:
+            "提示出现时选区已清空、Log 已变灰 —— 没有可重试的对象：\(copy)"))
+    }
+
+    /// 要指出**能做到**的那条路。
+    @Test func itPointsAtWhereTheNoteCanStillBeAdded() {
+        let copy = CheckInService.fitFeedbackSaveFailedMessage
+        #expect(copy.localizedCaseInsensitiveContains("wear history"), Comment(rawValue:
+            "没指路：\(copy)"))
+    }
+
+    /// 打卡成功这件事也要说出口（否则用户以为整条都失败了）。
+    @Test func itSaysTheCheckInItselfWorked() {
+        #expect(CheckInService.fitFeedbackSaveFailedMessage
+            .localizedCaseInsensitiveContains("logged"))
+    }
+}

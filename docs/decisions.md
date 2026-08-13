@@ -3618,3 +3618,70 @@ D112 的断关系再 rollback、D114 的先解绑，都已经写在那里面了�
 D172 的教训原样复现：**「注入了但门没红」有两种解释，先验破坏、再判门。**
 这次我在破坏脚本里加了 `assert old in s`，让「没落地」自己报错——
 把那条纪律写进工具，比记住它可靠。
+
+## D191 — 披露的第三、第四份手抄 + 三处说得比做得少（2026-08-13）
+
+### 1. 删库范围有三份手抄，两份已经岔开
+
+正本列了 closets / pieces / looks / wear history / plans / **storage spots** /
+**where pieces have moved** / **people** / measurements / local photos。
+FAQ 与隐私政策各手抄了一份，**两份都漏掉那三类**。
+
+D144 修的正是「同一件事两处文案注定走岔」——这是同一形态在第三、第四处复发。
+清单收进 `DeleteScopeCopy.removedList`，三处都读它。
+
+清单住在 **ClosetCore** 而不是 ClosetModel：依赖方向是 UI → Model → Core，
+而 FAQ 与政策都在 Core，引用不到 Model 层的常量。
+正本（`DataLifecycleService.deleteAllDisclosure`）反过来读它。
+
+危害方向要说清：FAQ 给的是**更保守**的范围，不会诱导误删；
+问题是用户据此以为存放位置树和转移历史留得住。
+
+### 2. 围度的备份披露比照片少
+
+照片那边明写「included in your device backup」，围度只说「excluded from cloud sync」。
+那句不是谎言（两个 store 都 `cloudKitDatabase: .none`），但**对更敏感的数据
+披露更少**——而它同样落在 Application Support 里、同样进设备备份。
+
+D90 的注释「身体维度不在此列——独立本地 store + D5 明令不同步」
+本身就把 sync 与 backup 混为一谈，说明这不是深思后的取舍，是概念混淆。
+「换新手机」那一问尤其要紧：用户会据此以为围度不随备份恢复。
+
+收进 `BodyDataStorageCopy.whereItLives`，两处 FAQ + 政策都读它。
+
+### 3. 尺码提示套的是女装表，却不说
+
+`displayHint` 两条换算分支都经 `womensNumericBridge`，alpha 分支走
+`alphaToUSWomensMidpoint`（S→4 / M→8 / L→12 / XL→16）——
+一件男装 L 被换算成「US 12 / EU 42 / UK 16」。数字本身没错，错的是没说是哪张表。
+
+**不按品类自动切表**：单品上没有性别字段（`Person.presentationSexRaw` 是头像底座，
+不是这件衣服的品类），猜错比说清更糟。同文件的 `mensChestInchesToAlpha`
+因此仍是零调用点——它要等一个真正的品类信号，不是等一次猜测。
+
+### 4. 「Send feedback」没有收件方 / 打卡失败提示指向做不到的动作
+
+前者教用户「attach it to your message」，而 App 里没有任何邮箱 / 表单 / 工单
+（`ReleaseFacts.supportContact` 为 nil）。已登记在提审阻断项里，
+但 TestFlight 的测试者会实打实撞上——改成有收件方才渲染，且文案把地址说出来。
+
+后者写着「Couldn't save fit feedback — try again」，而提示出现之前选区已被清空、
+Log 按钮变灰、Picker 回到 Skip——**当场没有任何可重试的对象**。
+能做到的那条路是存在的（Wear history 里改同一条记录，走同一个 `setFitFeedback`），
+文案改成指那儿，并把「打卡本身成功了」说出口。
+
+### 5. 删库不清临时导出残渣——修的时候差点制造一场测试互删
+
+`deleteAllUserData` 盘上动作只有图片目录，而导出 zip 与人体视频落在临时目录里。
+正常关分享面板会删，但「面板开着时 App 被杀」会留下残渣。
+
+第一版把 `sweepTemporaryExports()` 放进 `deleteAllUserData`——**当场红三条**：
+那两个 sweep 都以前缀匹配**真** `temporaryDirectory`，而导出测试用的正是
+`export-bundle-…`（前缀 `export-`）。任何跑删库的测试都会去扫真 tmp，
+删掉隔壁并行套件正在用的目录。
+
+而这条风险两个 sweep 的注释里早就写过：「`directory` 可注入，避免并行测试互扫」。
+我加调用点时没读它们。
+
+归属上也该在调用方：临时导出目录是 UI 建的、分享面板关掉时也是 UI 删的。
+挪到 `AppRootView` 的删库分支后两处一起扫。

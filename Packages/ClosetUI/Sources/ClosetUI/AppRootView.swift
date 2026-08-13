@@ -332,6 +332,11 @@ public struct MeView: View {
                 Button("Delete everything", role: .destructive) {
                     do {
                         let receipt = try DataLifecycleService.deleteAllUserData(in: context)
+                        // D191：临时导出残渣与删库同一下扫掉——
+                        //「removes everything on this device … and local photos」要说话算数。
+                        // 正常关分享面板会删，但「面板开着时 App 被杀」会留下残渣。
+                        ExportBundleService.sweepTemporaryExports()
+                        AvatarCinematicExporter.sweepTemporaryExports()
                         // 盘上文件已擦，内存里解码好的位图还在——不清的话
                         // 「已删除全部数据」之后网格仍会画出刚被删掉的照片（D112）。
                         ThumbnailImageCache.shared.removeAll()

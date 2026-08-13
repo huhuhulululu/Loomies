@@ -128,17 +128,17 @@ public enum ComplianceCopy {
                 + "can judge proportion and color. It is not a photo-realistic try-on of your own body."),
         FAQEntry(
             question: "How do I delete everything?",
-            answer: "Me → Data → Delete all data removes closets, pieces, looks, wear history, "
-                + "plans, body measurements, and local photos from this device. It also resets "
+            answer: "Me → Data → Delete all data removes \(DeleteScopeCopy.removedList) "
+                + "from this device. It also resets "
                 + "your body-data and analytics choices. Uninstalling the app alone does not."),
         FAQEntry(
             question: "If I get a new phone, do my photos come with me?",
             answer: "Yes, as long as you use a device backup — your item photos are stored "
                 + "on this device and are included in it. We never receive a copy. Body "
-                + "measurements live in a separate local store that is excluded from cloud sync."),
+                + "measurements live in \(BodyDataStorageCopy.whereItLives)"),
         FAQEntry(
             question: "Where are my body measurements stored?",
-            answer: "In a separate local store on this device that is excluded from cloud sync. "
+            answer: "In \(BodyDataStorageCopy.whereItLives) "
                 + "They are left out of data exports unless you explicitly include them."),
     ]
 
@@ -172,8 +172,8 @@ public enum ComplianceCopy {
                     body: "Your closets, pieces, photos, looks, wear history, and plans are stored "
                         + "on this device, and are included in your own device backup so a new "
                         + "phone can restore them — that backup is yours, not ours. Body "
-                        + "measurements live in a separate local store that is excluded from cloud "
-                        + "sync. We do not operate an account system and we do not have a copy of "
+                        + "measurements live in \(BodyDataStorageCopy.whereItLives) "
+                        + "We do not operate an account system and we do not have a copy of "
                         + "your closet."),
                 PolicySection(
                     heading: "What leaves this device",
@@ -192,8 +192,8 @@ public enum ComplianceCopy {
                         + "data file adds a new closet from an exported JSON file without touching "
                         + "the closets you already have (photos are not part of that file). "
                         + "Me → Data → Delete all data "
-                        + "erases closets, pieces, looks, wear history, plans, measurements, and "
-                        + "local photos from this device. Uninstalling the app alone does not erase "
+                        + "erases \(DeleteScopeCopy.removedList) "
+                        + "from this device. Uninstalling the app alone does not erase "
                         + "data that was synced elsewhere."),
                 PolicySection(
                     heading: "Children",
@@ -231,7 +231,50 @@ public enum ComplianceCopy {
 
     /// 帮助与反馈：反馈通道复用既有诊断导出（不虚构邮箱/工单系统）。
     public static let feedbackTitle = "Send feedback"
-    public static let feedbackBody =
-        "Export diagnostics from Me → Support and attach it to your message — "
-        + "it contains counts and recent logs, with closet names and city removed."
+
+    /// D191：**没有收件方就别摆这个板块。**
+    ///
+    /// 它教用户「attach it to your message」，而 App 里没有任何邮箱 / 表单 / 工单
+    ///（`ReleaseFacts.supportContact` 为 nil）。这条已登记在提审阻断项里
+    ///（填一个字符串即消失），但 TestFlight 阶段的测试者会实打实撞上这条死路。
+    public static func showsFeedbackSection(contact: String?) -> Bool {
+        TextNormalize.blankToNil(contact) != nil
+    }
+
+    public static func feedbackBody(contact: String?) -> String {
+        let to = TextNormalize.blankToNil(contact) ?? ""
+        return "Export diagnostics from Me → Support and send it to \(to) — "
+            + "it contains counts and recent logs, with closet names and city removed."
+    }
+}
+
+/// 「删除一切」抹掉哪些东西——**唯一出处**（D191）。
+///
+/// 正本此前只在 `DataLifecycleService.deleteAllDisclosure` 里，
+/// 而 FAQ 与隐私政策各手抄了一份，两份都漏了 storage spots / where pieces have
+/// moved / people 三类。D144 修的正是「同一件事两处文案注定走岔」——
+/// 这是同一形态在第三、第四处复发，且已经岔开。
+///
+/// 住在 ClosetCore 而不是 ClosetModel：依赖方向是 UI → Model → Core，
+/// `ComplianceCopy` 引用不到 Model 层的常量。
+public enum DeleteScopeCopy {
+    public static let removedList =
+        "closets, pieces, looks, wear history, plans, storage spots, "
+        + "where pieces have moved, people and body measurements, and local photos"
+}
+
+/// 身体围度存在哪、会不会跟着走——**唯一出处**（D191）。
+///
+/// 此前只说「excluded from cloud sync」。那句不是谎言（两个 store 都
+/// `cloudKitDatabase: .none`），但**对更敏感的数据披露更少**：
+/// 照片那边明写「included in your device backup」，围度这边只字不提，
+/// 而它同样落在 Application Support 里、同样进设备备份。
+///
+/// D90 的注释「身体维度不在此列——独立本地 store + D5 明令不同步」
+/// 本身就把 sync 与 backup 混为一谈，说明这不是深思后的取舍，是概念混淆。
+public enum BodyDataStorageCopy {
+    public static let whereItLives =
+        "a separate local store on this device that is excluded from cloud sync — "
+        + "like your photos, it is part of your own device backup, so a new phone "
+        + "can restore it. We never receive a copy."
 }

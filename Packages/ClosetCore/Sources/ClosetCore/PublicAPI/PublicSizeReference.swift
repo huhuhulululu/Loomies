@@ -100,16 +100,26 @@ public enum PublicSizeReference: Sendable {
     }
 
     /// One-line human hint for Me / intake (never claims true fit).
+    ///
+    /// D191：**换算表是女装的，就得说是女装的。** 两条分支都经
+    /// `womensNumericBridge`，alpha 分支走 `alphaToUSWomensMidpoint`
+    ///（S→4 / M→8 / L→12 / XL→16）——于是一件男装 L 被换算成「US 12 / EU 42 / UK 16」。
+    /// 数字本身没错，错的是没说这是哪张表。
+    ///
+    /// **不按品类自动切表**：单品上没有性别字段（`Person.presentationSexRaw` 是
+    /// 头像底座，不是这件衣服的品类），猜错比说清更糟。
+    /// 同文件里的 `mensChestInchesToAlpha` 因此仍是零调用点——
+    /// 它要等一个真正的品类信号，不是等一次猜测。
     public static func displayHint(forLabel raw: String) -> String? {
         guard let parsed = parseLabel(raw) else { return nil }
         if parsed.system == .intl,
            let us = alphaToUSWomensMidpoint(parsed.token),
            let bridge = womensNumericBridge(us: us) {
-            return "Ref. chart ≈ US \(us) / EU \(bridge.eu) / UK \(bridge.uk) (not brand-true)"
+            return "Women's ref. chart ≈ US \(us) / EU \(bridge.eu) / UK \(bridge.uk) (not brand-true)"
         }
         if parsed.system == .us, let n = Int(parsed.token.filter(\.isNumber)),
            let bridge = womensNumericBridge(us: n) {
-            return "Ref. chart ≈ EU \(bridge.eu) / UK \(bridge.uk) (not brand-true)"
+            return "Women's ref. chart ≈ EU \(bridge.eu) / UK \(bridge.uk) (not brand-true)"
         }
         return "Size label kept as-is — fit uses body & garment measures"
     }
