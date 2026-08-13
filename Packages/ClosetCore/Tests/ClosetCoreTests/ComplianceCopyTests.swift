@@ -303,3 +303,64 @@ struct SingleOutboundChokepointTests {
             + "\(offenders) —— 新出网面必须走通道，否则披露清单可能已经在说谎"))
     }
 }
+
+/// D171：**M1 退出门「出网 payload 身体字段隐私单测绿」此前根本没实现。**
+///
+/// `MVP-PLAN.md` 的 M1 门白纸黑字列着它，而 `PublicAPITests` 里一条相关断言都没有——
+/// 一条只写在计划里的验收标准，与只写在注释里的规则一样，等于没有。
+///
+/// 判据取**白名单**而非禁词黑名单：录下真实出网 URL，其查询参数名必须逐个在册。
+/// 黑名单只挡得住你想得到的字段（`bust`…），白名单让**任何新参数**都得先过人眼——
+/// 而身体维度进出网面这种事，恰恰不会用 `bust` 当参数名。
+@MainActor
+struct OutboundPayloadPrivacyTests {
+
+    /// 每个 endpoint 允许出现的查询参数。加参数要在这里过一遍脑子。
+    private static let allowedQueryKeys: Set<String> = [
+        // Open-Meteo geocoding：城市名（用户输入，已披露）
+        "name", "count", "language", "format",
+        // Open-Meteo forecast：坐标与时段
+        "latitude", "longitude", "hourly", "daily",
+        "temperature_unit", "timezone", "start_date", "end_date",
+    ]
+
+    /// 身体维度绝不出现在出网面上（D5 铁律的出网侧）。
+    private static let bodyMarkers = [
+        "bust", "waist", "hip", "height", "chest", "inseam", "shape", "body",
+    ]
+
+    @Test func noOutboundRequestCarriesBodyOrUnvettedFields() async throws {
+        let spy = ComplianceCopyTests.RecordingTransport()
+        let weather = OpenMeteoWeatherProvider(transport: spy)
+        _ = try? await weather.geocode(name: "Austin")
+        _ = try? await weather.forecastDay(latitude: 30, longitude: -97, on: Date())
+        _ = try? await weather.searchCities(name: "Aus", limit: 8)
+        let facts = OpenProductFactsClient(transport: spy)
+        _ = try? await facts.lookup(barcode: "0123456789012")
+
+        let urls = await spy.ledger.urls
+        #expect(!urls.isEmpty, "一条请求都没录到 —— 门在空转")
+
+        var offenders: [String] = []
+        for url in urls {
+            let full = url.absoluteString.lowercased()
+            for marker in Self.bodyMarkers where full.contains(marker) {
+                offenders.append("\(url.path) ~ 出现身体字段词 \(marker)")
+            }
+            let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            for item in comps?.queryItems ?? [] where !Self.allowedQueryKeys.contains(item.name) {
+                offenders.append("\(url.path) ~ 未过审的查询参数 \(item.name)")
+            }
+        }
+        #expect(offenders.isEmpty, Comment(rawValue:
+            "出网面带上了不该带的东西：\(offenders) —— "
+            + "身体维度永不出网（D5）；新参数先加进白名单并说明它是什么"))
+    }
+
+    /// 门自身要能抓到真违规——白名单判据最容易写成「什么都放过」。
+    @Test func theWhiteListActuallyRejectsSomething() {
+        #expect(!Self.allowedQueryKeys.contains("bust_inches"))
+        #expect(!Self.allowedQueryKeys.contains("body_shape"))
+        #expect(Self.allowedQueryKeys.contains("latitude"))
+    }
+}
