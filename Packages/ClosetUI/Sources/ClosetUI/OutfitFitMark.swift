@@ -54,6 +54,10 @@ public enum OutfitFitMark {
         var unmeasured = 0
         // 名称升序遍历：同严格度打平时结论确定，不随集合顺序漂移
         for item in items.sortedByName() {
+            // D180：鞋与配饰按设计出不了结论，**不算「没实测」**——
+            // 语法门要求每套必有一双鞋，算进去的话这个数就永远清不掉。
+            guard FitMarkService.supportsFitMark(slotRaw: item.slotRaw, name: item.name)
+            else { continue }
             guard let verdict = FitMarkService.mark(item: item, profile: profile) else {
                 unmeasured += 1
                 continue

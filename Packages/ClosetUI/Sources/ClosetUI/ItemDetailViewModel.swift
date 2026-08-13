@@ -74,6 +74,14 @@ public final class ItemDetailViewModel {
     }
     /// Me Storage location — nil = unassigned. Save applies via `StorageLocationService.assign`.
     public var locationID: UUID?
+    /// 这个槽位出不出合身结论——**读表单当前值**，用户在同一页把 Type
+    /// 改成上衣时输入框要跟着回来。
+    ///
+    /// D180：此前鞋的编辑页照常摆着「Fit measures (flat)」三个输入框和
+    /// 「Enter body profile + flat widths for fit mark.」，用户照做，什么都不会发生。
+    public var showsFitMeasures: Bool {
+        FitMarkService.supportsFitMark(slotRaw: slotRaw, name: name)
+    }
     public private(set) var fitLabel: String?
     /// Measurement-ease caption under the badge (proportion guide, not try-on).
     public private(set) var fitDetail: String?

@@ -569,7 +569,14 @@ public enum BodyAvatarComposer {
             if shoeHint { return .shoes }
         }
         // 连衣裙/连体误标 top（放在裤/鞋之后：dress pants/dress shoes 不算裙）
-        if base == .top,
+        //
+        // D178：`dress` 后面**紧跟另一件衣服的名词**时它是形容词，不是裙子
+        //（dress shirt / dress socks）；反过来 `shirt dress` 才是裙子。
+        // 靠词序判，不靠词表相减——单纯排掉含 "shirt" 的名字会误伤 shirt dress。
+        // 裤与鞋的同类陷阱作者已用「分支前置」处理，这条是被漏掉的第三个。
+        let dressModified = ["shirt", "blouse", "top", "vest", "sweater", "sock", "tee", "jacket"]
+            .contains { n.replacingOccurrences(of: "-", with: " ").contains("dress \($0)") }
+        if base == .top, !dressModified,
            n.contains("dress") || n.contains("gown")
             || n.contains("jumpsuit") || n.contains("romper")
         {

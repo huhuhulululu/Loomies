@@ -3124,3 +3124,79 @@ D86/D98/D101 三条决策反复收紧「围度与快选都要过门」，D134 �
 `context.insert(profile)` 的相对行号），不认词。破坏方式是把判定挪到循环之后
 ——门报 `(gate → 236) < (insert → 234)` 当场红。
 本仓已经六次栽在「认词不认构造」上，这道门从第一版就按构造写。
+
+## D178 — 「Dress shirt」被存成连衣裙，而且改不回来（2026-08-13）
+
+`displaySlot` 用名字纠偏历史脏数据（「西装写在 top」），最后一条是
+`if base == .top, n.contains("dress") … { return .dress }`。
+
+作者显然知道这个陷阱——为 “dress pants” 专门把裤子分支**前置**
+（注释原话：「先于 dress：dress pants 是裤不是裙」），为 “dress shoes”
+前置了鞋分支，还给 oxford 写了 `!n.contains("shirt")` 的排除——
+唯独没管 “dress shirt”，而它是英语里最常见的那件衬衫。
+
+后果不止分错类：`GarmentSlot.resolved(item.slotRaw, name:)` 在**八个读取点**
+都会重解一遍，用户在详情页把 Type 改回 Top、保存，下次打开还是 Dress。
+
+判据按**词序**，不按词表相减：`dress` 后面紧跟另一件衣服的名词时它是形容词
+（dress shirt / dress socks），反过来 `shirt dress` 才是裙子——
+单纯排掉含 “shirt” 的名字会把 shirt dress 一起误伤。
+
+### 没做的那半：明确选择仍然压不过名字推断
+
+「用户在详情页选了 Top 就该是 Top」这条本轮**没有**做完。要做需要一个
+「这个槽位是用户明确设的」标记位 —— 加字段是**加法式 schema 变更**，
+按 D84 要重录 golden 并进 diff 审查，而 TestFlight 上已有真实安装数据。
+D114 拒绝过一次同类权衡（为当时不可达的隐患冒开不了库的风险不划算），
+这次的差别是**可达**，所以不是「不做」而是「留账」：
+缺口清单 `.claude-state/audit-round4.md` 里 #01 保持未闭合，
+本波只关掉了它最常见的那个词。
+
+## D179 — 一个 chip 都没选 = 未知，不是 casual（2026-08-13）
+
+照片入库落库时 `if cleaned.isEmpty { return ["casual"] }`，而：
+
+1. 手填路径（`QuickAddDraft`）空集就是空集——D103 明写「空集 = 未知 = 不硬过滤，
+   不需要偷塞一个具体值」；
+2. 同屏的 `OccasionChips` 自己印着 “Leave all off if it works for anything.”，
+   **提示与落库行为在同一个 Section 里对着干**；
+3. 候选硬门（`CandidateFilter`）对空场合的件本来就不过滤——空集根本不需要
+   一个具体值才能被选上。
+
+D114 修的正是「空集时控件显示成已选」，它修了 binding 却没修落库，
+于是 D114 之后反而**更**不诚实：界面显示全关、库里是 casual。
+
+反偷加的两个套件（`OccasionNotSilentlyWidenedTests` /
+`IntakeOccasionParityTests`）**全部只走 QuickAddDraft**，照片路径被
+`IntakeTests` 里一条 D80 时代的旧断言 `normalizedOccasions([]) == ["casual"]`
+反向钉死——D103、D114 两次清理都从它旁边走过去了。
+
+**同一条规则的两条路径，只守了一条 = 没守。**
+
+## D180 — 「还有 N 件没实测」，而 N 永远清不掉（2026-08-13）
+
+`FitMarkService.mark` 对 `.shoes` / `.accessory` 是硬 `return nil`——
+这两类按设计就不出合身结论。而 `OutfitFitMark.tightest` 把**任何** nil
+都记成 `unmeasured += 1`。
+
+加上 `OutfitGrammar` 的硬规则「每套必须有一双鞋」，生产路径上每一条建议的
+合身摘要都恒带 “· 1 piece not measured”，用户量遍全柜也消不掉——
+他会一直以为自己还差一件没量。
+
+详情页那半边同样不诚实：鞋的编辑页照常显示「Fit measures (flat)」三个输入框
+和「Enter body profile + flat widths for fit mark.」，用户照做，什么都不会发生。
+
+处置：新增 `FitMarkService.supportsFitMark(slotRaw:name:)` 作**唯一口径**
+（汇总侧与表单侧都读它，不许各自再抄一张槽位清单），
+汇总跳过不可测槽位，表单对它们不再摆输入框（口径随**表单当前值**，
+用户在同一页把 Type 改成上衣时输入框跟着回来）。
+
+### 为什么测试没抓到：夹具给了生产不可能给的输入
+
+`aFullyMeasuredLookSaysNothingExtra` 只传**一件上衣**——而唯一的生产调用者
+永远不会给出这种输入（没有鞋的套装过不了语法门）。
+`itSaysHowManyPiecesAreUnknown` 更直接：它断言 `unmeasuredCount == 2`
+（Jeans + Boots），把缺陷钉成了期望。
+
+这是本轮第三次撞见「夹具替缺陷挡枪」（另两次是 D176 的两处）。
+**共同形状：夹具构造的输入在生产上不可达，于是断言测的是一条没人走的路。**

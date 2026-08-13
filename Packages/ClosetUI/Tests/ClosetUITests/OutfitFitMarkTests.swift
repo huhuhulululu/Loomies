@@ -101,8 +101,11 @@ struct OutfitFitMarkTests {
             item(ctx, "Boots", "shoes"),
         ]
         let mark = try #require(OutfitFitMark.tightest(items: items, profile: p))
-        #expect(mark.unmeasuredCount == 2)
-        #expect(mark.summary.contains("2"), Comment(rawValue: "没说清还有几件不知道：\(mark.summary)"))
+        // D180：靴子不算——鞋与配饰按设计**永远**出不了合身结论，
+        // 把它们算进「还有 N 件没实测」等于给用户一个他清不掉的计数。
+        // 这里原本断言 2（Jeans + Boots），把缺陷钉成了期望。
+        #expect(mark.unmeasuredCount == 1)
+        #expect(mark.summary.contains("1"), Comment(rawValue: "没说清还有几件不知道：\(mark.summary)"))
     }
 
     /// 全部有实测时不提「还有几件不知道」（别造噪声）。

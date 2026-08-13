@@ -23,6 +23,19 @@ public enum FitMarkService {
             profile: profile)
     }
 
+    /// 这个槽位**能不能**出合身结论。
+    ///
+    /// D180：鞋与配饰按设计永远没有（没有可比的围度，`mark` 对它们是硬 nil）。
+    /// 调用方必须把「不可能有」与「有但没量」分开——否则整套摘要会恒带一句
+    /// 「还有 N 件没实测」，而用户量遍全柜也清不掉它。
+    /// 判据只此一处：汇总侧、表单侧都读它，不许各自再抄一张槽位清单。
+    public static func supportsFitMark(slotRaw: String, name: String = "") -> Bool {
+        switch GarmentSlot.resolved(slotRaw, name: name) {
+        case .shoes, .accessory: return false
+        case .top, .outerwear, .dress, .bottom: return true
+        }
+    }
+
     /// Field-level mark for detail form live preview (unsaved flat widths / type / name).
     public static func mark(
         slotRaw: String,

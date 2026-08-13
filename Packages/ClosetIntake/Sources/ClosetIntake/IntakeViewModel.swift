@@ -171,12 +171,18 @@ public final class IntakeViewModel {
         GarmentSlot.resolved(draftSlot.rawValue, name: name)
     }
 
-    /// Primary occasions for Today filters. Empty tag/draft → `casual` so looks can match.
+    /// Primary occasions for Today filters.
+    ///
+    /// D179：空集**保持空集**（= 未知），不偷塞 `casual`。三处依据：
+    /// 手填路径（`QuickAddDraft`，D103）就是这么存的；同屏的 `OccasionChips`
+    /// 自己印着 “Leave all off if it works for anything.”；而候选硬门
+    /// （`CandidateFilter`）对空场合的件本来就**不过滤**——空集不需要一个具体值
+    /// 才能被选上。D114 修好了控件回显却没修落库，于是界面显示全关、
+    /// 库里是 casual，两者反而更不一致。
     public static func normalizedOccasions(_ occasions: Set<String>) -> [String] {
         let cleaned = occasions
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
             .filter { !$0.isEmpty }
-        if cleaned.isEmpty { return ["casual"] }
         return Array(Set(cleaned)).sorted()
     }
 

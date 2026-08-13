@@ -50,6 +50,8 @@ public struct ItemDetailView: View {
 
     @ViewBuilder
     private var fitMeasuresSection: some View {
+        // D180：鞋与配饰出不了合身结论，就别摆一组填了也没用的输入框。
+        if vm.showsFitMeasures {
             Section("Fit measures (flat)") {
                 // D108：单位可切（此前写死英寸），数值走小数键盘（此前默认字母键盘），
                 // 解析失败当场提示（此前静默丢弃，保存后字段变空）
@@ -84,6 +86,7 @@ public struct ItemDetailView: View {
                         .font(.caption).foregroundStyle(DS.muted)
                 }
             }
+        }
     }
 
     public var body: some View {

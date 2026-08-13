@@ -216,9 +216,14 @@ struct IntakeTests {
         #expect(outerY < shoeY)
     }
 
-    /// Empty occasions on confirm → casual so Today occasion filters still match.
-    @Test func confirmDefaultsEmptyOccasionsToCasual() async throws {
-        #expect(IntakeViewModel.normalizedOccasions([]) == ["casual"])
+    /// D179：**一个 chip 都没选 = 未知，不是 casual。**
+    ///
+    /// 这条断言原样来自 D80，把「空集偷塞 casual」钉成了期望；
+    /// D103（手填路径）与 D114（控件回显）两次清理都从它旁边走过去了。
+    /// 同屏的 `OccasionChips` 自己印着 “Leave all off if it works for anything.”，
+    /// 而照片入库落库时把它改写成 casual —— 提示与行为在同一个 Section 里对着干。
+    @Test func confirmKeepsEmptyOccasionsUnknown() async throws {
+        #expect(IntakeViewModel.normalizedOccasions([]) == [])
         #expect(IntakeViewModel.normalizedOccasions(["  Work ", "work"]) == ["work"])
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w); try ctx.save()
@@ -227,7 +232,9 @@ struct IntakeTests {
         vm.draft?.name = "Plain Tee"
         #expect(vm.draft?.occasions.isEmpty == true)
         let item = vm.confirm(into: w, context: ctx)
-        #expect(item?.occasionsRaw == ["casual"])
+        #expect(item?.occasionsRaw == [], Comment(rawValue:
+            "空场合被改写成 \(item?.occasionsRaw ?? []) —— "
+            + "界面显示全关、库里却是 casual（D114 之后两者不再一致）"))
         ItemImageStore.delete(relativePath: item?.localImageRelativePath)
     }
 
