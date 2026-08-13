@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import ClosetModel
 import ClosetCore
+import ClosetIntake
 
 // MARK: - Item detail
 
@@ -11,6 +12,7 @@ public struct ItemDetailView: View {
     @State private var vm: ItemDetailViewModel
     @State private var transferVM: TransferViewModel?
     @State private var confirmDelete = false
+    @State private var showReplacePhoto = false
     var bodyProfile: PersonBodyProfile?
 
     public init(item: Item, bodyProfile: PersonBodyProfile? = nil) {
@@ -46,6 +48,25 @@ public struct ItemDetailView: View {
             // 而用户看不到任何异样。
             OccasionChips(selection: $vm.occasions, custom: vm.customOccasions)
         }
+    }
+
+    /// D185：补/换图。入库失败的三条提示一直叫用户「re-add the photo later」，
+    /// 而这条路以前根本不存在（唯一的 re-add 是删掉重来，那是有损的）。
+    @ViewBuilder
+    private var photoSection: some View {
+        Section {
+            ItemThumbnailView(item: vm.item, height: 200)
+                .listRowInsets(EdgeInsets())
+            Button {
+                showReplacePhoto = true
+            } label: {
+                Label(photoEntryTitle, systemImage: "photo.badge.plus")
+            }
+        }
+    }
+
+    private var photoEntryTitle: String {
+        ItemPhotoService.entryTitle(hasPhoto: vm.item.localImageRelativePath != nil)
     }
 
     @ViewBuilder
@@ -91,10 +112,7 @@ public struct ItemDetailView: View {
 
     public var body: some View {
         Form {
-            Section {
-                ItemThumbnailView(item: vm.item, height: 200)
-                    .listRowInsets(EdgeInsets())
-            }
+            photoSection
             detailsSection
             Section("Status") {
                 Picker("Status", selection: $vm.statusRaw) {
@@ -235,6 +253,11 @@ public struct ItemDetailView: View {
             set: { transferVM = $0?.vm }
         )) { box in
             TransferSheet(vm: box.vm)
+        }
+        .sheet(isPresented: $showReplacePhoto) {
+            ReplacePhotoSheet(item: vm.item) { outcome in
+                vm.reportPhotoOutcome(outcome)
+            }
         }
     }
 }

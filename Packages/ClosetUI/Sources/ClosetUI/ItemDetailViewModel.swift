@@ -3,6 +3,7 @@ import Observation
 import SwiftData
 import ClosetModel
 import ClosetCore
+import ClosetIntake
 
 /// 单品详情/编辑（管理环缺口）。
 @MainActor
@@ -277,6 +278,15 @@ public final class ItemDetailViewModel {
         // Skip write when unchanged (avoids extra ModelSave / revision bump).
         if item.location?.id == target?.id { return true }
         return StorageLocationService.assign(item, to: target, in: context)
+    }
+
+    /// 补/换图的结果（D185）。成败都要说出口——换图失败时旧图还在，
+    /// 静默关掉 sheet 会让用户以为换成了。
+    public func reportPhotoOutcome(_ outcome: ItemPhotoService.Outcome) {
+        message = ItemPhotoService.message(for: outcome)
+        if outcome == .replaced {
+            AppLog.info("ItemDetail photo replaced item=\(AppLog.ref(item.id))", .app)
+        }
     }
 
     /// Permanently remove the piece (outfits mark permanentlyMissing; wear history kept).

@@ -574,13 +574,17 @@ public enum BodyAvatarComposer {
         //（dress shirt / dress socks）；反过来 `shirt dress` 才是裙子。
         // 靠词序判，不靠词表相减——单纯排掉含 "shirt" 的名字会误伤 shirt dress。
         // 裤与鞋的同类陷阱作者已用「分支前置」处理，这条是被漏掉的第三个。
-        let dressModified = ["shirt", "blouse", "top", "vest", "sweater", "sock", "tee", "jacket"]
-            .contains { n.replacingOccurrences(of: "-", with: " ").contains("dress \($0)") }
-        if base == .top, !dressModified,
+        // 先过便宜的判断再做贵的：`displaySlot` 在推荐热路径上每件都要过一遍，
+        // 无条件跑那串 `replacingOccurrences` + 字符串插值会让百件冷天推荐慢 44%
+        //（本波第一版就是这么写的，被 D173 那道性能 smoke 当场抓住）。
+        if base == .top,
            n.contains("dress") || n.contains("gown")
             || n.contains("jumpsuit") || n.contains("romper")
         {
-            return .dress
+            let spaced = n.contains("-") ? n.replacingOccurrences(of: "-", with: " ") : n
+            let modified = ["shirt", "blouse", "top", "vest", "sweater", "sock", "tee", "jacket"]
+                .contains { spaced.contains("dress " + $0) }
+            if !modified { return .dress }
         }
         return base
     }

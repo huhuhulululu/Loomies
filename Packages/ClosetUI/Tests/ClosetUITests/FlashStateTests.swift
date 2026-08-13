@@ -21,11 +21,16 @@ import Foundation
 struct FlashStateTests {
 
     /// 提示要能自己消失。
+    ///
+    /// 余量给得阔：四个包并行跑测试时机器很忙，200ms 的窗口实测会假红——
+    /// 一条时不时红的测试比没有测试更糟（D173 同一条道理）。
     @Test func aFlashClearsItself() async {
         let flash = FlashState()
         flash.show("Planned Look.", seconds: 0.05)
         #expect(flash.message == "Planned Look.")
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        for _ in 0..<40 where flash.message != nil {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
         #expect(flash.message == nil, "提示没有自己消失 —— 它会一直压在屏幕上")
     }
 
@@ -33,8 +38,8 @@ struct FlashStateTests {
     @Test func aNewerFlashCancelsTheOlderTimer() async {
         let flash = FlashState()
         flash.show("first", seconds: 0.05)
-        flash.show("second", seconds: 1.0)
-        try? await Task.sleep(nanoseconds: 200_000_000)
+        flash.show("second", seconds: 30)
+        try? await Task.sleep(nanoseconds: 400_000_000)
         #expect(flash.message == "second", Comment(rawValue:
             "旧提示的定时把新提示清掉了：\(flash.message ?? "nil")"))
     }

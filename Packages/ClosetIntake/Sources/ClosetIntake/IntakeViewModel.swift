@@ -373,7 +373,7 @@ public final class IntakeViewModel {
     /// Post-save flash when matting failed earlier: the item is in the closet but
     /// has no try-on layer at all — never a silent image-less save.
     public static let mattingFailedSavedMessage =
-        "Added, but the photo won't appear in try-on — re-add the photo later."
+        "Added, but the photo won't appear in try-on — add a photo from the piece's page."
 
     /// Customer toast when ModelSave fails on Add to closet.
     public static let confirmSaveFailedMessage = "Couldn't save — try again"
@@ -381,12 +381,12 @@ public final class IntakeViewModel {
     /// Honest flash when layer normalization fails: item is saved, but the photo
     /// layer is skipped (slot placeholder, never a body-stretched tight crop).
     public static let layerNormalizeFailedMessage =
-        "Added, but the photo couldn't be aligned for try-on — re-add the photo later."
+        "Added, but the photo couldn't be aligned for try-on — add a photo from the piece's page."
 
     /// Honest flash when the normalized layer PNG can't be written to disk:
     /// item is saved, but the image is lost (no silent image-less save).
     public static let layerImageSaveFailedMessage =
-        "Added, but the photo couldn't be saved for try-on — re-add the photo later."
+        "Added, but the photo couldn't be saved for try-on — add a photo from the piece's page."
 
     /// Honest flash when AI pre-fill (tags/OCR) throws: draft falls back to
     /// defaults (top/casual) which the user must review — never presented as
