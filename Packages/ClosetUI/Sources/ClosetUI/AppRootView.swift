@@ -426,31 +426,26 @@ public struct MeView: View {
     }
 
     /// 12 小时制标签（en-US 首发市场，§10.5）。
-    private func hourLabel(_ h: Int) -> String {
-        let suffix = h < 12 ? "AM" : "PM"
-        let display = h % 12 == 0 ? 12 : h % 12
-        return "\(display):00 \(suffix)"
-    }
+    /// D140：实现挪进 `DailyRitual`——邀请卡上写的时间必须与这里选的逐字一致，
+    /// 两份格式化迟早会写出两个时间。
+    private func hourLabel(_ h: Int) -> String { DailyRitual.hourLabel(h) }
 
     /// 开关落地。授权拿不到就把开关拨回去并说明原因——
     /// 设置里显示「开」而系统层面一条都不会发，是最典型的那类不诚实。
+    /// D140：开启走 `DailyRitualScheduler.enable`（与 Today 的邀请卡同一条路径）。
     private func applyDailyRitual(enabled: Bool) async {
         guard enabled else {
             DailyRitualScheduler.disable()
             dailyRitualNote = DailyRitual.permissionRationale
             return
         }
-        let granted = await DailyRitualScheduler.requestAuthorization()
-        guard granted else {
+        let count = (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.count
+        guard await DailyRitualScheduler.enable(availableItemCount: count) else {
             dailyRitualOn = false
-            DailyRitualScheduler.disable()
             dailyRitualNote =
                 "Notifications are off for Loomies in iOS Settings — turn them on there first."
             return
         }
-        DailyRitualScheduler.isEnabled = true
-        let count = (wardrobe.items ?? []).filter { $0.statusRaw == "available" }.count
-        await DailyRitualScheduler.reschedule(availableItemCount: count)
         dailyRitualNote = DailyRitual.shouldSchedule(availableItemCount: count)
             ? DailyRitual.permissionRationale
             : "Starts once your closet can put a full look together."

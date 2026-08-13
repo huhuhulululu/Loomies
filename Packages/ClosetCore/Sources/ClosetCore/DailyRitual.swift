@@ -69,6 +69,56 @@ public enum DailyRitual {
     public static let permissionRationale =
         "One nudge each morning, at a time you pick. No other notifications."
 
+    // MARK: - 邀请（D140）
+
+    /// 该不该主动开口问「明早叫你一次？」。
+    ///
+    /// D118 建好了全套（策略/排程/归因/撤权对账），**唯独没有任何一处告诉用户
+    /// 它存在**——开关藏在 Me → Daily，用户得先翻进设置页、还得猜到那里有它。
+    /// `mayAskForPermission` 长期零调用点正是这件事的化石：那条策略写的就是
+    /// 「什么时候可以开口要权限」，而这个 App 从来没有主动开过口。
+    ///
+    /// 时机不选「装完第一件」——那时用户还没走过一遍这个循环。选**刚打完卡**那一刻：
+    /// 今天这一身定下来了，「明早还要不要我叫你」在那一秒才是顺理成章的一句话。
+    ///
+    /// 问一次就够。iOS 的权限弹窗一辈子只有一次机会，反复推销的结果是
+    /// 用户把整个 App 的通知永久关掉。
+    public static func shouldInvite(
+        alreadyEnabled: Bool,
+        alreadyAsked: Bool,
+        availableItemCount: Int,
+        confirmedItemCount: Int,
+        settledToday: Bool
+    ) -> Bool {
+        guard !alreadyEnabled, !alreadyAsked, settledToday else { return false }
+        // 排程侧本来就会跳过凑不出一身的衣柜——邀请用户开一个不会响的提醒是当场撒谎
+        guard shouldSchedule(availableItemCount: availableItemCount) else { return false }
+        return mayAskForPermission(confirmedItemCount: confirmedItemCount)
+    }
+
+    public static let inviteHeadline = "Want a nudge tomorrow morning?"
+
+    /// 点了「不用」之后还找得回来——否则这就成了一扇单向关上的门。
+    public static let inviteFootnote = "You can turn this on any time in Me → Daily."
+
+    public static let inviteDeclineLabel = "Not now"
+
+    /// 12 小时制标签（en-US 首发市场，§10.5）。
+    /// 邀请卡与设置页读**同一处**——两份格式化迟早会写出两个时间。
+    public static func hourLabel(_ h: Int) -> String {
+        let suffix = h < 12 ? "AM" : "PM"
+        let display = h % 12 == 0 ? 12 : h % 12
+        return "\(display):00 \(suffix)"
+    }
+
+    /// 接受按钮直接写出时刻——用户按下去之前就该知道几点会响。
+    public static func inviteAcceptLabel(hour: Int) -> String {
+        "Yes — \(hourLabel(hour))"
+    }
+
+    /// 邀请是否问过（问过就不再问）。
+    public static let inviteAskedDefaultsKey = "loomies.dailyRitual.invited"
+
     /// 一周七条**按周重复**的排程（每天一条）。
     ///
     /// 不能用「一条每日重复 + 排程当刻算出的星期名」——周三排的

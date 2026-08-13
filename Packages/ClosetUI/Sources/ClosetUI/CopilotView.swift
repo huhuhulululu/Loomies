@@ -18,6 +18,10 @@ public struct CopilotView: View {
     @State private var showAddPieceSheet = false
     /// 毕业时刻只出一次——看过就记住（跨启动）。
     @AppStorage("loomies.activation.readyMomentSeen") private var hasSeenReadyMoment = false
+    /// 早安提醒的邀请**只问一次**（D140）——iOS 的权限弹窗一辈子只有一次机会，
+    /// 反复推销的结果是用户把整个 App 的通知永久关掉。
+    @AppStorage(DailyRitual.inviteAskedDefaultsKey) private var nudgeInviteAsked = false
+    @State private var nudgeInviteBusy = false
     @State private var cinematicFailureToken = 0
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
@@ -149,6 +153,9 @@ public struct CopilotView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if !vm.todayWornNames.isEmpty { settledBand }
+                // D140：邀请挂在**自己的**条件上。D134 的错位就发生在这个文件里——
+                // 一张卡片插进 if/else 中间，`else` 改挂到了它头上。
+                if showsNudgeInvite { nudgeInviteCard }
                 heroCard
                 // D119：阶梯此前只在 <8 件时出现，而北极星区间正好从 8 开始——
                 // 用户在 8→20 这段完全没人告诉他还差什么。进度与里程碑陪到 20，
@@ -576,6 +583,71 @@ public struct CopilotView: View {
         .accessibilityLabel(
             "\(ActivationProgress.readyHeadline). "
             + ActivationProgress.readyBody(itemCount: vm.availableItems.count))
+    }
+
+    /// 该不该开口问「明早叫你一次？」（D140）。判据全在 `DailyRitual` 里，
+    /// 这里只负责把此刻的现状递过去——视图不自己发明规则。
+    private var showsNudgeInvite: Bool {
+        DailyRitual.shouldInvite(
+            alreadyEnabled: DailyRitualScheduler.isEnabled,
+            alreadyAsked: nudgeInviteAsked,
+            availableItemCount: vm.availableItems.count,
+            confirmedItemCount: vm.totalItemCount,
+            settledToday: !vm.todayWornNames.isEmpty)
+    }
+
+    /// 每日回访的邀请卡。此前这个能力**只有翻进 Me → Daily 的人才知道它存在**，
+    /// 而 MARKET §8.1 的 D30 证伪线整个押在它上面。
+    ///
+    /// 问的时机是用户**刚打完卡**那一秒：今天这一身定下来了，
+    /// 「明早还要不要我叫你一次」在那时才是顺理成章的一句话。
+    /// 两个按钮都记成「问过了」——包括「不用」，那扇门只敲一次。
+    private var nudgeInviteCard: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s) {
+            Label(DailyRitual.inviteHeadline, systemImage: "sun.horizon")
+                .font(DS.Text.sectionTitle)
+                .foregroundStyle(DS.accent)
+            Text(DailyRitual.permissionRationale)
+                .font(DS.Text.body)
+                .foregroundStyle(DS.muted)
+            HStack(spacing: DS.Space.l) {
+                Button(DailyRitual.inviteAcceptLabel(hour: DailyRitualScheduler.hour)) {
+                    acceptNudgeInvite()
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(DS.accent)
+                .disabled(nudgeInviteBusy)
+                Button(DailyRitual.inviteDeclineLabel) { nudgeInviteAsked = true }
+                    .font(.caption)
+                    .foregroundStyle(DS.muted)
+            }
+            Text(DailyRitual.inviteFootnote)
+                .font(DS.Text.meta)
+                .foregroundStyle(DS.muted)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.accent.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(DailyRitual.inviteHeadline). \(DailyRitual.permissionRationale)")
+    }
+
+    /// 接受。先记「问过了」再去要权限——用户在系统弹窗上点了拒绝，
+    /// 这张卡也不该在下一次打卡时卷土重来。
+    private func acceptNudgeInvite() {
+        nudgeInviteAsked = true
+        nudgeInviteBusy = true
+        let count = vm.availableItems.count
+        Task {
+            let granted = await DailyRitualScheduler.enable(availableItemCount: count)
+            nudgeInviteBusy = false
+            // 拒绝了就说清楚它没开成——静默失败会让用户以为明早会响
+            flash(granted
+                  ? "Morning nudge on — \(DailyRitual.hourLabel(DailyRitualScheduler.hour))."
+                  : "Notifications are off for Loomies in iOS Settings.")
+        }
     }
 
     private var coldStartBanner: some View {

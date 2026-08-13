@@ -57,6 +57,23 @@ public enum DailyRitualScheduler {
         #endif
     }
 
+    /// 开启：要权限 → 落开关 → 立即排程。**这是唯一的开启路径**（D140）。
+    ///
+    /// 邀请卡与设置开关都走它。各写一份的话两边迟早走岔——
+    /// 少排一次、漏关一次开关，而那正是 D118 反复在修的那类 bug。
+    /// 拿不到权限就把开关关回去：设置里显示「开」而系统一条都不会发，
+    /// 是最典型的那类不诚实。
+    @discardableResult
+    public static func enable(availableItemCount: Int) async -> Bool {
+        guard await requestAuthorization() else {
+            disable()
+            return false
+        }
+        isEnabled = true
+        await reschedule(availableItemCount: availableItemCount)
+        return true
+    }
+
     /// 系统层面是否还授权着（D136）。
     ///
     /// 用户可以在 iOS 设置里随时撤销，而 App 内的开关只记着自己的 UserDefaults——

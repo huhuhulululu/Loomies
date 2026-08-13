@@ -192,3 +192,88 @@ struct ActivationLadderRangeTests {
         #expect(!ActivationProgress.showsLadder(itemCount: 20))
     }
 }
+
+/// D140：**每日回访藏在 Me → Daily 的一个开关里，没有任何一处告诉用户它存在。**
+///
+/// MARKET §8.1 把 copilot 机制的 D30 证伪线整个押在「每天早上用一次」上，
+/// 而唯一能挣来那条线的机制，用户得先自己翻进设置页、还得猜到那里有个开关。
+/// D118 建好了策略、排程、归因、撤权对账——**全套齐了，就是没人知道它在**。
+/// `mayAskForPermission` 零生产调用点正是这件事的化石：那条策略写的就是
+/// 「什么时候可以开口要权限」，而这个 App 从来没有主动开过口。
+///
+/// 邀请的时机不能是「装完第一件」——那时用户还没体验过这个循环。
+/// 真正该问的那一刻是**他刚刚打完卡**：今天这一身定下来了，
+/// 「明早还要不要我叫你一次」在那一秒才是顺理成章的一句话。
+struct DailyRitualInviteTests {
+
+    /// 用户还没走完过一次日常，就不配问他要每天早上的注意力。
+    @Test func itDoesNotAskBeforeTheLoopHasEverClosed() {
+        #expect(!DailyRitual.shouldInvite(
+            alreadyEnabled: false, alreadyAsked: false,
+            availableItemCount: 20, confirmedItemCount: 20, settledToday: false))
+    }
+
+    /// 刚打完卡、衣柜也够——这就是该问的那一刻。
+    @Test func itAsksRightAfterTheDayIsSettled() {
+        #expect(DailyRitual.shouldInvite(
+            alreadyEnabled: false, alreadyAsked: false,
+            availableItemCount: 20, confirmedItemCount: 20, settledToday: true))
+    }
+
+    /// 已经开着就别再问（问了显得这 App 不记得自己的状态）。
+    @Test func anAlreadyOnNudgeIsNeverPitched() {
+        #expect(!DailyRitual.shouldInvite(
+            alreadyEnabled: true, alreadyAsked: false,
+            availableItemCount: 20, confirmedItemCount: 20, settledToday: true))
+    }
+
+    /// **问过一次就不再问。** iOS 的权限弹窗一辈子只有一次机会，
+    /// 而反复推销的结果是用户把整个 App 的通知永久关掉。
+    @Test func decliningIsFinal() {
+        #expect(!DailyRitual.shouldInvite(
+            alreadyEnabled: false, alreadyAsked: true,
+            availableItemCount: 20, confirmedItemCount: 20, settledToday: true))
+    }
+
+    /// 衣柜凑不出一身时不邀请——排程本身就会跳过它（`shouldSchedule`），
+    /// 邀请用户开一个不会响的提醒，是当场撒谎。
+    @Test func itNeverInvitesIntoANudgeThatWouldNotFire() {
+        #expect(!DailyRitual.shouldInvite(
+            alreadyEnabled: false, alreadyAsked: false,
+            availableItemCount: 7, confirmedItemCount: 7, settledToday: true),
+                "邀请开一个衣柜条件根本不满足、永远不会发的提醒")
+        #expect(DailyRitual.shouldSchedule(availableItemCount: 7) == false)
+    }
+
+    /// 判据必须**真的走** `mayAskForPermission`——这条策略此前零调用点，
+    /// 接上它才算这个 App 学会了「先给价值再要权限」。
+    @Test func theInviteHonoursThePermissionTimingPolicy() {
+        #expect(!DailyRitual.mayAskForPermission(confirmedItemCount: 0))
+        #expect(!DailyRitual.shouldInvite(
+            alreadyEnabled: false, alreadyAsked: false,
+            availableItemCount: 20, confirmedItemCount: 0, settledToday: true),
+                "一件都没确认过就开口要通知权限")
+    }
+
+    /// 邀请文案不得承诺「我们已经替你选好了明天」——
+    /// 排程侧根本没算过明天的推荐（`DailyRitual.body` 同一条理由）。
+    @Test func theInviteDoesNotPromiseAPreparedLook() {
+        let text = (DailyRitual.inviteHeadline + " " + DailyRitual.permissionRationale)
+            .lowercased()
+        #expect(!text.contains("picked"), Comment(rawValue: text))
+        #expect(!text.contains("ready for you"), Comment(rawValue: text))
+    }
+
+    /// 说清「以后能在哪儿改」——否则用户点了「不用」就再也找不到它。
+    @Test func theInviteSaysWhereToChangeItLater() {
+        #expect(DailyRitual.inviteFootnote.localizedCaseInsensitiveContains("me"))
+    }
+
+    /// 时刻标签是 12 小时制（en-US 首发，§10.5），且只有一处实现——
+    /// 邀请卡上写的时间必须与设置页选的那个逐字一致。
+    @Test func theHourReadsAsAmericansReadIt() {
+        #expect(DailyRitual.hourLabel(7) == "7:00 AM")
+        #expect(DailyRitual.hourLabel(11) == "11:00 AM")
+        #expect(DailyRitual.hourLabel(5) == "5:00 AM")
+    }
+}
