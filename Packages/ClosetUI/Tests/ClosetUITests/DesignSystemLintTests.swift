@@ -154,7 +154,12 @@ struct TypeScaleLintTests {
                 "标题不是 serif —— DESIGN §462 的编辑感参照没落地")
         // 字阶内部不得出现固定磅值
         guard let range = ds.range(of: "public enum Text") else { return }
-        let scale = String(ds[range.lowerBound...].prefix(1200))
+        // D162：同上——「不存在」断言配固定窗口是假绿的方向。取到该 enum 结束。
+        let rest = ds[range.lowerBound...]
+        let stop = rest.range(of: "\n    public enum Space")?.lowerBound
+            ?? rest.range(of: "\n    static func adaptive")?.lowerBound
+            ?? rest.endIndex
+        let scale = String(rest[rest.startIndex..<stop])
         #expect(!scale.contains(".system(size:"),
                 "字阶里出现固定磅值 —— Dynamic Type 全档缩放会失效（§566）")
     }

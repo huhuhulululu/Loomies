@@ -81,8 +81,14 @@ struct PixelBufferPoolTests {
         #expect(text.contains("adaptor.pixelBufferPool"),
                 "帧循环没用上 adaptor 自带的池子 —— 每帧仍在新分配 8MB")
         // 逐帧创建的那行不许再留在渲染函数里
-        let renderBody = text.components(separatedBy: "func renderFrame(").last ?? ""
-        #expect(!renderBody.prefix(1200).contains("CVPixelBufferCreate("),
+        // D162：原来取「函数往后 1200 字」——我把一个真的 `CVPixelBufferCreate`
+        // 注入 `renderFrame` **末尾**（超出窗口），门照样绿。
+        // 「不存在」断言配固定窗口 = 看不见的地方就等于不存在，假绿的方向。
+        // 改按**结构边界**：从函数声明到下一个函数声明为止。
+        let after = text.components(separatedBy: "func renderFrame(").last ?? ""
+        let renderBody = after.components(separatedBy: "\n    private static func").first
+            ?? after
+        #expect(!renderBody.contains("CVPixelBufferCreate("),
                 "renderFrame 里仍有逐帧 CVPixelBufferCreate")
     }
 }

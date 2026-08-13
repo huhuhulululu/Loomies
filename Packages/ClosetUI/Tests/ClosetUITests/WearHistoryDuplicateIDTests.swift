@@ -136,7 +136,11 @@ struct DetailLoadsWearRecordsOnceTests {
         guard let r = text.range(of: "public func loadHistory(in context: ModelContext)") else {
             Issue.record("找不到 loadHistory"); return
         }
-        let body = String(text[r.lowerBound...].prefix(900))
+        // D162：窗口式判据看不见窗口外的第二次取表（假绿方向）——改按结构边界
+        let rest = text[r.lowerBound...]
+        let stop = rest.range(of: "\n    /// Me Storage location")?.lowerBound
+            ?? rest.endIndex
+        let body = String(rest[rest.startIndex..<stop])
         // 只数**代码行**——解释「为什么只取一次」的注释里也会出现这个词。
         // D147 的第一版就是这么误报的，同一个坑不该踩第二次：判据认构造，不认词。
         let fetches = body.split(separator: "\n").filter { line in

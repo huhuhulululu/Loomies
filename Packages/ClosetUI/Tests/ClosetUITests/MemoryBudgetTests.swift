@@ -85,7 +85,12 @@ struct DailyRitualHonestyTests {
         guard let range = text.range(of: "deleteAllUserData") else {
             Issue.record("找不到删库分支"); return
         }
-        let block = String(text[range.lowerBound...].prefix(900))
+        // D162：窗口式判据——加几行注释就可能把要找的调用挤出去（误红），
+        // 或让它躲在窗口外（漏检）。改按结构边界取到该分支结束。
+        let rest = text[range.lowerBound...]
+        let stop = rest.range(of: "\n                Button(\"Cancel\"")?.lowerBound
+            ?? rest.endIndex
+        let block = String(rest[rest.startIndex..<stop])
         #expect(block.contains("DailyRitualScheduler.disable()"),
                 "删库之后提醒还在，而 App 里已经没有关掉它的入口")
     }
