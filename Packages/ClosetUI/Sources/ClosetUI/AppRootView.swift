@@ -655,7 +655,7 @@ public struct ClosetGridView: View {
     }
 
     private var allItems: [Item] {
-        (wardrobe.items ?? []).sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+        (wardrobe.items ?? []).sortedByName()
     }
 
     private var items: [Item] {

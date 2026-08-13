@@ -17,7 +17,16 @@ public struct WarmthPicker: View {
     public init(warmthRaw: Binding<Int?>) { _warmthRaw = warmthRaw }
 
     public static let unknownTitle = "Not set"
-    public static let hint = "Used to filter by weather. Leave unset if unsure."
+    /// D148：原文是「Used to filter by weather. Leave unset if unsure.」——
+    /// 它主动**邀请**用户留空，却只字不提留空的后果：温区未标时天气门整条跳过
+    ///（`CandidateFilter` gate #1），那件**永远不会**因为天气被筛掉。
+    /// 于是厚羽绒服留成「Not set」，85°F 那天照样被推出来，
+    /// 用户看到的是「这 App 不懂天气」，而真相是「你没告诉它这件多厚」。
+    /// 场合那条早就把话说全了（「Leave all off if it works for anything」）——
+    /// 同一个文件里两条同类提示，一条说了一条没说。
+    public static let hint =
+        "Used to filter by weather. Not sure? Leave it unset — "
+        + "that piece is then never ruled out on hot or cold days."
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {

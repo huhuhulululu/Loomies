@@ -240,16 +240,14 @@ public enum StorageLocationService {
     public static func listWithDepth(in wardrobe: Wardrobe) -> [Node] {
         // 同名按 id 决胜（与导出快照同约定）：Swift sort 不稳定
         let roots = (wardrobe.locations ?? []).filter { $0.parent == nil }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
         var out: [Node] = []
         // 访问集合防成环：导入/外部写入的坏数据不得让递归栈溢出崩溃
         var seen = Set<UUID>()
         func walk(_ loc: StorageLocation, _ depth: Int) {
             guard seen.insert(loc.id).inserted else { return }
             out.append(Node(location: loc, depth: depth))
-            for c in (loc.children ?? []).sorted(by: {
-                ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString)
-            }) { walk(c, depth + 1) }
+            for c in (loc.children ?? []).sortedByName() { walk(c, depth + 1) }
         }
         for r in roots { walk(r, 0) }
         return out
@@ -259,13 +257,11 @@ public enum StorageLocationService {
     public static func list(in wardrobe: Wardrobe) -> [StorageLocation] {
         // 同名按 id 决胜（与导出快照同约定）：Swift sort 不稳定，同名兄弟顺序不得随 fetch 漂移。
         let roots = (wardrobe.locations ?? []).filter { $0.parent == nil }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
         var out: [StorageLocation] = []
         func walk(_ loc: StorageLocation) {
             out.append(loc)
-            for c in (loc.children ?? []).sorted(by: {
-                ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString)
-            }) { walk(c) }
+            for c in (loc.children ?? []).sortedByName() { walk(c) }
         }
         for r in roots { walk(r) }
         return out

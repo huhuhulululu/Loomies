@@ -35,14 +35,14 @@ public final class CheckInViewModel {
 
     public var availableItems: [Item] {
         (wardrobe.items ?? []).filter { $0.statusRaw == "available" }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
     }
 
     /// 手动打卡的可选列表（含/不含非可用件）。
     public var selectableItems: [Item] {
         guard includesUnavailableItems else { return availableItems }
         return (wardrobe.items ?? [])
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
     }
 
     public func isSelected(_ item: Item) -> Bool { selectedIDs.contains(item.id) }

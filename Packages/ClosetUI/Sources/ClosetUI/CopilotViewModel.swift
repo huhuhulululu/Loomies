@@ -118,7 +118,7 @@ public final class CopilotViewModel {
 
     public var availableItems: [Item] {
         (wardrobe.items ?? []).filter { $0.statusRaw == "available" }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
     }
 
     /// 衣柜里一共有多少件（含在洗/外借）。
@@ -187,7 +187,7 @@ public final class CopilotViewModel {
         let wanted = occasion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         var offBand: [String] = []
         var offOccasion: [String] = []
-        for item in anchors.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+        for item in anchors.sortedByName() {
             let candidate = item.toCandidateItem()
             if let band, let w = candidate.warmth, !band.contains(w) {
                 offBand.append(item.name)
@@ -231,7 +231,7 @@ public final class CopilotViewModel {
                     }
                 }
             }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
     }
 
     public func clearAnchors() {

@@ -260,7 +260,7 @@ public struct WardrobeManageView: View {
     @Query private var allWardrobes: [Wardrobe]
     /// (name, id) 双键——与 People 分区、listWithDepth 同一约定
     private var wardrobes: [Wardrobe] {
-        allWardrobes.sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+        allWardrobes.sortedByName()
     }
     @Query private var people: [Person]
     @State private var newName = ""
@@ -325,7 +325,7 @@ public struct WardrobeManageView: View {
                 if people.isEmpty {
                     Text("No people yet.").font(.caption).foregroundStyle(DS.muted)
                 } else {
-                    ForEach(people.sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) },
+                    ForEach(people.sortedByName(),
                             id: \.id) { person in
                         let closetCount = (person.wardrobes ?? []).count
                         let blocked = closetCount > 0

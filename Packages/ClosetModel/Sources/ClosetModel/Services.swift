@@ -94,7 +94,7 @@ public enum TransferService {
     ) -> BatchOutcome {
         var moved = 0, already = 0, failed = 0
         // 顺序确定：同名按 id 决胜（批量结果可复现）
-        for item in items.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+        for item in items.sortedByName() {
             if item.wardrobe?.id == wardrobe.id {
                 already += 1
                 continue

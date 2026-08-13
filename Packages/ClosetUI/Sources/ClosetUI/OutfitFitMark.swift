@@ -53,7 +53,7 @@ public enum OutfitFitMark {
         var best: (verdict: FitVerdict, name: String)?
         var unmeasured = 0
         // 名称升序遍历：同严格度打平时结论确定，不随集合顺序漂移
-        for item in items.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+        for item in items.sortedByName() {
             guard let verdict = FitMarkService.mark(item: item, profile: profile) else {
                 unmeasured += 1
                 continue

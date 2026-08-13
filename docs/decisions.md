@@ -2195,3 +2195,38 @@ schema **没有**把 id 声明为 unique，重复 key 直接 `fatalError`。当�
 所以补一道结构门：`Sources/` 下任何**非注释行**再出现 `uniqueKeysWithValues`
 即红。（第一版判据太糙，把两处修好的地方各自解释「为什么不用它」的注释也算成了
 犯规——判据得认构造，不认词。门已用临时插回真实崩溃构造器验证过能红。）
+
+---
+
+## D148 — 三值语义的告知缺口 + 一条排序规则手抄了 19 遍（2026-08-13）
+
+**引擎对了，用户不知道。** 温区未标 → 天气门整条跳过（`CandidateFilter` gate #1），
+这个设计是对的：不替用户假设。但录入面的提示写的是
+「Used to filter by weather. **Leave unset if unsure.**」——它主动**邀请**用户留空，
+却只字不提留空的后果。于是厚羽绒服留成「Not set」，85°F 那天照样被推出来；
+用户看到的是「这 App 不懂天气」，而真相是「你没告诉它这件多厚」。
+
+场合那条早就把话说全了（「Leave all off if it works for anything」）——同一个控件
+文件里两条同类提示，一条说了一条没说。改成
+「Not sure? Leave it unset — that piece is then never ruled out on hot or cold days.」
+并加门：**文案与引擎必须同向**（说不筛就得真不筛，测试直接跑 `CandidateFilter`）。
+
+### 一条排序规则，19 份手抄
+
+`($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString)` 在 Sources 下出现 19 次。
+两个问题：
+
+1. **每次比较分配两个 UUID 字符串。** 元组比较会先算出两侧的全部分量再比，
+   于是名字明明不同（绝大多数情况）也照样把 UUID 格式化成字符串。衣柜网格在每次
+   `body` 求值里跑三遍全柜排序：200 件 ≈ 1500 次比较 × 2 次分配 × 3 遍 =
+   单帧近万次无谓分配。同名才需要决胜，那时再取。
+2. **19 份手抄是 19 次写错的机会。** 任何一处把决胜写反，同名两行的顺序就会在不同
+   界面之间打架——而「排序确定性」正是本仓反复钉过的东西（导出快照可复现、
+   默认目的地不漂移）。
+
+收成 `NamedRecord` 协议 + `sortedByName()`（ClosetModel，Item/Wardrobe/Person/
+StorageLocation/Outfit 五种实体），并先钉住**与手抄那版逐个结果一致**再替换——
+那是替换的前提。结构门禁止再手抄。
+
+（替换后 ClosetUI 编译报「no member sortedByName」而 ClosetModel 自己全绿：
+SwiftPM 构建缓存陈旧，`rm -rf .build` 即好。这条本仓踩过，记在这里省下一次排查。）

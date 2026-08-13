@@ -33,7 +33,7 @@ public final class FittingRoomViewModel {
         (wardrobe.items ?? [])
             .filter { $0.statusRaw == "available" }
             .filter { BodyAvatarComposer.displaySlot(slotRaw: $0.slotRaw, itemName: $0.name) == slot }
-            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+            .sortedByName()
     }
 
     public func isSelected(_ item: Item) -> Bool {

@@ -14,7 +14,7 @@ public enum WardrobeSwitcher {
 
     /// (name, id) 双键——同名衣柜的顺序不得随 fetch 漂移。
     public static func ordered(_ wardrobes: [Wardrobe]) -> [Wardrobe] {
-        wardrobes.sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+        wardrobes.sortedByName()
     }
 
     public static func displayName(_ wardrobe: Wardrobe) -> String {
