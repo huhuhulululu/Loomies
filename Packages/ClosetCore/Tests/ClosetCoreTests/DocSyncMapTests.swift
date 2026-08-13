@@ -106,6 +106,69 @@ struct DocSyncMapTests {
         }
     }
 
+    /// **每个「」锚点都要能在它指的那份文档里 grep 到**（D207）。
+    ///
+    /// 第一版用的是 `DESIGN §503` 这种**行号**引用——而行号每次编辑都会平移。
+    /// D202 往 DESIGN 里插了一段 ⚠️，插入点之后的引用当场全部指错
+    ///（`§503` 从「schema 演进规则」变成了「数据导出 spec」）。
+    /// 而**没有任何东西会红**——这正是「断言比意图松」的又一形态：
+    /// 引用存在 ≠ 引用指对。
+    ///
+    /// 引文锚点相反：文改了它就找不到，门当场红。
+    @Test func everyAnchorIsFindableInTheDocumentItNames() throws {
+        let docPaths = [
+            "requirements": "docs/requirements/PRACTICAL-JOURNEY-AND-PUBLIC-API.md",
+            "DESIGN": "docs/DESIGN.md",
+            "MVP-PLAN": "docs/MVP-PLAN.md",
+            "MARKET": "docs/MARKET.md",
+            "FEATURE-GAP": "docs/FEATURE-GAP.md",
+        ]
+        var cache: [String: String] = [:]
+        var missing: [String] = []
+        var checked = 0
+        for row in try rows() {
+            // 「锚点」前面紧挨着的那个词就是文档名
+            for piece in row.promise.split(whereSeparator: { $0 == "；" || $0 == ";" }) {
+                let text = String(piece).trimmingCharacters(in: .whitespaces)
+                guard let open = text.firstIndex(of: "「"),
+                      let close = text.firstIndex(of: "」") else { continue }
+                let docName = String(text[text.startIndex..<open])
+                    .trimmingCharacters(in: .whitespaces)
+                let anchor = String(text[text.index(after: open)..<close])
+                guard let path = docPaths[docName] else {
+                    missing.append("\(docName)（表里点了一个未登记的文档名）")
+                    continue
+                }
+                let body: String
+                if let hit = cache[path] { body = hit } else {
+                    body = (try? String(
+                        contentsOf: repoRoot.appendingPathComponent(path),
+                        encoding: .utf8)) ?? ""
+                    cache[path] = body
+                }
+                checked += 1
+                if !body.contains(anchor) {
+                    missing.append("\(docName)「\(anchor)」")
+                }
+            }
+        }
+        #expect(checked >= 15, Comment(rawValue:
+            "只检了 \(checked) 个锚点 —— 解析口径坏了，这条在空转"))
+        #expect(missing.isEmpty, Comment(rawValue:
+            "这些锚点在它指的文档里找不到（文改了引用没跟上）：\(missing)"))
+    }
+
+    /// **表里不许再出现行号引用**——它每次编辑都会静默平移。
+    @Test func noRowCitesByLineNumber() throws {
+        var offenders: [String] = []
+        for row in try rows() where row.promise.range(
+            of: "§[0-9]+", options: .regularExpression) != nil {
+            offenders.append(row.promise)
+        }
+        #expect(offenders.isEmpty, Comment(rawValue:
+            "这些行用了行号引用（编辑一次就指错，且没人会红）：\(offenders) —— 改用「引文」"))
+    }
+
     /// **新加一份决策文档而不进表 → 红。**
     ///
     /// 判据：`docs/` 顶层的 md 里，凡带「验收 / 退出门 / 判定 / 缺口」这类

@@ -26,19 +26,20 @@
 真的不一致再改，并在 ADR 里记一句。
 
 ```docsync
-# 改动文件 glob                                              | 该复查的承诺
-Packages/ClosetCore/Sources/ClosetCore/PublicAPI/OpenMeteo*  | requirements W1.1-W1.5（日间时段温度、来源标签、降水 ≥50%）
-Packages/ClosetCore/Sources/ClosetCore/WeatherProviding.swift | requirements W1.5；DESIGN §204 正确性硬门①（只按日间时段）
-Packages/ClosetCore/Sources/ClosetCore/Recommendation/**     | DESIGN §204 四条正确性硬门；MVP-PLAN M2 退出门
-Packages/ClosetModel/Sources/ClosetModel/FitMarkService.swift | requirements W3.2（尺码标签不得当合身证据）；MVP-PLAN M2「ease 引擎单测」
-Packages/ClosetCore/Sources/ClosetCore/FitEngine.swift       | requirements W3.2；MVP-PLAN M2
-Packages/ClosetCore/Sources/ClosetCore/BodyAvatar/**         | DESIGN §236/§393 纸娃娃验收（≥5% 可辨差异、肩线 ≤5%）
-Packages/ClosetCore/Sources/ClosetCore/TelemetryEvents.swift | MARKET §8.1 判定门槛 + §8.4b 数据通路对账
-Packages/ClosetCore/Sources/ClosetCore/ComplianceCopy.swift  | MVP-PLAN M3「隐私一致性审计门」；DESIGN §286 隐私叙事
-Packages/ClosetModel/Sources/ClosetModel/LoomiesSchema.swift | DESIGN §503 schema 演进规则；MVP-PLAN M0 单向门
-Packages/ClosetUI/Sources/ClosetUI/PhotoCaptureViews.swift   | FEATURE-GAP 入库行；MVP-PLAN M1 退出门
-Packages/ClosetIntake/Sources/ClosetIntake/**                | FEATURE-GAP 入库行；MVP-PLAN M1；requirements W2（条码）
-Packages/ClosetCore/Sources/ClosetCore/PublicAPI/PublicSizeReference.swift | requirements W3.1（not brand-true）
+# 改动文件 glob | 该复查的承诺（锚点用「」括起，必须能在该文档里 grep 到）
+Packages/ClosetCore/Sources/ClosetCore/PublicAPI/OpenMeteo* | requirements「有网且城市可 geocode」；DESIGN「四条正确性验收」
+Packages/ClosetCore/Sources/ClosetCore/WeatherProviding.swift | requirements「降水概率 ≥50%」；DESIGN「四条正确性验收」
+Packages/ClosetCore/Sources/ClosetCore/PublicAPI/OpenProductFacts* | requirements「入库条码公开商品」
+Packages/ClosetCore/Sources/ClosetCore/Recommendation/** | DESIGN「四条正确性验收」；MVP-PLAN「F4 四条正确性自动化用例全绿」
+Packages/ClosetModel/Sources/ClosetModel/FitMarkService.swift | requirements「尺码标签不得当合身证据」；MVP-PLAN「ease 引擎单测」
+Packages/ClosetCore/Sources/ClosetCore/FitEngine.swift | requirements「尺码标签不得当合身证据」；MVP-PLAN「ease 引擎单测」
+Packages/ClosetCore/Sources/ClosetCore/BodyAvatar/** | DESIGN「两档体型下同一衣物呈现可辨差异」
+Packages/ClosetCore/Sources/ClosetCore/TelemetryEvents.swift | MARKET「遥测裁决预注册协议」
+Packages/ClosetCore/Sources/ClosetCore/ComplianceCopy.swift | MVP-PLAN「隐私一致性审计门」；MARKET「遥测裁决预注册协议」
+Packages/ClosetModel/Sources/ClosetModel/LoomiesSchema.swift | DESIGN「VersionedSchema」；MVP-PLAN「schema 过加法式单向门守卫测试」
+Packages/ClosetUI/Sources/ClosetUI/PhotoCaptureViews.swift | FEATURE-GAP「相机真机验证」；MVP-PLAN「抠图在 M0 基准语料上」
+Packages/ClosetIntake/Sources/ClosetIntake/** | FEATURE-GAP「相机真机验证」；requirements「入库条码公开商品」
+Packages/ClosetCore/Sources/ClosetCore/PublicAPI/PublicSizeReference.swift | requirements「not brand-true」
 ```
 
 ## 这张表自己也会过期
@@ -49,6 +50,19 @@ Packages/ClosetCore/Sources/ClosetCore/PublicAPI/PublicSizeReference.swift | req
 - 左边的 **glob 都得匹配到真文件**（文件改名/删除后这一行就是死的）；
 - **每一份决策文档都得在表里出现**——新加一份而不进表，当场红。
 
-**它守不住的**：某一行的「该复查的承诺」写错了或写漏了——那是自然语言，
-没法用 lint 判真伪（与 D195/D203 同一条判断：硬造只会得到一道假绿）。
+- **每个「」锚点都能在它指的那份文档里 grep 到**（D207 新增）。
+
+### 为什么锚点是**引文**而不是行号
+
+第一版用的是 `DESIGN §503` 这种行号引用——**而行号每次编辑都会平移**。
+D202 往 DESIGN 里插了一段 ⚠️，插入点之后的引用当场全部指错：
+`§503` 从「schema 演进规则」变成了「数据导出 spec」，`§286` 变成了一张 ASCII 图。
+
+这个坑不是本表独有：**整个仓的 ADR 一直在用行号引 DESIGN**，
+而那些引用在每次编辑后静默烂掉，没有任何东西会红。
+
+引文锚点相反——**文改了它就找不到，门当场红**；文没改它就一直对。
+
+**它守不住的**：锚点找得到，不代表那条承诺**与这个 glob 真的相关**——
+那是自然语言判断，没法 lint（与 D195/D203 同一条：硬造只会得到一道假绿）。
 所以这张表**不替代读**，只负责把「该读哪份」这件事从记忆里搬到磁盘上。
