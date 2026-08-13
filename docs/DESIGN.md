@@ -235,6 +235,18 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 
 验收标准：两档体型下同一衣物呈现可辨差异（锚点横向偏移 ≥5%）；肩线对齐偏差 ≤ 衣宽 5%；6 件成套渲染 ≤1s（iPhone 12+）；小样本用户测试「不觉得怪异」≥70%。
 
+> ⚠️ **「≥5%」当前不成立（D202 实测）**：五个体型 preset 两两对比，衣物框最大差异
+> **3.6%**（pear vs invertedTriangle），最小 **0.5%**（hourglass vs apple），一对都没到 5%。
+> `ShapeDistinctnessCriterionTests` 已把实测钉住，几何一动就可见。
+>
+> **不是 bug，是两个设计立场在打架**：这条冻的是「≥5% 才叫可辨」，
+> 而 `BodyMorphParams.preset` 刻意做得轻（`BodyAvatarScaler` 注释：「避免无界拉伸导致 uncanny」）。
+> 更关键的是 `removingShapePreset`——**命中真体型照片时 preset warp 会被旁路**，
+> 用户看到的体型差异主要来自**不同底图**，而这条量的是**衣物**。
+>
+> **待产品决定**：把 preset 调大到满足 5%（会改变所有人看到的画面，且 uncanny 与否只有设备上看得出来，
+> 已进 `DEVICE-ACCEPTANCE.md`），还是把这条标准改成量底图而非量衣物。改哪边都要记 ADR。
+
 **远期**：高保真试穿接生成式 try-on 商业 API（FASHN ~$0.075/图、Google Vertex virtual-try-on-001 已 GA），付费增值；**严禁**自部署非商用系开源 VTON（IDM-VTON/CatVTON/OOTDiffusion/StableVITON，均 CC BY-NC-SA/NC）。3D 体型如需求成立走 SMPL 商业授权——两条官方通道：Meshcapade（持 Max-Planck-Innovation 非独家 sublicense）或直接联系 Max-Planck-Innovation（04 报告原文写「独家」，经对抗核查修正为非独家）。
 
 ### F7 多衣柜管理
