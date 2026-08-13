@@ -15,6 +15,8 @@ public struct CopilotView: View {
     @State private var showCheckInSheet = false
     /// 冷启动「真实起步」路径：直接开入库面（DESIGN §475 双路径之一）
     @State private var showAddPieceSheet = false
+    /// 毕业时刻只出一次——看过就记住（跨启动）。
+    @AppStorage("loomies.activation.readyMomentSeen") private var hasSeenReadyMoment = false
     @State private var cinematicFailureToken = 0
     @State private var actions = OutfitActionsViewModel()
     @State private var didBootstrap = false
@@ -137,7 +139,14 @@ public struct CopilotView: View {
             VStack(alignment: .leading, spacing: 18) {
                 if !vm.todayWornNames.isEmpty { settledBand }
                 heroCard
-                if vm.isColdStart { coldStartBanner }
+                // D119：阶梯此前只在 <8 件时出现，而北极星区间正好从 8 开始——
+                // 用户在 8→20 这段完全没人告诉他还差什么。进度与里程碑陪到 20，
+                // 双路径 CTA 仍只在冷启动出现（那两条是「怎么起步」，不是「还差多少」）。
+                if ActivationProgress.showsLadder(itemCount: vm.availableItems.count) {
+                    coldStartBanner
+                } else if !hasSeenReadyMoment {
+                    readyMoment
+                }
                 controlsCard
                 if shouldShowAnchors { anchorSection }
                 if !vm.suggestions.isEmpty { otherLooksSection }
@@ -513,6 +522,31 @@ public struct CopilotView: View {
     /// 冷启动横幅（D91，缺口 #14）。DESIGN §475 要的三件：**双路径空状态**
     /// （真实起步 / 先看效果）、**预赋进度**（答完引导即 20%）、**场合里程碑即时兑现**。
     /// 里程碑文案是承诺——`ActivationProgress` 只让它说挣来的那部分。
+    /// D119：跨过 20 件那一下的**毕业时刻**。此前横幅只是静默消失——
+    /// 用户为之努力了二十件，产品一句话都没说。只出一次（看过就记住）。
+    private var readyMoment: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(ActivationProgress.readyHeadline, systemImage: "checkmark.seal.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(DS.accent)
+            Text(ActivationProgress.readyBody(itemCount: vm.availableItems.count))
+                .font(.caption)
+                .foregroundStyle(DS.muted)
+            Button("Got it") { hasSeenReadyMoment = true }
+                .font(.caption.weight(.medium))
+                .foregroundStyle(DS.accent)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.accent.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous))
+        .padding(.horizontal, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(ActivationProgress.readyHeadline). "
+            + ActivationProgress.readyBody(itemCount: vm.availableItems.count))
+    }
+
     private var coldStartBanner: some View {
         // 三处必须读**同一个集合**：进度条、里程碑、isColdStart 门。
         // 此前进度条用 wardrobe.items（含在洗/外借），门用 availableItems——
@@ -558,6 +592,9 @@ public struct CopilotView: View {
                 .accessibilityLabel("\(milestone.headline). \(milestone.nextStep)")
             }
 
+            // 路径一/二只在冷启动出现：它们回答「怎么起步」，
+            // 而 8→20 这段用户要的是「还差多少」。
+            if vm.isColdStart {
             // 路径一：真实起步（DESIGN §475「拍下今天这身，30 秒入库 3 件」）
             Button { showAddPieceSheet = true } label: {
                 Text(CopilotColdStartCopy.realStartTitle)
@@ -593,6 +630,7 @@ public struct CopilotView: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint(DemoSeedService.loadButtonAccessibilityHint)
+            }   // if vm.isColdStart
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

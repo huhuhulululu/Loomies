@@ -47,6 +47,20 @@ public enum ActivationProgress {
         return "\(n) pieces in · \(remaining) more for a closet that carries a full week."
     }
 
+    /// 阶梯**只在 8 件处消失，而北极星区间正好从 8 开始**——用户在 8→20 这段
+    /// 完全没人告诉他还差什么（D119）。这条判据决定进度与里程碑陪到哪里。
+    public static func showsLadder(itemCount: Int) -> Bool {
+        itemCount < targetItemCount
+    }
+
+    /// 跨过阈值那一下的**毕业时刻**。此前横幅只是静默消失——
+    /// 用户为之努力了二十件，产品一句话都没说（「App 从不标记胜利」）。
+    public static let readyHeadline = "Your closet can dress you every day"
+    public static func readyBody(itemCount: Int) -> String {
+        "\(itemCount) pieces in. From here I'll keep the picks coming — "
+            + "add more whenever you like."
+    }
+
     // MARK: - 场合里程碑
 
     public struct Milestone: Sendable, Equatable {

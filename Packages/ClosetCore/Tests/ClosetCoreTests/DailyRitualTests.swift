@@ -159,3 +159,36 @@ struct DailyRitualWeeklyPlanTests {
         #expect(Set(titles).count == 7)
     }
 }
+
+/// D119：**激活阶梯在 8 件处消失，而北极星区间正好从 8 开始**——
+/// 用户在 8→20 这段完全没人告诉他还差什么。
+struct ActivationLadderRangeTests {
+
+    @Test func theLadderStaysUntilTheClosetIsUsable() {
+        #expect(ActivationProgress.showsLadder(itemCount: 0))
+        #expect(ActivationProgress.showsLadder(itemCount: 8),
+                "8 件正是北极星区间的起点，阶梯却在这里消失了")
+        #expect(ActivationProgress.showsLadder(itemCount: 19))
+    }
+
+    @Test func itStopsOnceTheClosetCanCarryAWeek() {
+        #expect(!ActivationProgress.showsLadder(itemCount: 20))
+        #expect(!ActivationProgress.showsLadder(itemCount: 60))
+    }
+
+    /// 毕业文案得说清「从此以后会怎样」，而不只是恭喜一句。
+    @Test func theReadyMomentSaysWhatHappensNext() {
+        #expect(!ActivationProgress.readyHeadline.isEmpty)
+        let body = ActivationProgress.readyBody(itemCount: 20)
+        #expect(body.contains("20"))
+        #expect(body.localizedCaseInsensitiveContains("add more"),
+                Comment(rawValue: "没说清接下来还能做什么：\(body)"))
+    }
+
+    /// 毕业文案不得与进度条文案自相矛盾（同一时刻两处说法必须同向）。
+    @Test func theReadyCopyAgreesWithTheProgressCaption() {
+        let caption = ActivationProgress.caption(itemCount: 20)
+        #expect(caption.localizedCaseInsensitiveContains("ready"))
+        #expect(!ActivationProgress.showsLadder(itemCount: 20))
+    }
+}

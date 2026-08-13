@@ -143,6 +143,12 @@ public struct ItemDetailView: View {
                 Text("\(ItemNotes.remaining(vm.notes)) left")
                     .font(.caption2).foregroundStyle(DS.muted)
             }
+            // D119：记了就要给用户看。此前每次打卡都落了 WearRecord，
+            // 而这一页从来没回答过「这件我穿过几次 / 上次什么时候穿的」。
+            Section("Wear") {
+                Text(vm.wearSummary).font(.caption).foregroundStyle(DS.muted)
+                    .accessibilityLabel(vm.wearSummary)
+            }
             // 「距上次洗涤已穿几次」（D106，DESIGN §219 点名的零成本差异点）——
             // 只做显性化，不给洗衣建议（面料/体感/季节 App 都不知道）
             if let laundry = vm.laundryCaption {
