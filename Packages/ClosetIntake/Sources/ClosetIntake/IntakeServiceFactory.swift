@@ -64,6 +64,11 @@ public enum IntakeServiceFactory {
     public static let labelReadDisclosure =
         "Brand and size were read from the label photo — check them before adding."
 
+    /// D193：颜色是**从像素投票猜的**（D124），此前确认页一个字没说——
+    /// 它渲染成一个已选色点，与用户手选的形态不可区分，而颜色是打分的输入。
+    public static let colorGuessDisclosure =
+        "The colour is a guess from your photo — pick a different one if it's off."
+
     public static func makeTagging(
         defaultTags: ItemTags = ItemTags(
             slot: .top,

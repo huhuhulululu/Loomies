@@ -47,6 +47,21 @@ public final class IntakeViewModel {
     /// 抠图曾失败：confirm 落库时无 try-on 层，须事后诚实提示（非静默无图入库）。
     private var mattingFailed = false
 
+    /// D193：这一张照片的**洗标 OCR 真读出东西了吗**。
+    ///
+    /// 确认页那句「Brand and size were read from the label photo」此前挂在
+    /// `brand != nil || size != nil` 上——而用户自己敲、条码富化写入都会让它非空；
+    /// 模拟器/macOS 走 `MockOCRService(info: LabelInfo())`（两个字段恒 nil），
+    /// 真机 OCR 认不出品牌时用户手敲——两条路上那句话都是**假的**。
+    public private(set) var brandOrSizeFromLabel = false
+
+    /// D193：颜色是**从像素投票猜的**吗（D124）。
+    ///
+    /// 猜出来的颜色渲染成一个已选色点，与用户手选的形态不可区分，
+    /// 而颜色是 `OutfitScorer` 的输入（配色协调 / 60-30-10 / 色季）。
+    /// 打标器直接给的颜色不算——那是另一条来源。
+    public private(set) var colorFromPhoto = false
+
     public init(
         matting: any MattingService,
         tagging: any TaggingService,
@@ -119,18 +134,23 @@ public final class IntakeViewModel {
         // 没人填过颜色的衣柜，那几项打分全程不参与。
         // 抠图已经算出来了，主色是顺手就能拿到的东西，不需要任何模型。
         // 只在抠图**成功**时取：失败时 workingImage 是原图，背景色会赢过衣服。
+        var colorWasGuessed = false
         if d.color == nil, mattingSucceeded,
            let entry = await DominantColorSampler.dominantEntry(in: workingImage) {
             d.color = entry.color
+            colorWasGuessed = true
         }
         d.occasions = tags?.occasions ?? []
         d.warmth = tags?.warmth
         var ocrFailed = false
+        var labelFilled = false
         if let ocr {
             do {
                 let label = try await ocr.readLabel(imageData)
                 d.brand = label.brand
                 d.size = label.size
+                // D193：判据是「**这一张**真读出东西了吗」，不是「字段非空」。
+                labelFilled = label.brand != nil || label.size != nil
             } catch {
                 ocrFailed = true
                 AppLog.error("intake OCR failed: \(AppLog.errRef(error))", .intake)
@@ -141,6 +161,8 @@ public final class IntakeViewModel {
         mattedImage = mattingSucceeded ? workingImage : nil
         originalImage = imageData
         mattingFailed = !mattingSucceeded
+        brandOrSizeFromLabel = labelFilled
+        colorFromPhoto = colorWasGuessed
         if !mattingSucceeded {
             statusMessage = Self.mattingFailedMessage
         } else if taggingFailed {
@@ -406,6 +428,8 @@ public final class IntakeViewModel {
         mattedImage = nil
         originalImage = nil
         mattingFailed = false
+        brandOrSizeFromLabel = false   // D193：上一张的判断不得留给下一张
+        colorFromPhoto = false
         isProcessing = false
         lastError = nil
         statusMessage = nil

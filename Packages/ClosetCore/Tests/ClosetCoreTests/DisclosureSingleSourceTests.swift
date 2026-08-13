@@ -115,3 +115,42 @@ struct DisclosureSingleSourceTests {
         #expect(body.contains("help@example.com"), Comment(rawValue: body))
     }
 }
+
+/// D193：批量入库把「衣服进柜了、图没跟上」这件事整条丢掉。
+///
+/// 单张路径确认后会弹一句诚实提示（抠图 / 归一 / 写盘失败三选一），
+/// 而批量路径的 `return` 在 `postConfirmFlash` 之前，`recordBatch` 第一件事
+/// 就是 `reset()`——statusMessage 当场没了。于是批量入库的用户
+/// **永远不知道哪几件没有照片**，而批量正是默认路径。
+///
+/// 逐张弹提示会打断批量节奏，所以记进账、汇总里一次说清。
+struct BatchPhotoLossSummaryTests {
+
+    private func queue(_ outcomes: [BatchIntakeQueue.Outcome]) -> BatchIntakeQueue {
+        var q = BatchIntakeQueue(total: outcomes.count)
+        for o in outcomes { q.record(o) }
+        return q
+    }
+
+    @Test func theSummaryNamesThePiecesThatLostTheirPhoto() {
+        let q = queue([.added, .addedWithoutPhoto, .addedWithoutPhoto, .skipped])
+        #expect(q.addedCount == 3, "没跟上照片的件确实进柜子了，要算进 added")
+        #expect(q.addedWithoutPhotoCount == 2)
+        #expect(q.summary.localizedCaseInsensitiveContains("without a try-on photo"),
+                Comment(rawValue: "汇总一个字没提丢图的件：\(q.summary)"))
+        #expect(q.summary.contains("2"))
+    }
+
+    /// 一件都没丢图时不许凭空多出这句（别造噪声）。
+    @Test func aCleanBatchSaysNothingAboutPhotos() {
+        let q = queue([.added, .added, .skipped])
+        #expect(q.addedWithoutPhotoCount == 0)
+        #expect(!q.summary.localizedCaseInsensitiveContains("without a try-on photo"))
+    }
+
+    /// 要指路——D185 之后补图这条路是真的存在的。
+    @Test func itPointsAtTheReplacePhotoEntry() {
+        let q = queue([.addedWithoutPhoto])
+        #expect(q.summary.localizedCaseInsensitiveContains("page"), Comment(rawValue: q.summary))
+    }
+}

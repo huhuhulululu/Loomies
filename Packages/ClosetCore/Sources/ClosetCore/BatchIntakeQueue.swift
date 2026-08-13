@@ -10,6 +10,13 @@ public struct BatchIntakeQueue: Equatable, Sendable {
 
     public enum Outcome: String, Sendable, Equatable {
         case added      // 用户确认入库
+        /// D193：入库了，但**试穿层图没跟上**（抠图失败 / 归一失败 / 写盘失败）。
+        ///
+        /// 单张路径会在确认后弹一句诚实提示，批量路径此前把它整条丢掉——
+        /// `recordBatch` 里的 `return` 在 `postConfirmFlash` 之前，
+        /// 而它第一件事就是 `intakeVM.reset()`（清空 statusMessage）。
+        /// 于是批量入库的用户永远不知道哪几件没有照片。
+        case addedWithoutPhoto
         case skipped    // 用户跳过
         case failed     // 图片读不出来 / 落库失败
     }
@@ -26,7 +33,13 @@ public struct BatchIntakeQueue: Equatable, Sendable {
     public var index: Int { outcomes.count }
     public var isFinished: Bool { index >= total }
 
-    public var addedCount: Int { outcomes.filter { $0 == .added }.count }
+    /// 入库成功的件数（含没跟上照片的那些——它们确实进柜子了）。
+    public var addedCount: Int {
+        outcomes.filter { $0 == .added || $0 == .addedWithoutPhoto }.count
+    }
+    public var addedWithoutPhotoCount: Int {
+        outcomes.filter { $0 == .addedWithoutPhoto }.count
+    }
     public var skippedCount: Int { outcomes.filter { $0 == .skipped }.count }
     public var failedCount: Int { outcomes.filter { $0 == .failed }.count }
     public var remainingCount: Int { max(0, total - index) }
@@ -49,6 +62,10 @@ public struct BatchIntakeQueue: Equatable, Sendable {
         var parts: [String] = []
         if addedCount > 0 {
             parts.append("Added \(addedCount) \(addedCount == 1 ? "piece" : "pieces")")
+        }
+        if addedWithoutPhotoCount > 0 {
+            let n = addedWithoutPhotoCount
+            parts.append("\(n) without a try-on photo (add one from the piece's page)")
         }
         if skippedCount > 0 { parts.append("\(skippedCount) skipped") }
         if failedCount > 0 {

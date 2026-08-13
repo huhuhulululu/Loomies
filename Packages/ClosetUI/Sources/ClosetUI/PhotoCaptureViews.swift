@@ -272,6 +272,10 @@ public struct AddPieceSheet: View {
     @State private var batchNotice = ""
     /// 抠图手修（D96）
     @State private var showRetouch = false
+    #if canImport(UIKit)
+    /// 确认页预览图的解码结果（D193）。跟着 `mattedImage` 走，不跟着每次击键走。
+    @State private var confirmPreview: UIImage?
+    #endif
 
     enum Mode { case choose, manual, intake }
 
@@ -298,6 +302,12 @@ public struct AddPieceSheet: View {
                 case .intake: intakeConfirmBody
                 }
             }
+            #if canImport(UIKit)
+            // D193：解码跟着抠图结果走，不跟着每次击键走。
+            .task(id: intakeVM.mattedImage) {
+                confirmPreview = intakeVM.mattedImage.flatMap(UIImage.init(data:))
+            }
+            #endif
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -429,6 +439,8 @@ public struct AddPieceSheet: View {
         }
     }
 
+    /// 抠图结果变了才重新解码（每次击键都解一遍是 D109 修过的同一条）。
+    @ViewBuilder
     private var intakeConfirmBody: some View {
         Group {
             if intakeVM.isProcessing {
@@ -441,7 +453,12 @@ public struct AddPieceSheet: View {
                     if let data = intakeVM.mattedImage {
                         Section {
                             #if canImport(UIKit)
-                            if let ui = UIImage(data: data) {
+                            // D193：解码结果缓存在 @State 里，不在 body 里重做。
+                            // 这个 body 读 `intakeVM.draft`（@Observable），
+                            // 而 TextField 绑的正是 draft 的字段——每敲一个字母
+                            // 整段重算一次，每次都新建一个 UIImage 实例，
+                            // render 侧的缓存复用随之作废（D109 给缩略图修的是同一条）。
+                            if let ui = confirmPreview {
                                 Image(uiImage: ui)
                                     .resizable()
                                     .scaledToFit()
@@ -483,8 +500,18 @@ public struct AddPieceSheet: View {
                         // 像素猜的（D124）——而此前一个字都没说。
                         // 用户分不清哪些字段值得信，就只能全部重新核对一遍，
                         // 那正好抵消了自动填充省下的时间。
-                        if draft.wrappedValue.brand != nil || draft.wrappedValue.size != nil {
+                        //
+                        // D193：判据从「字段非空」改成「**这一张真读出东西了吗**」。
+                        // 非空会被用户手敲和条码富化写成真，而模拟器/macOS 的
+                        // MockOCR 两个字段恒 nil——两条路上这句话都是假的。
+                        // 颜色那句同样补上：猜出来的色点与手选的形态不可区分。
+                        if intakeVM.brandOrSizeFromLabel {
                             Text(IntakeServiceFactory.labelReadDisclosure)
+                                .font(DS.Text.micro)
+                                .foregroundStyle(DS.muted)
+                        }
+                        if intakeVM.colorFromPhoto {
+                            Text(IntakeServiceFactory.colorGuessDisclosure)
                                 .font(DS.Text.micro)
                                 .foregroundStyle(DS.muted)
                         }
@@ -544,8 +571,16 @@ public struct AddPieceSheet: View {
                                 AppLog.info("intake confirmed item=\(AppLog.ref(item.id))", .intake)
                                 #if os(iOS)
                                 if batchQueue != nil {
-                                    // 批量：记账后推进下一张，汇总留到走完再一次说清
-                                    recordBatch(.added)
+                                    // 批量：记账后推进下一张，汇总留到走完再一次说清。
+                                    //
+                                    // D193：落库后的诚实提示（抠图/归一/写盘失败）
+                                    // 此前在这里被整条丢掉——`recordBatch` 第一件事
+                                    // 就是 `reset()`，statusMessage 当场没了，
+                                    // 而这几条恰恰是「衣服进柜了、图没跟上」的时刻。
+                                    // 逐张弹提示会打断批量节奏，所以记进账、汇总里说。
+                                    let lostPhoto = Self.postConfirmFlash(
+                                        statusMessage: intakeVM.statusMessage) != nil
+                                    recordBatch(lostPhoto ? .addedWithoutPhoto : .added)
                                     return
                                 }
                                 #endif
