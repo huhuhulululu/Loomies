@@ -10,6 +10,21 @@ public enum GarmentLayerNormalizer {
     public static let canvasWidth = 512
     public static let canvasHeight = 768
 
+    /// 解码尺寸上限（D181）。
+    ///
+    /// 此前按**源图 w×h** 建 CGContext 整帧重绘，再对全部像素跑一遍 alpha
+    /// 双重循环——12MP 的照片 = 一次 48MB 分配 + 一千两百万次像素访问，
+    /// 而这一切跑在「Add to closet」那一下的**主线程**上，批量入库逐件重复。
+    /// 输出只有 512×768，全分辨率解码从头到尾没有用武之地。
+    ///
+    /// D136 已经为同一条链在 `DominantColorSampler` 上定过这条纪律
+    ///（`maxDecodePixel = 512` + 后台跑），归一器当时没跟上。
+    ///
+    /// 取 2048 而不是 512：这里要的不是「统计够用」而是**成像**——
+    /// 衣服只占画面一角时，紧裁剪后还要填满 512×768 的画布。
+    /// 2048 长边保证最坏情况（衣服占 1/4 画面）裁出来仍有 512px，不需要放大。
+    public static let maxDecodePixel = 2048
+
     /// 归一化 PNG；失败返回 nil（调用方回退原图）。
     public static func normalize(imageData: Data, slot: BodyAvatarSlot) -> Data? {
         guard let decoded = decodeRGBA(imageData) else { return nil }
@@ -40,7 +55,7 @@ public enum GarmentLayerNormalizer {
     private static func decodeRGBA(_ data: Data) -> (image: CGImage, hasAlpha: Bool)? {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let cg = CGImageSourceCreateImageAtIndex(src, 0, nil),
-              let rgba = cg.toRGBA8() else { return nil }
+              let rgba = cg.toRGBA8(maxPixel: maxDecodePixel) else { return nil }
         let hasAlpha = cg.alphaInfo != .none && cg.alphaInfo != .noneSkipLast
             && cg.alphaInfo != .noneSkipFirst
         return (rgba, hasAlpha)
@@ -159,8 +174,16 @@ public enum GarmentLayerNormalizer {
 }
 
 private extension CGImage {
-    func toRGBA8() -> CGImage? {
-        let w = width, h = height
+    /// 统一成 RGBA8，长边**不超过 maxPixel**（D181）。
+    /// 缩小交给 CGContext.draw——ImageIO 会顺带把解码也降下来，
+    /// 不必先全分辨率解出来再缩。小于上限的图不放大（上限是天花板不是目标）。
+    func toRGBA8(maxPixel: Int) -> CGImage? {
+        // 按比例算，不用整数除：4032 / 2048 == 1（整除），封顶会静默失效——
+        // 本波第一版就是这么写的，实测 12MP 仍走全分辨率。
+        let longest = max(width, height)
+        let ratio = longest > maxPixel ? Double(maxPixel) / Double(longest) : 1
+        let w = max(1, Int((Double(width) * ratio).rounded()))
+        let h = max(1, Int((Double(height) * ratio).rounded()))
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
         guard let ctx = CGContext(
