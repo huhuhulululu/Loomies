@@ -155,7 +155,10 @@ public enum ImportService {
             item.hipFlatWidthInches = dto.hipFlatWidthInches
             item.barcode = dto.barcode
             item.careRaw = dto.careRaw
-            item.notes = dto.notes
+            // D138：`Item.notes` 的实体注释白纸黑字写着「落库前必过 sanitize」——
+            // 而导入这条路绕过了它，偏偏导入的文件是**最不可信的输入**
+            //（谁给的都可能，长度与控制字符都不受本 App 控制）。
+            item.notes = ItemNotes.sanitize(dto.notes)
             // 图片路径指向的是**导出那台设备**的文件。留着会让网格显示一批
             // 永远加载不出来的空格子——照片不在 JSON 里，如实清掉并在收据里说明。
             if TextNormalize.blankToNil(dto.localImageRelativePath) != nil {
@@ -166,6 +169,15 @@ public enum ImportService {
                 item.wardrobe = w
             } else if let first = newWardrobes.first {
                 item.wardrobe = first          // 快照里没柜归属 → 落到导入的第一个柜
+            } else {
+                // D138：快照有件却没有任何衣柜——此前这些件被插进库却**没有归属**，
+                // 任何界面都看不到它们（`Wardrobe.items` 是唯一入口），
+                // 而收据还写着「导入 N 件到 0 个衣柜」。给它们建一个柜。
+                let fallback = Wardrobe(name: uniqueName(
+                    "Imported closet", taken: existingNames))
+                context.insert(fallback)
+                newWardrobes.append(fallback)
+                item.wardrobe = fallback
             }
             if let lid = dto.locationID { item.location = locationMap[lid] }
             item.sizeSystemRaw = dto.sizeSystemRaw

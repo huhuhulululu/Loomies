@@ -40,10 +40,19 @@ public enum WearStatsService {
             case 0:     return "today"
             case 1:     return "yesterday"
             case 2...6: return "\(days) days ago"
-            default:
+            case 7...364:
                 let f = DateFormatter()
                 f.locale = Locale(identifier: "en_US")
                 f.setLocalizedDateFormatFromTemplate("MMMd")   // §10.5：en-US MM/DD
+                return f.string(from: date)
+            default:
+                // D138：**超过一年要带年份**。此前一律只给「Aug 11」——
+                // 去年八月穿的和上周穿的读起来一模一样，
+                // 而「上次什么时候穿的」这个问题的全部价值就在于分辨它们
+                //（那也是「要不要再买一件」的判断依据）。
+                let f = DateFormatter()
+                f.locale = Locale(identifier: "en_US")
+                f.setLocalizedDateFormatFromTemplate("MMMyyyy")
                 return f.string(from: date)
             }
         }

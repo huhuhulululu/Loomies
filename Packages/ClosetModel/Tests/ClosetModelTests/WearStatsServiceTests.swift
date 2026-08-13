@@ -157,3 +157,33 @@ struct WearStatsServiceTests {
         #expect(batch[tee.id]?.count == WearStatsService.stats(for: tee, in: ctx).count)
     }
 }
+
+/// D138：**超过一年要带年份**。此前一律只给「Aug 11」——
+/// 去年八月穿的和上周穿的读起来一模一样，而「上次什么时候穿的」
+/// 这个问题的全部价值就在于分辨它们。
+struct WearDateCopyTests {
+
+    private func daysAgo(_ n: Int) -> Date {
+        Date().addingTimeInterval(-86_400 * Double(n))
+    }
+
+    @Test func recentDaysReadAsWords() {
+        #expect(WearStatsService.Stats.relative(daysAgo(0)) == "today")
+        #expect(WearStatsService.Stats.relative(daysAgo(1)) == "yesterday")
+        #expect(WearStatsService.Stats.relative(daysAgo(3)) == "3 days ago")
+    }
+
+    /// 一周到一年：月日就够（同一年内不会歧义）。
+    @Test func thisYearShowsMonthAndDay() {
+        let text = WearStatsService.Stats.relative(daysAgo(60))
+        #expect(!text.contains("20"), Comment(rawValue: "半年内不必带年份：\(text)"))
+        #expect(text.contains(where: { $0.isNumber }))
+    }
+
+    /// 超过一年必须带年份，否则与今年同月同日无法区分。
+    @Test func olderThanAYearCarriesTheYear() {
+        let text = WearStatsService.Stats.relative(daysAgo(400))
+        #expect(text.contains("20"),
+                Comment(rawValue: "一年前穿的和上周读起来一样：\(text)"))
+    }
+}

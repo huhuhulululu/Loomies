@@ -121,6 +121,14 @@ public final class CopilotViewModel {
             .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
     }
 
+    /// 衣柜里一共有多少件（含在洗/外借）。
+    ///
+    /// D138：激活阶梯问的是「数字化到什么程度了」，那是总数——
+    /// 用可用件数的话，送洗 6 件就把 25 件的柜推回「再加几件」，
+    /// 而用户什么都没少。`isColdStart` 问的是另一个问题（今天拼不拼得出），
+    /// 那才该看可用件。
+    public var totalItemCount: Int { (wardrobe.items ?? []).count }
+
     public var isColdStart: Bool {
         DebugSettings.shared.forceColdStart || availableItems.count < coldStartThreshold
     }

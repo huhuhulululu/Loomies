@@ -122,3 +122,30 @@ struct SettledBandFreshnessTests {
         #expect(text.contains("vm.reloadToday(in: context)"))
     }
 }
+
+/// D138：阶梯与毕业卡的两处文案矛盾。
+@MainActor
+struct ActivationCoherenceTests {
+
+    private var uiDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    /// 阶梯按**总件数**判——洗衣不该把 25 件的柜推回「再加几件」。
+    @Test func theLadderIgnoresLaundry() throws {
+        let text = try String(
+            contentsOf: uiDir.appendingPathComponent("CopilotView.swift"), encoding: .utf8)
+        #expect(text.contains("showsLadder(itemCount: vm.totalItemCount)"),
+                "送洗几件就把衣柜推回激活阶梯 —— 用户什么都没少")
+    }
+
+    /// 「你的衣柜可以天天给你出主意了」不得出现在一个此刻拼不出任何一套的屏幕上。
+    @Test func theReadyMomentNeverContradictsAnEmptyScreen() throws {
+        let text = try String(
+            contentsOf: uiDir.appendingPathComponent("CopilotView.swift"), encoding: .utf8)
+        #expect(text.contains("!hasSeenReadyMoment, !vm.suggestions.isEmpty"),
+                "毕业卡说「能天天穿」，而它下面就是「今天拼不出一身」")
+    }
+}

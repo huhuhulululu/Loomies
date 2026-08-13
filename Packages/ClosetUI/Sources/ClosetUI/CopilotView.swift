@@ -153,9 +153,16 @@ public struct CopilotView: View {
                 // D119：阶梯此前只在 <8 件时出现，而北极星区间正好从 8 开始——
                 // 用户在 8→20 这段完全没人告诉他还差什么。进度与里程碑陪到 20，
                 // 双路径 CTA 仍只在冷启动出现（那两条是「怎么起步」，不是「还差多少」）。
-                if ActivationProgress.showsLadder(itemCount: vm.availableItems.count) {
+                // D138：阶梯问的是「衣柜数字化到什么程度了」——那是**总件数**，
+                // 不该随洗衣浮动：25 件的柜送洗 6 件就被推回「再加几件」，
+                // 而用户什么都没少，只是在洗。
+                //（`isColdStart` 问的是另一个问题——「今天拼不拼得出」——
+                //  那才该看可用件。两个问题不同，判据自然不同。）
+                if ActivationProgress.showsLadder(itemCount: vm.totalItemCount) {
                     coldStartBanner
-                } else if !hasSeenReadyMoment {
+                } else if !hasSeenReadyMoment, !vm.suggestions.isEmpty {
+                    // 「你的衣柜可以天天给你出主意了」这句话，
+                    // 不能出现在一个此刻拼不出任何一套的屏幕上（D138）
                     readyMoment
                 }
                 controlsCard

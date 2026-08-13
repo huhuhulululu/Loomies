@@ -274,3 +274,62 @@ struct ImportCompletenessTests {
                 Comment(rawValue: receipt.summary))
     }
 }
+
+/// D138：导入的边界。文件是**最不可信的输入**——谁给的都可能。
+@MainActor
+struct ImportEdgeCaseTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    private func snapshot(items: [DataLifecycleService.ItemDTO],
+                          wardrobes: [DataLifecycleService.WardrobeDTO] = []) throws -> Data {
+        try JSONEncoder().encode(DataLifecycleService.ExportSnapshot(
+            schemaVersion: ImportService.supportedSchemaVersion,
+            exportedAt: "2026-08-13", includeBodyDimensions: false,
+            persons: [], wardrobes: wardrobes, locations: [], items: items,
+            outfits: [], wearRecords: [], plans: [], transfers: [], bodyProfiles: nil))
+    }
+
+    private func item(_ id: String, notes: String? = nil, wardrobeID: String? = nil)
+        -> DataLifecycleService.ItemDTO {
+        DataLifecycleService.ItemDTO(
+            id: id, name: "Tee", wardrobeID: wardrobeID, locationID: nil,
+            statusRaw: "available", slotRaw: "top", subtype: nil,
+            occasionsRaw: [], warmthRaw: nil, colorHue: nil, colorIsNeutral: false,
+            attributesRaw: [], brand: nil, sizeLabel: nil, sizeSystemRaw: nil,
+            chestFlatWidthInches: nil, waistFlatWidthInches: nil, hipFlatWidthInches: nil,
+            localImageRelativePath: nil, barcode: nil, careRaw: [], notes: notes,
+            lastWashedAt: nil)
+    }
+
+    /// **备注要过净化门**——实体注释写着「落库前必过 sanitize」，
+    /// 而导入的文件恰恰是最不可信的输入。
+    @Test func importedNotesGoThroughTheSanitiser() throws {
+        let ctx = try makeContext()
+        let hostile = String(repeating: "x", count: 10_000) + "\u{0}\u{1}"
+        _ = try ImportService.importSnapshot(
+            try snapshot(items: [item("a", notes: hostile)]), into: ctx)
+        let stored = try #require(try ctx.fetch(FetchDescriptor<Item>()).first)
+        #expect(stored.notes == ItemNotes.sanitize(hostile))
+        #expect((stored.notes ?? "").count < hostile.count, "长度上限没生效")
+    }
+
+    /// 有件没柜时不得留下**任何界面都看不到**的孤儿——
+    /// `Wardrobe.items` 是唯一入口，没有归属就等于不存在，
+    /// 而收据还会写「导入 N 件到 0 个衣柜」。
+    @Test func itemsWithoutAClosetGetOne() throws {
+        let ctx = try makeContext()
+        let receipt = try ImportService.importSnapshot(
+            try snapshot(items: [item("a"), item("b")]), into: ctx)
+        #expect(receipt.wardrobesAdded == 1, "件被导进来却没有任何衣柜")
+        let stored = try ctx.fetch(FetchDescriptor<Item>())
+        #expect(stored.allSatisfy { $0.wardrobe != nil })
+        #expect(!receipt.summary.contains("0 closets"))
+    }
+}
