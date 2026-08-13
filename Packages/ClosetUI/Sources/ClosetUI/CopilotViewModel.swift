@@ -313,13 +313,13 @@ public final class CopilotViewModel {
         if weatherSourceLabel == Self.weatherUnavailableSourceLabel {
             return nil
         }
-        if let p = precipProbabilityPercent, p >= 50 {
-            return "Rain likely (\(p)%) · consider a layer"
-        }
-        if daytimeTempF < 60 {
-            return "Cool day · outerwear may help"
-        }
-        return nil
+        // D204：阈值与措辞在 `OuterwearCue`（规则层）——这里只留**这一层该管的事**：
+        // 数据可不可信。此前这两条阈值在这里内联了一份，而规则层那份零调用点。
+        return WeatherDaySnapshot(
+            daytimeTempF: daytimeTempF,
+            sourceLabel: weatherSourceLabel,
+            precipProbabilityPercent: precipProbabilityPercent
+        ).outerwearCue?.text
     }
 
     // MARK: - 今天穿了什么（D116）

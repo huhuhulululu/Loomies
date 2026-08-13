@@ -25,11 +25,47 @@ public struct WeatherDaySnapshot: Equatable, Sendable {
         self.precipProbabilityPercent = precipProbabilityPercent
     }
 
+    /// 今天要不要提一句「加件外套」，以及**为什么**（D204）。
+    ///
+    /// 顺序有意：下雨优先于凉——两条都成立时，雨是更可行动的那条
+    ///（凉可以忍，湿不能）。不是硬过滤，只是一句提示。
+    ///
+    /// 阈值住在这里而不是 View 层：`W1.5`（`docs/requirements`）把
+    /// 「降水概率 ≥50%」写成了验收标准，规则该在规则层。
+    public var outerwearCue: OuterwearCue? {
+        if let p = precipProbabilityPercent, p >= OuterwearCue.rainProbabilityThreshold {
+            return .rain(percent: p)
+        }
+        if daytimeTempF < OuterwearCue.coolTemperatureF { return .cool }
+        return nil
+    }
+
     /// Prefer outerwear hint when cool or likely wet (practical dress cue, not a hard filter).
-    public var suggestsOuterwearCue: Bool {
-        if daytimeTempF < 60 { return true }
-        if let p = precipProbabilityPercent, p >= 50 { return true }
-        return false
+    public var suggestsOuterwearCue: Bool { outerwearCue != nil }
+}
+
+/// 「加件外套」这句提示的**理由**与措辞（D204）。
+///
+/// 此前这条规则写了两遍：`WeatherDaySnapshot.suggestsOuterwearCue`（**零生产调用点**，
+/// 却带着权威措辞住在规则层）与 `CopilotViewModel.weatherDressCue` 里的内联版
+///（真正跑的那份）。两份**已经分叉**——VM 那份多一道守卫：天气硬失败时
+/// 不许拿保留下来的旧温度说「今天凉」。
+///
+/// 收成一处：阈值与措辞在这里，**那道守卫留在 VM**（它管的是「数据可不可信」，
+/// 不是「几度算凉」）。
+public enum OuterwearCue: Equatable, Sendable {
+    case rain(percent: Int)
+    case cool
+
+    /// `docs/requirements` W1.5 写死的那个数。
+    public static let rainProbabilityThreshold = 50
+    public static let coolTemperatureF: Double = 60
+
+    public var text: String {
+        switch self {
+        case .rain(let percent): return "Rain likely (\(percent)%) · consider a layer"
+        case .cool: return "Cool day · outerwear may help"
+        }
     }
 }
 
