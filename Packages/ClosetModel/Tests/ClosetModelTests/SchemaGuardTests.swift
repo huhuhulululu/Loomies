@@ -252,3 +252,46 @@ struct SchemaRegistrationCompletenessTests {
         #expect(main.isDisjoint(with: local))
     }
 }
+
+/// D170：把 M0 退出门那条 ⚠️ 补到能证伪。
+///
+/// MVP-PLAN 的 M0 门写着「身体数据不进 CloudKit 的单测硬门绿 ⚠️ **部分**——
+/// 当前 `cloudKitDatabase: .none`，语义未被真正验证」。真开 CloudKit 需要
+/// 真机与云端，这里开不了。
+///
+/// 但**能验证一件更本质的事**：分区与同步开关**无关**。
+/// 身体数据不进 CloudKit 靠的不是「现在没开同步」，而是
+/// **它根本不在主域那份 schema 里**——所以哪天主域开了 `.private(…)`，
+/// 被同步的仍然只有主域那八张表。这条今天就能证伪，且它才是 D5 真正的支点。
+@MainActor
+struct BodyDataStaysLocalRegardlessOfSyncTests {
+
+    /// 假设主域**开了**同步：身体档案仍不在它的 schema 里。
+    @Test func turningOnMainSyncWouldNotCarryBodyData() {
+        let syncedMain = ModelConfiguration(
+            "main", schema: LoomiesStore.mainSchema,
+            cloudKitDatabase: .private("iCloud.test.container"))
+        let names = Set(syncedMain.schema?.entities.map(\.name) ?? [])
+        #expect(!names.isEmpty)
+        #expect(!names.contains("PersonBodyProfile"),
+                "主域开同步后身体数据会跟着走 —— D5 破了")
+        #expect(names.contains("Item"), "主域该有的表反而没了（判据本身坏了）")
+    }
+
+    /// 反过来：本地域的 schema 里**只有**身体档案——
+    /// 它是一份独立的 store，主域同步与否与它无关。
+    @Test func theLocalDomainCarriesOnlyBodyData() {
+        let names = Set(LoomiesStore.localSchema.entities.map(\.name))
+        #expect(names == ["PersonBodyProfile"],
+                Comment(rawValue: "本地域装了别的表：\(names.sorted())"))
+    }
+
+    /// 支点说清楚：两份 schema **不相交**，所以「同步哪一份」这个问题
+    /// 对身体数据没有意义。
+    @Test func theTwoSchemasShareNothing() {
+        let main = Set(LoomiesStore.mainSchema.entities.map(\.name))
+        let local = Set(LoomiesStore.localSchema.entities.map(\.name))
+        #expect(main.isDisjoint(with: local))
+        #expect(!main.isEmpty && !local.isEmpty)
+    }
+}
