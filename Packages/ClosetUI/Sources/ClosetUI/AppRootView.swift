@@ -129,6 +129,19 @@ public struct MeView: View {
                             }
                         }
                     }
+                    // D142：**下一次几点响，写出来。** 用户拨了开关，
+                    // 凭什么相信它真的会响？能核对的状态才是诚实的状态。
+                    // 不会响时（关着 / 衣柜凑不出一身）这一行不出现——
+                    // 写一个永远不会到来的时刻是这条规则要防的事。
+                    if let next = DailyRitual.nextNudgeLine(
+                        isEnabled: dailyRitualOn,
+                        availableItemCount: (wardrobe.items ?? [])
+                            .filter({ $0.statusRaw == "available" }).count,
+                        hour: dailyRitualHour) {
+                        Text(next)
+                            .font(DS.Text.meta).foregroundStyle(DS.muted)
+                            .accessibilityLabel(next)
+                    }
                     Text(dailyRitualNote)
                         .font(DS.Text.meta).foregroundStyle(DS.muted)
                 } header: {
@@ -537,6 +550,19 @@ public struct MeView: View {
             Toggle("Force cold start", isOn: $debug.forceColdStart)
             Toggle("Disable 7-day anti-repeat", isOn: $debug.disableAntiRepeat)
             Toggle("Show status on Today", isOn: $debug.showEmptyReason)
+            // D142：提审阻断清单此前**零生产调用点**——只有测试在按，
+            // 而测试传的是自己编的三个参数：真实的那三个事实此刻是什么，
+            // 全仓没有任何一处知道。放在这里，因为提审前唯一会被真人
+            // 打开的就是这一面。
+            LabeledContent(
+                "Release",
+                value: ReleaseReadiness.summaryLine(
+                    telemetrySinkConnected: TelemetryGate.shared.hasSink))
+            ForEach(Array(ReleaseReadiness.currentBlockers(
+                telemetrySinkConnected: TelemetryGate.shared.hasSink
+            ).enumerated()), id: \.offset) { _, blocker in
+                Text(blocker).font(.caption2).foregroundStyle(DS.muted)
+            }
             LabeledContent("Log ring", value: "\(AppLog.ring.count) lines")
             Button("Clear log ring") { AppLog.ring.clear() }
             Button("Reset debug flags") { debug.resetAll() }

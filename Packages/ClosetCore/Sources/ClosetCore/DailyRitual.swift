@@ -119,6 +119,28 @@ public enum DailyRitual {
     /// 邀请是否问过（问过就不再问）。
     public static let inviteAskedDefaultsKey = "loomies.dailyRitual.invited"
 
+    /// 下一次真的会响的时刻，写成人话；此刻不会响则 **nil**（D142）。
+    ///
+    /// `nextFireDate` 此前零生产调用点——排程走的是 `DateComponents` 匹配，
+    /// 从来没人问过「下一次是什么时候」。而那正是开关旁边最该有的一行：
+    /// 用户拨了开关，凭什么相信它真的会响？**能核对的状态才是诚实的状态**
+    ///（同 D136 的撤权对账：设置里显示「开」而系统一条都不会发，
+    /// 是最典型的那类不诚实）。
+    ///
+    /// 关着、或衣柜凑不出一身（排程本来就会跳过）→ 不给时间。
+    /// 写一个永远不会到来的时刻，正是这条规则要防的事。
+    public static func nextNudgeLine(
+        isEnabled: Bool, availableItemCount: Int, hour: Int,
+        now: Date = Date(), calendar: Calendar = .current
+    ) -> String? {
+        guard isEnabled, shouldSchedule(availableItemCount: availableItemCount),
+              let fire = nextFireDate(
+                after: now, hour: hour, minute: defaultMinute, calendar: calendar)
+        else { return nil }
+        let day = calendar.isDate(fire, inSameDayAs: now) ? "today" : "tomorrow"
+        return "Next: \(day), \(hourLabel(hour))"
+    }
+
     /// 一周七条**按周重复**的排程（每天一条）。
     ///
     /// 不能用「一条每日重复 + 排程当刻算出的星期名」——周三排的

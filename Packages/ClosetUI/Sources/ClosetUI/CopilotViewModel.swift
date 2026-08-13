@@ -452,8 +452,7 @@ public final class CopilotViewModel {
             // the "All pieces worn in last 7 days" message here.
             let availableIDs = Set(availableItems.map { $0.id.uuidString })
             let wornHere = worn.intersection(availableIDs)
-            statusMessage = emptyReason(
-                anchors: anchors, wornCount: wornHere.count, available: availableItems.count)
+            statusMessage = emptyReason(anchors: anchors, wornCount: wornHere.count)
         } else {
             statusMessage = "Look \(selectedSuggestionIndex + 1) of \(suggestions.count)"
         }
@@ -462,13 +461,14 @@ public final class CopilotViewModel {
             .copilot)
     }
 
-    private func emptyReason(anchors: [Item], wornCount: Int, available: Int) -> String {
+    private func emptyReason(anchors: [Item], wornCount: Int) -> String {
         CopilotEmptyReason.text(
-            available: available, wornCount: wornCount,
-            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed,
             // D128：把候选传进去，空态才说得出**缺的是哪个槽位**——
             // 缺鞋时让用户「换个场合试试」是一条走不通的路。
-            candidates: availableItems.map { $0.toCandidateItem() })
+            // D142：件数由它自己数，不再另传一个可能对不上的数。
+            candidates: availableItems.map { $0.toCandidateItem() },
+            wornCount: wornCount,
+            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed)
     }
 }
 
@@ -485,10 +485,18 @@ public enum CopilotEmptyReason {
     /// 而用户此前看到的是「换个场合试试」。换场合当然没用：缺的是鞋。
     /// 他会一个一个场合试过去，然后以为 App 坏了。
     /// `OutfitGrammar` 早把这些算出来了，空态只要问一句。
+    /// D142：件数**从候选推出**，不再单独传。
+    ///
+    /// 两者本来就来自同一个集合（`availableItems`），分开传就造出一个
+    /// **表达得出、却永远不会发生**的状态：`candidates.isEmpty && available > 0`。
+    /// 而旧代码正有一条分支挂在它上面（`candidates.isEmpty, available < 3`）——
+    /// 生产路径永远走不到，测试却靠传入矛盾入参把它测绿了：**假信心**。
+    /// 那句话本身也已被 `missingSlotSentence` 说得更好（点名缺哪个槽位）。
     public static func text(
-        available: Int, wornCount: Int, anchorCount: Int, repeatGateRelaxed: Bool,
-        candidates: [CandidateItem] = []
+        candidates: [CandidateItem], wornCount: Int, anchorCount: Int,
+        repeatGateRelaxed: Bool
     ) -> String {
+        let available = candidates.count
         if available == 0 {
             return "Nothing available in this closet yet — add a few pieces to get picks."
         }
@@ -496,11 +504,6 @@ public enum CopilotEmptyReason {
         // 捷径在这里会说错话：对一个「有裙有鞋」的用户说
         // 「去加上装和下装」，那两件他根本不需要。
         if let missing = missingSlotSentence(candidates) { return missing }
-        // 只在**拿不到候选**时才用件数这个粗判据：有候选而语法说齐全，
-        // 说明缺的不是件（比如「有裙有鞋」就够了），此时再劝人加衣服是错的。
-        if candidates.isEmpty, available < 3 {
-            return "Add a top, a bottom and shoes and you'll get a full look."
-        }
         // 只有防重复**真的**在起作用时才归因于它
         if !repeatGateRelaxed, wornCount > 0, wornCount >= available {
             return "You've worn everything here in the past week — wait a day, "
@@ -527,6 +530,9 @@ public enum CopilotEmptyReason {
         if violations.contains(.missingShoes) { missing.append("shoes") }
         guard !missing.isEmpty else { return nil }
         let list = ActivationProgress.listJoin(missing)
-        return "This closet can't finish a look yet — it needs \(list)."
+        // D142：写成祈使句。此前是「it needs …」——只报告状态不给下一步，
+        // 而那句「Add a top, a bottom and shoes」原本挂在一条**永远走不到**的
+        // 分支上：件数少的用户真正看到的一直是没有动作的那句。
+        return "This closet can't finish a look yet — add \(list)."
     }
 }

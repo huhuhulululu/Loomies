@@ -66,6 +66,14 @@ struct DailyRitualInviteWiringTests {
                 "设置页仍自己拼 12 小时制 —— 两份格式化迟早写出两个时间")
     }
 
+    /// D142：开关旁边要写出下一次几点响——`nextFireDate` 此前零调用点，
+    /// 而那正是让这个开关**可核对**的唯一一行。
+    @Test func theSwitchShowsWhenItWillNextFire() throws {
+        let text = try source("AppRootView.swift")
+        #expect(text.contains("DailyRitual.nextNudgeLine"),
+                "开关拨开了，用户没有任何办法确认它到底会不会响")
+    }
+
     /// 邀请卡不得挂在 `else` 链上（D134 的错位在同一个文件里发生过：
     /// 一张卡片插进 if/else 中间，`else` 改挂到了它头上，
     /// 正常屏也跟着渲染出一张「没有匹配」）。

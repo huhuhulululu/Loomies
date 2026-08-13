@@ -479,17 +479,28 @@ struct CopilotViewModelTests {
 @MainActor
 struct CopilotEmptyReasonHonestyTests {
 
+    /// D142：候选池由测试自己搭出来——此前这些用例传的是一个**光秃秃的件数**
+    /// （`available: 8`，candidates 缺省为空），而生产路径上两者永远同源。
+    /// 那个矛盾状态喂出来的文案，没有一条是真实用户会看到的。
+    private func pool(_ n: Int) -> [CandidateItem] {
+        let slots: [GarmentSlot] = [.top, .bottom, .shoes]
+        return (0..<n).map {
+            CandidateItem(id: "i\($0)", slot: slots[$0 % slots.count],
+                          occasions: [], warmth: .light, status: .available)
+        }
+    }
+
     @Test func reasonNeverBlamesAntiRepeatWhenItWasRelaxed() throws {
         // 防重复已降级 → 空结果的原因不在它，文案不得甩锅给它
         let reason = CopilotEmptyReason.text(
-            available: 8, wornCount: 8, anchorCount: 0, repeatGateRelaxed: true)
+            candidates: pool(8), wornCount: 8, anchorCount: 0, repeatGateRelaxed: true)
         #expect(!reason.localizedCaseInsensitiveContains("worn in last 7 days"))
     }
 
     /// 真的是防重复清空的（没降级）→ 可以这么说，但不得让用户去点 Debug 开关。
     @Test func reasonMayBlameAntiRepeatOnlyWhenItActuallyApplied() {
         let reason = CopilotEmptyReason.text(
-            available: 8, wornCount: 8, anchorCount: 0, repeatGateRelaxed: false)
+            candidates: pool(8), wornCount: 8, anchorCount: 0, repeatGateRelaxed: false)
         #expect(reason.localizedCaseInsensitiveContains("worn"))
         #expect(!reason.localizedCaseInsensitiveContains("debug"))
         #expect(!reason.localizedCaseInsensitiveContains("toggle"))
@@ -503,7 +514,7 @@ struct CopilotEmptyReasonHonestyTests {
         ]
         for (available, worn, anchors, relaxed) in cases {
             let r = CopilotEmptyReason.text(
-                available: available, wornCount: worn,
+                candidates: pool(available), wornCount: worn,
                 anchorCount: anchors, repeatGateRelaxed: relaxed)
             #expect(!r.isEmpty)
             for word in ["debug", "grammar", "filters", "toggle"] {
@@ -517,7 +528,7 @@ struct CopilotEmptyReasonHonestyTests {
     @Test func everyReasonSuggestsSomethingToDo() {
         for (available, worn, anchors) in [(0, 0, 0), (2, 0, 0), (8, 8, 0), (8, 0, 2)] {
             let r = CopilotEmptyReason.text(
-                available: available, wornCount: worn,
+                candidates: pool(available), wornCount: worn,
                 anchorCount: anchors, repeatGateRelaxed: false)
             let actionable = ["add", "try", "pick", "wait", "change", "tag"]
                 .contains { r.localizedCaseInsensitiveContains($0) }

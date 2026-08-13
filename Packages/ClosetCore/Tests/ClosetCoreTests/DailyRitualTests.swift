@@ -277,3 +277,55 @@ struct DailyRitualInviteTests {
         #expect(DailyRitual.hourLabel(5) == "5:00 AM")
     }
 }
+
+/// D142：`nextFireDate` 零生产调用点——排程用的是 `UNCalendarNotificationTrigger`
+/// 的 `DateComponents` 匹配，从来没人问过「下一次是什么时候」。
+///
+/// 而那正是开关旁边最该有的一行：用户拨了开关，凭什么相信它真的会响？
+/// **能核对的状态才是诚实的状态**（同 D136 的撤权对账：设置里显示「开」
+/// 而系统一条都不会发，是最典型的那类不诚实）。
+struct NextNudgeLineTests {
+
+    private let cal = Calendar(identifier: .gregorian)
+
+    private func at(_ h: Int, _ m: Int) -> Date {
+        var c = DateComponents()
+        c.year = 2026; c.month = 8; c.day = 13; c.hour = h; c.minute = m
+        return cal.date(from: c)!
+    }
+
+    /// 还没到点 → 今天。
+    @Test func beforeTheHourItIsToday() {
+        let line = DailyRitual.nextNudgeLine(
+            isEnabled: true, availableItemCount: 20, hour: 7,
+            now: at(5, 30), calendar: cal)
+        #expect(line?.localizedCaseInsensitiveContains("today") == true,
+                Comment(rawValue: line ?? "nil"))
+        #expect(line?.contains("7:00 AM") == true, Comment(rawValue: line ?? "nil"))
+    }
+
+    /// 过了点 → 明天（**不补发今天**，与排程口径一致）。
+    @Test func afterTheHourItIsTomorrow() {
+        let line = DailyRitual.nextNudgeLine(
+            isEnabled: true, availableItemCount: 20, hour: 7,
+            now: at(9, 0), calendar: cal)
+        #expect(line?.localizedCaseInsensitiveContains("tomorrow") == true,
+                Comment(rawValue: line ?? "nil"))
+    }
+
+    /// **关着就不写时间**——写一个不会到来的时刻正是这条规则要防的事。
+    @Test func aDisabledNudgeHasNoNextTime() {
+        #expect(DailyRitual.nextNudgeLine(
+            isEnabled: false, availableItemCount: 20, hour: 7,
+            now: at(5, 0), calendar: cal) == nil)
+    }
+
+    /// 衣柜凑不出一身时也不会响（`shouldSchedule` 直接跳过）——
+    /// 那就不许显示一个时间。
+    @Test func aClosetThatCannotDressYouHasNoNextTime() {
+        #expect(DailyRitual.nextNudgeLine(
+            isEnabled: true, availableItemCount: 3, hour: 7,
+            now: at(5, 0), calendar: cal) == nil,
+                "开关开着、衣柜不够，却显示了一个永远不会到来的时刻")
+    }
+}

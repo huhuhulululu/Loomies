@@ -119,3 +119,55 @@ struct PolicySiteTests {
         #expect(blockers.count == 2)
     }
 }
+
+/// D142：`ReleaseReadiness` **零生产调用点**——那条「没接分析服务不得提审」的门
+/// 只有测试在按，而测试传的是自己编的三个参数。
+///
+/// 也就是说：D116 建了一道提审阻断门，D111 又给它补了两条，
+/// 而**真实的那三个事实此刻是什么，全仓没有任何一处知道**。
+/// 提交当天才发现，正是这套东西当初要防的事。
+///
+/// 处置：三个事实收进 `ReleaseFacts`（唯一真相，此刻全空、注释说清在哪儿填），
+/// 阻断项由它 + `TelemetryGate` 的实况算出来，显示在 Debug 面板——
+/// 那是提审前唯一会被真人打开的那一面。
+///
+/// **刻意不做**：让 `blockers` 非空就红。域名此刻确实不存在（仓里不编造真实世界的
+/// 事实，那是 D111 定的同一条底线），一条永远红的测试三天内就会被无视——
+/// 那比没有门更糟。这里守的是「口径唯一 + 真的显示出来」。
+struct ReleaseFactsTests {
+
+    /// 事实有唯一来源（散在三处的话，填了一处等于没填）。
+    @Test func theFactsHaveASingleHome() {
+        // 此刻全未填——这是**事实陈述**，不是愿望：域名还不存在
+        #expect(ReleaseFacts.privacyPolicyURL == nil)
+        #expect(ReleaseFacts.supportURL == nil)
+        #expect(ReleaseFacts.supportContact == nil)
+    }
+
+    /// 阻断项从实况算，不从测试编的参数算。
+    @Test func theCurrentBlockersComeFromTheRealFacts() {
+        let blockers = ReleaseReadiness.currentBlockers(telemetrySinkConnected: true)
+        #expect(blockers.count == 3, Comment(rawValue: blockers.joined(separator: " / ")))
+    }
+
+    /// 填上之后这条门自己会放行——它是清单，不是永久红灯。
+    @Test func supplyingTheFactsClearsIt() {
+        #expect(ReleaseReadiness.blockers(
+            privacyPolicyURL: "https://loomies.example/privacy.html",
+            supportURL: "https://loomies.example/support.html",
+            supportContact: "help@loomies.example",
+            telemetrySinkConnected: true).isEmpty)
+    }
+
+    /// 一句给人看的摘要（Debug 面板那一行）。
+    @Test func theSummaryNamesHowManyAreLeft() {
+        let line = ReleaseReadiness.summaryLine(telemetrySinkConnected: true)
+        #expect(line.contains("3"), Comment(rawValue: line))
+    }
+
+    /// 全部满足时说得出「可以提交」——不留一句模棱两可的话。
+    @Test func aClearSummaryWhenNothingBlocks() {
+        #expect(ReleaseReadiness.summaryLine(blockers: [])
+            .localizedCaseInsensitiveContains("ready"))
+    }
+}

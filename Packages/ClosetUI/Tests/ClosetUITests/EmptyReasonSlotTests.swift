@@ -25,8 +25,8 @@ struct EmptyReasonSlotTests {
     @Test func itNamesTheMissingShoes() {
         let pool = [item("t", .top), item("b", .bottom)]
         let text = CopilotEmptyReason.text(
-            available: pool.count, wornCount: 0, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(text.localizedCaseInsensitiveContains("shoes"),
                 Comment(rawValue: "缺鞋却让用户去换场合：\(text)"))
     }
@@ -35,8 +35,8 @@ struct EmptyReasonSlotTests {
     @Test func itNamesTheMissingBottom() {
         let pool = [item("t", .top), item("s", .shoes)]
         let text = CopilotEmptyReason.text(
-            available: pool.count, wornCount: 0, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(text.localizedCaseInsensitiveContains("bottom")
                 || text.localizedCaseInsensitiveContains("trousers")
                 || text.localizedCaseInsensitiveContains("skirt"),
@@ -47,8 +47,8 @@ struct EmptyReasonSlotTests {
     @Test func itNamesEveryMissingSlotAtOnce() {
         let pool = [item("t", .top), item("t2", .top), item("t3", .top)]
         let text = CopilotEmptyReason.text(
-            available: pool.count, wornCount: 0, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(text.localizedCaseInsensitiveContains("bottom"))
         #expect(text.localizedCaseInsensitiveContains("shoes"))
     }
@@ -57,8 +57,8 @@ struct EmptyReasonSlotTests {
     @Test func aDressCoversTopAndBottom() {
         let pool = [item("d", .dress), item("s", .shoes)]
         let text = CopilotEmptyReason.text(
-            available: pool.count, wornCount: 0, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(!text.localizedCaseInsensitiveContains("bottom"),
                 Comment(rawValue: "有连衣裙还让用户去加下装：\(text)"))
     }
@@ -67,8 +67,8 @@ struct EmptyReasonSlotTests {
     @Test func aCompleteClosetFallsBackToTheOldReason() {
         let pool = [item("t", .top), item("b", .bottom), item("s", .shoes)]
         let text = CopilotEmptyReason.text(
-            available: pool.count, wornCount: 0, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(text.localizedCaseInsensitiveContains("occasion")
                 || text.localizedCaseInsensitiveContains("weather"))
     }
@@ -80,16 +80,24 @@ struct EmptyReasonSlotTests {
     @Test func theAntiRepeatReasonWinsWhenTheClosetIsOtherwiseComplete() {
         let pool = [item("t", .top), item("b", .bottom), item("s", .shoes)]
         let text = CopilotEmptyReason.text(
-            available: 3, wornCount: 3, anchorCount: 0,
-            repeatGateRelaxed: false, candidates: pool)
+            candidates: pool, wornCount: 3, anchorCount: 0,
+            repeatGateRelaxed: false)
         #expect(text.localizedCaseInsensitiveContains("week"))
     }
 
-    /// 不传候选时行为不变（既有调用点不受影响）。
-    @Test func theOldSignatureStillWorks() {
-        let text = CopilotEmptyReason.text(
-            available: 5, wornCount: 0, anchorCount: 0, repeatGateRelaxed: false)
-        #expect(!text.isEmpty)
+    /// D142：**件数由候选自己数**——此前 `available` 是单独传的，
+    /// 于是「available: 5 而 candidates 为空」这种生产上永不发生的状态
+    /// 表达得出来，还有一条分支挂在它上面被测绿了（假信心）。
+    /// 现在那个矛盾在类型上就写不出来。
+    @Test func theCountComesFromTheCandidatesThemselves() {
+        let pool = [item("t", .top), item("b", .bottom), item("s", .shoes)]
+        #expect(!CopilotEmptyReason.text(
+            candidates: pool, wornCount: 0, anchorCount: 0,
+            repeatGateRelaxed: false).isEmpty)
+        // 空柜说空柜
+        #expect(CopilotEmptyReason.text(
+            candidates: [], wornCount: 0, anchorCount: 0, repeatGateRelaxed: false)
+            .localizedCaseInsensitiveContains("add"))
     }
 }
 
