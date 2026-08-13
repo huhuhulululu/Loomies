@@ -48,21 +48,22 @@ struct AvatarImageCacheTests {
     }
 
     /// 非有限/非正宽度（首帧布局瞬态）安全降级为 nil，不 trap（Int(NaN) 陷阱）。
+    /// D155：同步取图入口已删（零生产调用点），这里改打视图真正走的那两个。
     @Test func morphCacheSurvivesNonFiniteWidth() {
         let cache = BodyMorphImageCache()
-        #expect(cache.image(named: "x", morph: .neutral, width: .nan) == nil)
-        #expect(cache.image(named: "x", morph: .neutral, width: .infinity) == nil)
-        #expect(cache.image(named: "x", morph: .neutral, width: 0) == nil)
-        #expect(cache.image(named: "x", morph: .neutral, width: -5) == nil)
+        for bad in [Double.nan, .infinity, 0, -5] {
+            #expect(cache.cacheKey(named: "x", morph: .neutral, width: bad) == nil)
+            #expect(cache.cachedImage(named: "x", morph: .neutral, width: bad) == nil)
+        }
     }
 
     /// morph 缓存对 miss（资产缺失）也要负缓存：缺资产不得每 tick 重走读盘+解码。
-    @Test func morphCacheCachesMisses() {
+    @Test func morphCacheCachesMisses() async {
         let cache = BodyMorphImageCache()
         let before = cache.renderAttempts
-        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
-        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
-        _ = cache.image(named: "no-such-asset-xyz", morph: .neutral, width: 100)
+        for _ in 0..<3 {
+            await cache.renderOffMain(named: "no-such-asset-xyz", morph: .neutral, width: 100)
+        }
         #expect(cache.renderAttempts == before + 1)
     }
 }

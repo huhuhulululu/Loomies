@@ -225,6 +225,10 @@ struct BodyMorphImageView: View {
     var morph: BodyMorphParams
     var logicalWidth: CGFloat
 
+    /// 上一次画出来的那张。**新图算好之前先顶着**——
+    /// 不顶的话滑杆一动画面就闪白，比卡顿更糟（D155）。
+    @State private var shown: Image?
+
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
@@ -234,17 +238,34 @@ struct BodyMorphImageView: View {
             let horizontalOnly = BodyMorphParams(
                 chest: m.chest, waist: m.waist, hip: m.hip,
                 shoulder: m.shoulder, height: 1)
-            if let rendered = BodyMorphImageCache.shared.image(
-                named: assetName, morph: horizontalOnly, width: w)
-            {
-                rendered
-                    .resizable()
-                    .interpolation(.high)
-                    .aspectRatio(contentMode: .fit)
-                    .scaleEffect(x: 1, y: CGFloat(m.height), anchor: .center)
-                    .frame(width: w, height: h)
-            } else {
-                Color.clear
+            let cache = BodyMorphImageCache.shared
+            let key = cache.cacheKey(named: assetName, morph: horizontalOnly, width: w)
+            // 命中直出；未命中先拿旧的顶着，后台算好再换
+            let image = cache.cachedImage(
+                named: assetName, morph: horizontalOnly, width: w) ?? shown
+            Group {
+                if let image {
+                    image
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(x: 1, y: CGFloat(m.height), anchor: .center)
+                        .frame(width: w, height: h)
+                } else {
+                    Color.clear
+                }
+            }
+            // D155：逐像素变形实测 27.7ms/次，同步跑在 body 里等于滑杆每格掉两帧。
+            // `.task(id:)` 在键变化时自动取消上一次——快拖时不会积压一串过期 warp。
+            .task(id: key) {
+                guard let key, !Task.isCancelled else { return }
+                await cache.renderOffMain(
+                    named: assetName, morph: horizontalOnly, width: w)
+                guard !Task.isCancelled,
+                      cache.cacheKey(named: assetName, morph: horizontalOnly, width: w) == key
+                else { return }
+                shown = cache.cachedImage(
+                    named: assetName, morph: horizontalOnly, width: w)
             }
         }
     }
@@ -276,43 +297,66 @@ final class BodyMorphImageCache {
     /// 测试探针：render 实际执行次数（验证 miss 也被缓存，不每 tick 重试）。
     private(set) var renderAttempts = 0
 
-    func image(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
-        // 非有限/非正宽度（首帧布局瞬态）直接返回 nil，不缓存也不 trap（Int(NaN) 陷阱）。
+    /// 缓存键。非有限/非正宽度（首帧布局瞬态）→ nil（不缓存也不 trap，Int(NaN) 陷阱）。
+    func cacheKey(named name: String, morph: BodyMorphParams, width: CGFloat) -> String? {
         guard width.isFinite, width > 0 else { return nil }
         let m = morph.clamped()
         let wKey = Int(min(8192, width).rounded())
         // v3：乳贴带扩宽 + 无纵向 height warp
-        let key = "v3|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
-        if let box = cache.object(forKey: key as NSString) { return box.image }
+        return "v3|\(name)|\(wKey)|\(fmt(m.chest))|\(fmt(m.waist))|\(fmt(m.hip))|\(fmt(m.shoulder))|\(fmt(m.height))"
+    }
+
+    /// **只查不算**（D155）。
+    ///
+    /// 此前 `image(named:morph:width:)` 未命中就地 warp，而它是在 view body 里调的：
+    /// 滑杆 21 个档位、每档一个新键，每格一次 27.7ms 的逐像素变形——每格掉两帧，
+    /// 恰好落在「精调体型」这个最需要顺滑的界面上。
+    func cachedImage(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
+        guard let key = cacheKey(named: name, morph: morph, width: width) else { return nil }
+        return cache.object(forKey: key as NSString)?.image
+    }
+
+    /// 未命中时在**后台**算，算完落进缓存。
+    ///
+    /// `render` 是纯 CoreGraphics + 锁保护的资产缓存（与 `AvatarCinematicExporter`
+    /// 同一条依赖，那里早就 nonisolated 跑）。资产缺失也照样缓存——
+    /// **负缓存**，否则缺资产每 tick 重走读盘（D109 栽过一次）。
+    func renderOffMain(named name: String, morph: BodyMorphParams, width: CGFloat) async {
+        guard let key = cacheKey(named: name, morph: morph, width: width) else { return }
+        guard cache.object(forKey: key as NSString) == nil else { return }
         renderAttempts += 1
-        let rendered = render(named: name, morph: m, width: width)
+        let m = morph.clamped()
+        let rendered = await Task.detached(priority: .userInitiated) {
+            await Self.renderDetached(named: name, morph: m, width: width)
+        }.value
         let pixelW = max(256, min(1280, width * 2))
         let cost = rendered == nil ? 1 : Int(pixelW * pixelW * 1.5 * 4)
         cache.setObject(Box(rendered), forKey: key as NSString, cost: cost)
-        return rendered
     }
 
-    func clear() { cache.removeAllObjects() }
+    // D155：同步取图入口已删——改造之后它**零生产调用点**，只剩测试在用，
+    // 而留着就是第二条会漂移的路（本 session 修过太多次同一个病）。
+    // 视图走 `cachedImage` + `renderOffMain`；需要同步结果的场合目前不存在。
 
-    private func fmt(_ v: Double) -> String { String(format: "%.3f", v) }
-
-    private func render(named name: String, morph: BodyMorphParams, width: CGFloat) -> Image? {
+    /// 后台侧的渲染（资产加载仍回主线程一次——`bundleUIImage` 是 MainActor 的，
+    /// 但它自己有缓存，代价是查表不是解码；逐像素那一段在后台）。
+    private static func renderDetached(
+        named name: String, morph: BodyMorphParams, width: CGFloat
+    ) async -> Image? {
         let pixelW = max(256, min(1280, width * 2))
         #if canImport(UIKit)
-        guard let ui = BodyAvatarView.bundleUIImage(named: name) else { return nil }
-        if BodyMorphRaster.shouldBypass(morph) {
-            return Image(uiImage: ui)
-        }
-        if let warped = BodyMorphRaster.warpedUIImage(from: ui, morph: morph, outputWidth: pixelW) {
+        guard let ui = await BodyAvatarView.bundleUIImage(named: name) else { return nil }
+        if BodyMorphRaster.shouldBypass(morph) { return Image(uiImage: ui) }
+        if let warped = BodyMorphRaster.warpedUIImage(
+            from: ui, morph: morph, outputWidth: pixelW) {
             return Image(uiImage: warped)
         }
         return Image(uiImage: ui)
         #elseif canImport(AppKit) && !os(iOS)
-        guard let ns = BodyAvatarView.bundleNSImage(named: name) else { return nil }
-        if BodyMorphRaster.shouldBypass(morph) {
-            return Image(nsImage: ns)
-        }
-        if let warped = BodyMorphRaster.warpedNSImage(from: ns, morph: morph, outputWidth: pixelW) {
+        guard let ns = await BodyAvatarView.bundleNSImage(named: name) else { return nil }
+        if BodyMorphRaster.shouldBypass(morph) { return Image(nsImage: ns) }
+        if let warped = BodyMorphRaster.warpedNSImage(
+            from: ns, morph: morph, outputWidth: pixelW) {
             return Image(nsImage: warped)
         }
         return Image(nsImage: ns)
@@ -320,4 +364,12 @@ final class BodyMorphImageCache {
         return nil
         #endif
     }
+
+    func clear() { cache.removeAllObjects() }
+
+    private func fmt(_ v: Double) -> String { String(format: "%.3f", v) }
+
+    // D155：`render(named:morph:width:)` 已删——同步入口撤掉之后它是孤儿（0 调用）。
+    // 逐像素那一段现在只在 `renderDetached` 里跑，且只在后台。
+
 }
