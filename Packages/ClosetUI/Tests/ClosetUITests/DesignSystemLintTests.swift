@@ -110,3 +110,98 @@ struct DesignSystemLintTests {
         #expect(violations.isEmpty, Comment(rawValue: "强制了配色方案：\(violations)"))
     }
 }
+
+/// D121：**全 app 没有排版层级**——`caption` + `caption2` 曾占全部字号调用的
+/// **83%**（230/276），`headline`（17pt）以上只有 6 处：每一行都在小声说话，
+/// 读起来像设置页而不是一个产品。
+///
+/// DESIGN §462 早就写明审美参照是「高端时尚电商的排版气质
+/// （SSENSE 黑白克制、NAP/Sézane 的 serif 编辑感）」，§566 还要求
+/// 「serif 标题也须缩放」——规范写了，实现从来没做。
+@MainActor
+struct TypeScaleLintTests {
+
+    private var sourcesDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    private func allSources() -> [(name: String, text: String)] {
+        var out: [(String, String)] = []
+        let fm = FileManager.default
+        for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" {
+            if let text = try? String(contentsOf: url, encoding: .utf8) {
+                out.append((url.lastPathComponent, text))
+            }
+        }
+        return out
+    }
+
+    /// 字阶必须存在，且**从 Dynamic Type 的文本样式派生**——
+    /// `.system(size:)` 固定值不随用户字号缩放，直接违反 §566。
+    @Test func theScaleIsBuiltOnDynamicType() throws {
+        let ds = try String(
+            contentsOf: sourcesDir.appendingPathComponent("DesignSystem.swift"), encoding: .utf8)
+        #expect(ds.contains("enum Text"), "没有语义字阶")
+        #expect(ds.contains("design: .serif"),
+                "标题不是 serif —— DESIGN §462 的编辑感参照没落地")
+        // 字阶内部不得出现固定磅值
+        guard let range = ds.range(of: "public enum Text") else { return }
+        let scale = String(ds[range.lowerBound...].prefix(1200))
+        #expect(!scale.contains(".system(size:"),
+                "字阶里出现固定磅值 —— Dynamic Type 全档缩放会失效（§566）")
+    }
+
+    /// 主视觉标题不得再和列表行一样大。
+    @Test func theHeroTitleUsesTheDisplayRole() throws {
+        let text = try String(
+            contentsOf: sourcesDir.appendingPathComponent("CopilotView.swift"), encoding: .utf8)
+        #expect(text.contains("Text(heroTitle)\n                .font(DS.Text.display)"),
+                "Today 主视觉标题没有用 display 档")
+    }
+
+    /// **设计健康度**：小字占比不得再回到「什么都是 caption」。
+    /// 这是个度量而不是风格规则——阈值给得宽，只拦住整体退化。
+    @Test func theAppIsNotAllWhispers() {
+        // 计数要精确到 token 边界：`.font(.caption` 也会匹配 `.font(.caption2`。
+        func count(_ style: String, in text: String) -> Int {
+            var n = 0
+            var searchRange = text.startIndex..<text.endIndex
+            while let r = text.range(of: ".font(.\(style)", range: searchRange) {
+                let after = r.upperBound
+                let next = after < text.endIndex ? text[after] : " "
+                if !next.isNumber && next != "_" { n += 1 }
+                searchRange = after..<text.endIndex
+            }
+            return n
+        }
+        // 语义档也要算——否则迁移到 `DS.Text.*` 会让分子分母**同时**减少，
+        // 比例纹丝不动，这条度量就变成了摆设。
+        func countRole(_ role: String, in text: String) -> Int {
+            text.components(separatedBy: "DS.Text.\(role)").count - 1
+        }
+        var small = 0
+        var total = 0
+        for file in allSources() {
+            let rawSmall = count("caption", in: file.text) + count("caption2", in: file.text)
+            let roleSmall = countRole("meta", in: file.text) + countRole("micro", in: file.text)
+            small += rawSmall + roleSmall
+            var rawTotal = 0
+            for style in ["largeTitle", "title3", "title2", "title", "headline",
+                          "subheadline", "body", "callout", "caption", "caption2"] {
+                rawTotal += count(style, in: file.text)
+            }
+            var roleTotal = roleSmall
+            for role in ["display", "sectionTitle", "rowTitle", "body"] {
+                roleTotal += countRole(role, in: file.text)
+            }
+            total += rawTotal + roleTotal
+        }
+        guard total > 0 else { return }
+        let ratio = Double(small) / Double(total)
+        #expect(ratio < 0.80, Comment(rawValue:
+            "小字占比 \(Int(ratio * 100))% —— 每一行都在小声说话，读起来像设置页"))
+    }
+}

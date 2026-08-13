@@ -22,8 +22,8 @@ public struct HelpView: View {
             Section {
                 ForEach(NetworkSurfaceCatalog.surfaces) { surface in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(surface.title).font(.headline)
-                        Text(surface.sends).font(.caption)
+                        Text(surface.title).font(DS.Text.rowTitle)
+                        Text(surface.sends).font(DS.Text.body)
                         Text(surface.trigger).font(.caption2).foregroundStyle(DS.muted)
                         Text(surface.optOut).font(.caption2).foregroundStyle(DS.muted)
                         Text(surface.hosts.joined(separator: ", "))

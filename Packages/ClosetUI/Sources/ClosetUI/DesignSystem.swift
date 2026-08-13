@@ -52,6 +52,34 @@ public enum DS {
     public static let radiusLg: CGFloat = 18
     public static let heroMinHeight: CGFloat = 360
 
+    /// 语义字阶（D121）。
+    ///
+    /// 此前全 app **没有层级**：`caption` + `caption2` 占了全部字号调用的 **83%**
+    /// （230/276），`headline`（17pt）以上只有 6 处——每一行都在小声说话，
+    /// 读起来像设置页而不是一个产品。
+    ///
+    /// DESIGN §462 早就写明审美参照是「高端时尚电商的排版气质
+    /// （SSENSE 黑白克制、NAP/Sézane 的 serif 编辑感）」，§566 还要求
+    /// 「serif 标题也须缩放」——**规范写了，实现从来没做**。
+    ///
+    /// 每一档都从 Dynamic Type 的**文本样式**派生（不是 `.system(size:)` 固定值），
+    /// 所以全档缩放天然成立，那是 §566 的硬要求。
+    public enum Text {
+        /// 主视觉标题（Today 的那身、毕业时刻）。编辑感 serif。
+        public static let display = Font.system(.title, design: .serif).weight(.semibold)
+        /// 卡片 / 区块标题。
+        public static let sectionTitle = Font.system(.title3, design: .serif).weight(.medium)
+        /// 列表行主标题。
+        public static let rowTitle = Font.headline
+        /// 正文。
+        public static let body = Font.subheadline
+        /// 次要信息（说明、状态）。
+        public static let meta = Font.caption
+        /// 最次级（角标、单位）——**只**用于真正次要的东西，
+        /// 不是「懒得想层级就用它」。
+        public static let micro = Font.caption2
+    }
+
     /// 类别色（槽位 / 场合）。同样按配色方案解析——这些此前是散在两个视图里的
     /// sRGB 字面量，深色下调不动，也没人知道全套有几个。
     public static func slotWash(_ slotRaw: String) -> Color {

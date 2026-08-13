@@ -112,10 +112,10 @@ public struct CopilotView: View {
                 .foregroundStyle(DS.accent)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Today: settled")
-                    .font(.subheadline.weight(.semibold))
+                    .font(DS.Text.sectionTitle)
                     .foregroundStyle(DS.ink)
                 Text(vm.todayWornNames.joined(separator: " · "))
-                    .font(.caption)
+                    .font(DS.Text.body)
                     .foregroundStyle(DS.muted)
                     .lineLimit(2)
             }
@@ -314,8 +314,10 @@ public struct CopilotView: View {
 
             // Wear/fit copy lives on BodyAvatarView.captionBlock (fitCaption);
             // keep title-only chrome here to avoid duplicating the caption.
+            // D121：主视觉标题此前是 `.headline`（17pt）——和列表行一样大。
+            // 用户第一眼落在这里，它得像个标题。
             Text(heroTitle)
-                .font(.headline)
+                .font(DS.Text.display)
                 .foregroundStyle(DS.ink)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
@@ -527,10 +529,10 @@ public struct CopilotView: View {
     private var readyMoment: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(ActivationProgress.readyHeadline, systemImage: "checkmark.seal.fill")
-                .font(.subheadline.weight(.semibold))
+                .font(DS.Text.sectionTitle)
                 .foregroundStyle(DS.accent)
             Text(ActivationProgress.readyBody(itemCount: vm.availableItems.count))
-                .font(.caption)
+                .font(DS.Text.body)
                 .foregroundStyle(DS.muted)
             Button("Got it") { hasSeenReadyMoment = true }
                 .font(.caption.weight(.medium))
@@ -561,7 +563,7 @@ public struct CopilotView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             Text("Get a full look in a minute")
-                .font(.subheadline.weight(.semibold))
+                .font(DS.Text.sectionTitle)
                 .foregroundStyle(DS.ink)
 
             // 预赋进度：零件也不是 0%，但文案不得暗示「完成了」
@@ -839,7 +841,7 @@ public struct CopilotView: View {
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(itemNames(for: scored).joined(separator: " · "))
-                        .font(.subheadline.weight(.medium))
+                        .font(DS.Text.rowTitle)
                         .foregroundStyle(DS.ink)
                         .lineLimit(1)
                         .multilineTextAlignment(.leading)
@@ -1033,7 +1035,7 @@ public struct CopilotView: View {
             HStack(spacing: 8) {
                 Image(systemName: "ruler")
                 Text(OutfitFitMark.measureInvite)
-                    .font(.caption)
+                    .font(DS.Text.body)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.caption2)

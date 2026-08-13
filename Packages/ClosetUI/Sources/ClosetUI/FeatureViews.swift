@@ -146,14 +146,14 @@ public struct ItemDetailView: View {
             // D119：记了就要给用户看。此前每次打卡都落了 WearRecord，
             // 而这一页从来没回答过「这件我穿过几次 / 上次什么时候穿的」。
             Section("Wear") {
-                Text(vm.wearSummary).font(.caption).foregroundStyle(DS.muted)
+                Text(vm.wearSummary).font(DS.Text.body).foregroundStyle(DS.ink)
                     .accessibilityLabel(vm.wearSummary)
             }
             // 「距上次洗涤已穿几次」（D106，DESIGN §219 点名的零成本差异点）——
             // 只做显性化，不给洗衣建议（面料/体感/季节 App 都不知道）
             if let laundry = vm.laundryCaption {
                 Section("Laundry") {
-                    Text(laundry).font(.caption).foregroundStyle(DS.muted)
+                    Text(laundry).font(DS.Text.body).foregroundStyle(DS.ink)
                         .accessibilityLabel(laundry)
                 }
             }
@@ -697,6 +697,7 @@ public struct AboutView: View {
                 LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
                 LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")
                 Text("Daily outfit copilot — you steer, the app assists.")
+                    .font(DS.Text.body)
                     .font(.caption).foregroundStyle(DS.muted)
             }
             Section("Open source & data") {
@@ -814,7 +815,7 @@ public struct FavoritesView: View {
             .frame(width: 72, height: 108)
             .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 4) {
-                Text(Self.lookDisplayTitle(o)).font(.headline)
+                Text(Self.lookDisplayTitle(o)).font(DS.Text.rowTitle)
                 Text(Self.lookMetaLine(o))
                     .font(.caption).foregroundStyle(DS.muted)
                 if o.missing || o.permanentlyMissing {

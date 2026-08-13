@@ -126,7 +126,7 @@ public struct MeView: View {
                         }
                     }
                     Text(dailyRitualNote)
-                        .font(.caption2).foregroundStyle(DS.muted)
+                        .font(DS.Text.meta).foregroundStyle(DS.muted)
                 } header: {
                     Text("Daily")
                 }
@@ -962,7 +962,7 @@ public struct ClosetGridView: View {
             // 「你已经有 4 件」——只在真的在筛时出现（不筛时它等于在数整个衣柜）
             if let headline = searchVM.resultsHeadline {
                 Text(headline)
-                    .font(.subheadline.weight(.semibold))
+                    .font(DS.Text.sectionTitle)
                     .foregroundStyle(DS.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
@@ -984,7 +984,7 @@ public struct ClosetGridView: View {
                             ItemThumbnailView(item: item, height: 48)
                                 .frame(width: 48)
                             VStack(alignment: .leading) {
-                                Text(item.name).font(.headline)
+                                Text(item.name).font(DS.Text.rowTitle)
                                 Text(meta)
                                     .font(.caption).foregroundStyle(DS.muted)
                                 // 「上次什么时候穿的」是判断「要不要再买一件」的另一半依据

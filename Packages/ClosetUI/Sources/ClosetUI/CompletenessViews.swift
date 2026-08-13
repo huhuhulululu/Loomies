@@ -138,7 +138,7 @@ public struct CalendarView: View {
                 // dayKey 反解（本地正午）：计划日展示不随设备时区漂一天
                 Text(CalendarPlanService.displayDate(plan), style: .date).font(.headline)
                 Text(lookTitle(plan.outfit))
-                    .font(.caption).foregroundStyle(DS.muted)
+                    .font(DS.Text.body).foregroundStyle(DS.ink)
                 if !items.isEmpty {
                     Text(items.prefix(4).map(\.name).joined(separator: " · "))
                         .font(.caption2).foregroundStyle(DS.muted)
@@ -339,7 +339,7 @@ public struct StorageLocationsView: View {
             Section("Locations") {
                 if nodes.isEmpty {
                     Text(StorageEmptyCopy.title)
-                        .font(.caption)
+                        .font(DS.Text.sectionTitle)
                         .foregroundStyle(DS.muted)
                         .accessibilityLabel(StorageEmptyCopy.title)
                 } else {
