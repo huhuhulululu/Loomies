@@ -229,6 +229,8 @@ public enum AvatarCinematicExporter {
                 try await Task.sleep(nanoseconds: 2_000_000)
             }
             guard let pb = renderFrame(
+                into: Self.acquirePixelBuffer(
+                    pool: adaptor.pixelBufferPool, width: w, height: h),
                 width: w, height: h,
                 backdrop: backdropCG,
                 body: body,
@@ -277,7 +279,37 @@ public enum AvatarCinematicExporter {
         }
     }
 
+    /// 取一块可写的像素缓冲（D150）。
+    ///
+    /// 优先从 `AVAssetWriterInputPixelBufferAdaptor.pixelBufferPool` 里取——
+    /// 池子回收同一批缓冲，逐帧分配 8MB 的开销只在前几帧付一次。
+    ///
+    /// **池子在 `startWriting()` 之前是 nil**，所以必须能回落到直接创建：
+    /// 回落给不出缓冲的话导出会在某些时序下直接失败，那比慢一点糟得多。
+    static func acquirePixelBuffer(
+        pool: CVPixelBufferPool?, width w: Int, height h: Int
+    ) -> CVPixelBuffer? {
+        if let pool {
+            var pooled: CVPixelBuffer?
+            if CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pooled)
+                == kCVReturnSuccess, let pooled {
+                return pooled
+            }
+            // 池子拿不出来（尺寸不符/超上限）→ 不放弃这一帧，退回直接创建
+        }
+        var buffer: CVPixelBuffer?
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true
+        ]
+        CVPixelBufferCreate(
+            kCFAllocatorDefault, w, h, kCVPixelFormatType_32BGRA,
+            attrs as CFDictionary, &buffer)
+        return buffer
+    }
+
     private static func renderFrame(
+        into buffer: CVPixelBuffer?,
         width w: Int, height h: Int,
         backdrop: CGImage?,
         body: CGImage,
@@ -286,12 +318,10 @@ public enum AvatarCinematicExporter {
         parallaxX: Double,
         parallaxY: Double
     ) -> CVPixelBuffer? {
-        var buffer: CVPixelBuffer?
-        let attrs: [CFString: Any] = [
-            kCVPixelBufferCGImageCompatibilityKey: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey: true
-        ]
-        CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_32BGRA, attrs as CFDictionary, &buffer)
+        // D150：缓冲由调用方从 `adaptor.pixelBufferPool` 取（见 `acquirePixelBuffer`）。
+        // 此前这里每帧 `CVPixelBufferCreate` 一整块全尺寸内存——1080×1920 BGRA
+        // 约 8MB，一段 lookbook 上百帧就是上百次 8MB 的申请与释放，
+        // 全挤在导出那几秒里。池子回收同一批缓冲，分配只发生前几帧。
         guard let pb = buffer else { return nil }
         CVPixelBufferLockBaseAddress(pb, [])
         defer { CVPixelBufferUnlockBaseAddress(pb, []) }

@@ -2261,3 +2261,24 @@ SIGSEGV**——而那个用例只有三件衣服，不存在规模问题。用 `
 同一根因的温和面孔本轮也见过（D148）：依赖包报 `has no member sortedByName`
 而底层包自己全绿。**改 Core 的值类型布局后，先清依赖包 `.build` 再怀疑代码。**
 已存入项目 memory。
+
+---
+
+## D150 — 分享片每帧新分配一整块像素缓冲（2026-08-13）
+
+`renderFrame` 里是 `CVPixelBufferCreate(kCFAllocatorDefault, w, h, …)`——**每一帧**
+都申请一整块全尺寸 BGRA 内存。默认 720×1080 约 3MB，48 帧就是 48 次「申请 3MB →
+画 → 交给编码器 → 释放」，全挤在导出那几秒里；用户若调大尺寸（1080×1920 约 8MB）
+更明显。峰值内存与分配器压力都由此而来。
+
+而 `AVAssetWriterInputPixelBufferAdaptor` **自带 `pixelBufferPool` 就是为这件事
+准备的**：池子回收同一批缓冲，分配只发生前几帧。
+
+关键在回落：**池子在 `startWriting()` 之前是 nil**，从池子取也可能失败（尺寸不符 /
+超上限）。这两种情况都必须仍然给得出缓冲——回落失败会让导出在某些时序下直接崩，
+**比慢一点糟得多**。所以 `acquirePixelBuffer(pool:width:height:)` 是「优先池子、
+拿不到就直接创建」，而不是「有池子才画」。
+
+测试直接验证**回收本身**：取一块、放掉、再取，两次拿到的 `baseAddress` 相同——
+不回收的话池子等于没用，而那正是这一波要的东西。另加接线门（帧循环必须真的把
+`adaptor.pixelBufferPool` 递进去，`renderFrame` 里不许再有逐帧创建）。
