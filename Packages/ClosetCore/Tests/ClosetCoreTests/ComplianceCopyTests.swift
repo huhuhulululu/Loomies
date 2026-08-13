@@ -253,3 +253,53 @@ struct PolicyAnalyticsClaimFollowsRealityTests {
         }
     }
 }
+
+/// D166：**出网必须只有一条通道，否则上面那道运行时对账覆盖不到新来的流量。**
+///
+/// `everyOutboundHostIsDisclosed` 与 `hostsActuallyRequestedAtRuntimeAreDisclosed`
+/// 都是好门——host 取实现真值、还真发一次请求录 URL。但它们枚举的是**两个已知客户端**：
+/// 谁加第三个客户端，没人会想起来来更新这份枚举。
+///
+/// 实测当下全仓 `PublicAPITransport` 之外零个 `URLSession`——**这条性质今天成立，
+/// 却没有任何东西让它继续成立**。有了这道门，「所有出网都经同一条通道」变成可执行事实，
+/// 上面那两道才真的覆盖全部流量（而不是覆盖「我们记得的那些」）。
+struct SingleOutboundChokepointTests {
+
+    @Test func nothingReachesTheNetworkOutsideTheTransport() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+        // 判据认**构造**不认词：`URLSessionTransport()` 里也含 "URLSession"，
+        // 而那正是通道本身——第一版就这么误报了两处（写门时最容易犯的那个错，
+        // 本 session 已在 D147/D156/D158/D164 上各记过一次）。
+        let networkAPIs = ["URLSession.", "URLSession(", "URLSession.shared",
+                           "URLRequest(", "URLProtocol", "NWConnection"]
+        /// 通道自身：它就是那条唯一允许直接出网的路。
+        let exempt = ["PublicAPITransport.swift"]
+
+        var offenders: [String] = []
+        let fm = FileManager.default
+        for root in [repoRoot.appendingPathComponent("Packages"),
+                     repoRoot.appendingPathComponent("app-shell")] {
+            guard let walker = fm.enumerator(at: root, includingPropertiesForKeys: nil)
+            else { continue }
+            for case let url as URL in walker where url.pathExtension == "swift" {
+                let path = url.path
+                guard path.contains("/Sources/") || path.contains("/app-shell/") else { continue }
+                guard !exempt.contains(url.lastPathComponent) else { continue }
+                guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                for line in text.split(separator: "\n") {
+                    let t = line.trimmingCharacters(in: .whitespaces)
+                    guard !t.hasPrefix("//"), !t.hasPrefix("///"), !t.hasPrefix("*") else { continue }
+                    for api in networkAPIs where t.contains(api) {
+                        offenders.append("\(url.lastPathComponent) ~ \(api)")
+                    }
+                }
+            }
+        }
+        #expect(offenders.isEmpty, Comment(rawValue:
+            "这些地方绕开 `PublicAPITransport` 直接出网，运行时 host 对账看不见它们："
+            + "\(offenders) —— 新出网面必须走通道，否则披露清单可能已经在说谎"))
+    }
+}
