@@ -117,6 +117,15 @@ struct AppLogTests {
                 for pat in forbidden where line.contains(pat) {
                     violations.append("\(url.lastPathComponent):\(n + 1) ~ \(pat)")
                 }
+                // D165：插值里读了**用户内容属性**即违规，不问变量叫什么。
+                // 与遥测门共用同一份定义（由 schema 同步门守着），
+                // 否则两张手工表会各自过期——实测旧表抓得到 `\(item.name`
+                // 却抓不到 `\(item.brand` / `\(item.notes`。
+                guard line.contains("\\(") else { continue }
+                for read in UserContentFields.reads
+                where read.hasPrefix(".") && line.contains(read) {
+                    violations.append("\(url.lastPathComponent):\(n + 1) ~ 插值读了 \(read)")
+                }
             }
         }
         #expect(violations.isEmpty, "\(violations)")

@@ -154,15 +154,49 @@ struct TelemetryWiringTests {
     /// 泄漏的是同一份内容，却一个字都不匹配（实测注入后门照样绿）。
     /// **危险在值，不在键名**：一个叫 `mode` 的键塞进 `item.name` 同样是泄漏。
     /// 键名仍然查（叫 `name` 的键本身就可疑），但主判据是值里读了用户内容没有。
+    /// D165：**这张表必须跟着 schema 走。**
+    ///
+    /// 上一条的 `userContentReads` 是手工枚举的——schema 加一个
+    /// `.nickname` 而没人想起来更新它，那道门就会对新字段视而不见，
+    /// 而且**没有任何征兆**（本 session 已经在四道门上见过这个形态）。
+    ///
+    /// 判据：实体里每个用户可输入的 String 字段（排除 `…Raw` 枚举存储、
+    /// 路径/键这类机器字段）都必须在表里有对应项，或在下面的豁免表里
+    /// 写明理由。加字段的人会被这条门拦下来，而不是被下一次隐私事故拦下来。
+    @Test func theUserContentListTracksTheSchema() throws {
+        let entities = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("ClosetModel/Sources/ClosetModel/Entities.swift")
+        let text = try String(contentsOf: entities, encoding: .utf8)
+
+        /// 机器字段：不是用户写进去的内容，泄漏它们不构成隐私问题。
+        let notUserContent: Set<String> = [
+            "localImageRelativePath",   // 相对路径（uuid 文件名）
+            "dayKey",                   // "yyyy-MM-dd"
+            "fitFeedback",              // 紧/合/松 三选一，枚举化的
+            "subtype",                  // 受控词表（blazer/coat…）
+        ]
+        var missing: [String] = []
+        for line in text.split(separator: "\n") {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard t.hasPrefix("public var "), t.contains(": String") else { continue }
+            let prop = t.dropFirst("public var ".count)
+                .prefix { $0 != ":" }
+                .trimmingCharacters(in: .whitespaces)
+            guard !prop.hasSuffix("Raw"), !notUserContent.contains(prop) else { continue }
+            let covered = UserContentFields.reads.contains { $0.contains(prop) }
+            if !covered { missing.append(prop) }
+        }
+        #expect(missing.isEmpty, Comment(rawValue:
+            "schema 里这些用户内容字段没进遥测判据表，泄漏时门不会响：\(missing) —— "
+            + "把它们加进 `userContentReads`，或在本测试的豁免表里写明为什么不算用户内容"))
+    }
+
     @Test func emittersCarryNoUserContent() throws {
         var violations: [String] = []
         let forbidden = ["text", "name", "city", "query", "bust", "waist", "hip"]
-        /// 值侧读到这些就是把用户内容送出去了（属性访问形态，避免误伤 `"has_text"` 这类布尔）
-        let userContentReads = [
-            ".name", ".notes", ".text", ".query", "locationCity",
-            "bustInches", "waistInches", "hipInches", "highHipInches",
-            ".sizeLabel", ".brand", ".barcode",
-        ]
+        let userContentReads = UserContentFields.reads
         for url in Self.productionSources() {
             guard let text = try? String(contentsOf: url, encoding: .utf8),
                   text.contains("TelemetryGate.shared.track(") else { continue }
