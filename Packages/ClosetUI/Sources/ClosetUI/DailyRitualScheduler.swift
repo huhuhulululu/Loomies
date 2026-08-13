@@ -57,6 +57,20 @@ public enum DailyRitualScheduler {
         #endif
     }
 
+    /// 系统层面是否还授权着（D136）。
+    ///
+    /// 用户可以在 iOS 设置里随时撤销，而 App 内的开关只记着自己的 UserDefaults——
+    /// 不对账的话，设置里显示「开」而系统一条都不会发（UI 诚实铁律）。
+    public static func isAuthorized() async -> Bool {
+        #if canImport(UserNotifications)
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        return settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+        #else
+        return false
+        #endif
+    }
+
     /// 排程（或按当前状态取消）。
     ///
     /// `availableItemCount` 决定这个 App 此刻**配不配**打扰用户：

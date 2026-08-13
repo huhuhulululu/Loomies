@@ -300,6 +300,9 @@ public struct MeView: View {
                 }
             }
             .navigationTitle("Me")
+            // D136：开关此前只从 UserDefaults 播种——用户在 iOS 设置里撤销通知后，
+            // 这一行仍显示「开」并承诺「每天早上一条」，而系统层面一条都不会发。
+            .task { await reconcileDailyRitual() }
             .fileImporter(
                 isPresented: $showImportPicker,
                 // zip 也收：用户手上多半是完整包，收下它才能给一句
@@ -320,6 +323,12 @@ public struct MeView: View {
                         // 盘上文件已擦，内存里解码好的位图还在——不清的话
                         // 「已删除全部数据」之后网格仍会画出刚被删掉的照片（D112）。
                         ThumbnailImageCache.shared.removeAll()
+                        // D136：删库之后 RootView 回 Onboarding，`CopilotView`
+                        // 再也不会挂载——挂起的七条每周提醒**没有任何东西能关掉它们**，
+                        // 而 App 里连那个开关都不在了。用户删了全部数据，
+                        // 手机却继续每天早上叫他去看一个空 App。
+                        DailyRitualScheduler.disable()
+                        dailyRitualOn = false
                         dataMessage = receipt.summaryLine
                         // RootView @Query 空柜 → 自动回 Onboarding。
                     } catch {
@@ -395,6 +404,23 @@ public struct MeView: View {
                     next: "Choose the JSON you got from Me → Data → Export"))
                 AppLog.error("import failed: \(AppLog.errRef(error))", .data)
             }
+        }
+    }
+
+    /// 与系统实况对账（D136）。授权被撤销 → 把开关拨回去并说清原因。
+    private func reconcileDailyRitual() async {
+        guard DailyRitualScheduler.isEnabled else {
+            dailyRitualOn = false
+            return
+        }
+        let authorized = await DailyRitualScheduler.isAuthorized()
+        if authorized {
+            dailyRitualOn = true
+        } else {
+            DailyRitualScheduler.disable()
+            dailyRitualOn = false
+            dailyRitualNote =
+                "Notifications are off for Loomies in iOS Settings — turn them on there first."
         }
     }
 

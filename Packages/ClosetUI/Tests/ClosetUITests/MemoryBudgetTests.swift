@@ -65,3 +65,60 @@ struct MemoryBudgetTests {
         #expect(text.contains("scenePhase"), "没有监听场景阶段")
     }
 }
+
+/// D136：早安提醒的三处不诚实，共同点是**开关状态从不与现状对账**。
+@MainActor
+struct DailyRitualHonestyTests {
+
+    private var uiDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    /// 删库必须关掉提醒——否则挂起的七条每周提醒**没有任何东西能关掉它们**，
+    /// 而 App 回到 Onboarding 后连那个开关都不在了：
+    /// 用户删了全部数据，手机却继续每天早上叫他去看一个空 App。
+    @Test func deletingEverythingAlsoStopsTheNudge() throws {
+        let text = try String(
+            contentsOf: uiDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        guard let range = text.range(of: "deleteAllUserData") else {
+            Issue.record("找不到删库分支"); return
+        }
+        let block = String(text[range.lowerBound...].prefix(900))
+        #expect(block.contains("DailyRitualScheduler.disable()"),
+                "删库之后提醒还在，而 App 里已经没有关掉它的入口")
+    }
+
+    /// 进 Me 时与系统实况对账（用户可能在 iOS 设置里撤销了通知）。
+    @Test func theSwitchReconcilesWithTheSystem() throws {
+        let text = try String(
+            contentsOf: uiDir.appendingPathComponent("AppRootView.swift"), encoding: .utf8)
+        #expect(text.contains("reconcileDailyRitual"),
+                "撤权之后开关仍显示「开」，而系统层面一条都不会发")
+    }
+
+    /// 衣柜件数变化要重排——「配不配打扰用户」取决于衣柜此刻的样子。
+    @Test func closetChangesRescheduleTheNudge() throws {
+        let text = try String(
+            contentsOf: uiDir.appendingPathComponent("CopilotView.swift"), encoding: .utf8)
+        #expect(text.contains("onChange(of: vm.availableItems.count)"),
+                "加到第 8 件的当天不排、砍回 3 件仍照排")
+    }
+}
+
+/// D136：回到前台要重读「今天穿了什么」——周二晚打卡、周三早上被提醒
+/// 叫醒打开 App，顶部却还写着昨天那身。而早安提醒恰恰把用户导向这条路径。
+@MainActor
+struct SettledBandFreshnessTests {
+    @Test func returningToTheForegroundRereadsToday() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetUI/CopilotView.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("onChange(of: scenePhase)"),
+                "跨午夜回到前台仍显示昨天定的那身")
+        #expect(text.contains("vm.reloadToday(in: context)"))
+    }
+}

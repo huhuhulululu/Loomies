@@ -8,6 +8,7 @@ import ClosetCore
 public struct CopilotView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var vm: CopilotViewModel
     @State private var checkInNote: String?
     /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast（按值判等无法区分代）。
@@ -90,6 +91,16 @@ public struct CopilotView: View {
                 .onChange(of: ownerBodySnapshot) { _, _ in
                     reapplyBodyProfileIfNeeded()
                 }
+                // D136：回到前台就重读「今天穿了什么」。
+                //
+                // 周二晚打了卡、周三早上被提醒叫醒打开 App——顶部却还写着
+                // 「今天已定：Navy Blazer · Chinos」，那是昨天的。
+                // 而早安提醒恰恰把用户导向这条路径。
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active else { return }
+                    vm.reloadToday(in: context)
+                    vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+                }
         }
     }
 
@@ -162,6 +173,11 @@ public struct CopilotView: View {
                 if let checkInNote {
                     feedbackChip(checkInNote)
                 }
+            }
+            // D136：提醒此前只在一次性 bootstrap 里排——加到第 8 件的当天不排，
+            // 砍回 3 件仍照排。「配不配打扰用户」取决于衣柜此刻的样子。
+            .onChange(of: vm.availableItems.count) { _, count in
+                Task { await DailyRitualScheduler.reschedule(availableItemCount: count) }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

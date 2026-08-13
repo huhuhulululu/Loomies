@@ -120,7 +120,7 @@ public final class IntakeViewModel {
         // 抠图已经算出来了，主色是顺手就能拿到的东西，不需要任何模型。
         // 只在抠图**成功**时取：失败时 workingImage 是原图，背景色会赢过衣服。
         if d.color == nil, mattingSucceeded,
-           let entry = DominantColorSampler.dominantEntry(in: workingImage) {
+           let entry = await DominantColorSampler.dominantEntry(in: workingImage) {
             d.color = entry.color
         }
         d.occasions = tags?.occasions ?? []
