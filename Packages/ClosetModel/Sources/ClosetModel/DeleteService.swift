@@ -25,6 +25,19 @@ public enum DeleteService {
 
     /// 衣柜删除：阻断式——有单品则拒绝，除非 force（整柜级联删 Item/位置/搭配，WearRecord 保留）。
     /// Throws `saveFailed` when ModelSave does not commit (caller must not toast success).
+    /// 删这个柜会波及**别的柜**里多少套搭配（D139）。
+    ///
+    /// 判据与执行同源——两处各写一份的话，对话框迟早说的和实际做的不是一回事。
+    @MainActor
+    public static func foreignOutfitsAffected(byDeleting wardrobe: Wardrobe) -> Int {
+        var seen = Set<UUID>()
+        return (wardrobe.items ?? [])
+            .flatMap { $0.outfits ?? [] }
+            .filter { $0.wardrobe?.id != wardrobe.id }
+            .filter { seen.insert($0.id).inserted }
+            .count
+    }
+
     public static func deleteWardrobe(_ wardrobe: Wardrobe, force: Bool, in context: ModelContext) throws {
         if !force, !(wardrobe.items ?? []).isEmpty {
             throw DeleteError.wardrobeNotEmpty

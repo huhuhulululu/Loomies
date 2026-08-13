@@ -64,7 +64,12 @@ struct WardrobeDeleteActionsTests {
         #expect(warning.localizedCaseInsensitiveContains("photo"))
         #expect(warning.localizedCaseInsensitiveContains("calendar")
             || warning.localizedCaseInsensitiveContains("plan"))
-        #expect(warning.localizedCaseInsensitiveContains("wear history"))
+        // D139：这里原先钉的是「wear history is kept」。记录行确实留着，
+        // 但唯一能读它的界面按 `wardrobeSnapshotID == wardrobe.id` 过滤，
+        // 而那个柜已经没了——技术上为真、实际为假。断言跟着文案一起改，
+        // 否则这条测试会把那句不诚实焊回去（今天已经栽过两次）。
+        #expect(!warning.localizedCaseInsensitiveContains("wear history"),
+                Comment(rawValue: "又在承诺一份没有任何界面读得到的历史：\(warning)"))
 
         let out = WardrobeManageActions.delete(w, force: true, in: ctx)
         #expect(out.deleted)
@@ -213,5 +218,60 @@ struct WardrobeDeleteConfirmCopyTests {
         #expect(pending.lookCount == 1)
         #expect(pending.planCount == 1)
         #expect(!WardrobeDeleteConfirm.isEffectivelyEmpty(pending.counts))
+    }
+}
+
+/// D139：**删柜对话框说的事和实际发生的不一致**。
+///
+/// 两处：
+/// 1. 「Wear history is kept」——记录行确实留着，但唯一能读它的界面
+///    （`WearHistoryView`）按 `wardrobeSnapshotID == wardrobe.id` 过滤，
+///    而那个柜已经没了：**技术上为真、实际为假**。
+///    对用户来说，一句读不到的「保留」比不提更糟——它让人以为还能找回来。
+/// 2. 删柜会把**别的柜里**用到这些件的搭配标为永久缺件（D103 修的是行为），
+///    而对话框只字不提——用户在别的柜里发现搭配坏了，无从知道是自己刚才那一下。
+@MainActor
+struct WardrobeDeleteCopyHonestyTests {
+
+    private func counts(items: Int = 3, looks: Int = 2, plans: Int = 1, foreign: Int = 0)
+        -> WardrobeDeleteConfirm.Counts {
+        .init(itemCount: items, lookCount: looks, planCount: plans,
+              foreignLookCount: foreign)
+    }
+
+    /// 不得再宣称「穿着历史保留」——那句话用户验证不了，也用不上。
+    @Test func itNoLongerClaimsHistoryIsBrowsable() {
+        let text = WardrobeDeleteConfirm.message(counts())
+        #expect(!text.localizedCaseInsensitiveContains("wear history is kept"),
+                Comment(rawValue: "承诺了一份读不到的历史：\(text)"))
+    }
+
+    /// **别柜受影响时必须说**——那是用户最想不到的后果。
+    @Test func itNamesTheDamageToOtherClosets() {
+        let text = WardrobeDeleteConfirm.message(counts(foreign: 2))
+        #expect(text.localizedCaseInsensitiveContains("other closet"),
+                Comment(rawValue: "没说会影响别的柜：\(text)"))
+        #expect(text.contains("2"))
+    }
+
+    /// 不影响别柜时不提（0 是噪音，且会让人以为有事发生）。
+    @Test func itStaysQuietWhenNoOtherClosetIsAffected() {
+        let text = WardrobeDeleteConfirm.message(counts(foreign: 0))
+        #expect(!text.localizedCaseInsensitiveContains("other closet"))
+    }
+
+    /// 既有的级联面照旧说清（这次改动不得把已有的诚实说法弄丢）。
+    @Test func theExistingCascadeIsStillStated() {
+        let text = WardrobeDeleteConfirm.message(counts())
+        #expect(text.contains("3 pieces"))
+        #expect(text.contains("2 looks"))
+        #expect(text.contains("1 calendar plans"))
+        #expect(text.localizedCaseInsensitiveContains("photos"))
+    }
+
+    /// 空柜仍走空态文案。
+    @Test func anEmptyClosetKeepsItsOwnMessage() {
+        let text = WardrobeDeleteConfirm.message(counts(items: 0, looks: 0, plans: 0))
+        #expect(text == WardrobeDeleteConfirm.emptyMessage)
     }
 }

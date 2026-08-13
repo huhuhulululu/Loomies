@@ -43,14 +43,27 @@ public enum WardrobeManageActions {
     /// 删除确认的警告文案。必须**完整**告知级联面（照片、日历计划），
     /// 并说明穿着历史保留——不得声称做了没做的事，也不得隐瞒做了的事。
     /// 计数为 0 的项不出现在句子里（「0 pieces」是噪音，且会让空柜读起来像有内容）。
-    public static func forceDeleteWarning(itemCount: Int, lookCount: Int, planCount: Int) -> String {
+    public static func forceDeleteWarning(
+        itemCount: Int, lookCount: Int, planCount: Int, foreignLookCount: Int = 0
+    ) -> String {
         var parts: [String] = []
         if itemCount > 0 { parts.append("\(itemCount) pieces") }
         if lookCount > 0 { parts.append("\(lookCount) looks") }
         if planCount > 0 { parts.append("\(planCount) calendar plans") }
         guard !parts.isEmpty else { return WardrobeDeleteConfirm.emptyMessage }
-        return "This also deletes " + parts.joined(separator: ", ")
-            + ", and their local photos. Wear history is kept."
+        var text = "This also deletes " + parts.joined(separator: ", ")
+            + ", and their local photos."
+        // D139：**别的柜里**用到这些件的搭配会被标为永久缺件（D103 修的是行为，
+        // 文案一直没跟上）——那是用户最想不到的后果，不说的话他会在别的柜里
+        // 发现搭配坏了，而无从知道是自己刚才那一下。
+        if foreignLookCount > 0 {
+            let looks = foreignLookCount == 1 ? "1 look" : "\(foreignLookCount) looks"
+            text += " \(looks) in other closets will be marked as missing pieces."
+        }
+        // D139：此前这里写「Wear history is kept」——记录行确实留着，
+        // 但唯一能读它的界面按已删柜过滤，**技术上为真、实际为假**。
+        // 一句读不到的「保留」比不提更糟：它让人以为还能找回来。
+        return text
     }
 
     /// 当前打开的衣柜不可删（上层持有已删模型 / 删到零柜回落 Onboarding 会造重复 Person）。
@@ -173,10 +186,15 @@ public enum WardrobeDeleteConfirm {
         public let itemCount: Int
         public let lookCount: Int
         public let planCount: Int
-        public init(itemCount: Int, lookCount: Int, planCount: Int) {
+        /// **别的柜里**会被标为永久缺件的搭配数（D139）。
+        public let foreignLookCount: Int
+        public init(
+            itemCount: Int, lookCount: Int, planCount: Int, foreignLookCount: Int = 0
+        ) {
             self.itemCount = itemCount
             self.lookCount = lookCount
             self.planCount = planCount
+            self.foreignLookCount = foreignLookCount
         }
     }
 
@@ -189,7 +207,8 @@ public enum WardrobeDeleteConfirm {
         isEffectivelyEmpty(c)
             ? emptyMessage
             : WardrobeManageActions.forceDeleteWarning(
-                itemCount: c.itemCount, lookCount: c.lookCount, planCount: c.planCount)
+                itemCount: c.itemCount, lookCount: c.lookCount, planCount: c.planCount,
+                foreignLookCount: c.foreignLookCount)
     }
 
     /// 非空柜的按钮措辞升级——用户在同一个框里既看到后果又看到「anyway」。
@@ -210,9 +229,12 @@ public struct PendingWardrobeDelete: Identifiable, Equatable, Sendable {
     public let itemCount: Int
     public let lookCount: Int
     public let planCount: Int
+    /// 别的柜里会被标为永久缺件的搭配数（D139）。
+    public let foreignLookCount: Int
 
     public var counts: WardrobeDeleteConfirm.Counts {
-        .init(itemCount: itemCount, lookCount: lookCount, planCount: planCount)
+        .init(itemCount: itemCount, lookCount: lookCount, planCount: planCount,
+              foreignLookCount: foreignLookCount)
     }
 
     @MainActor
@@ -220,6 +242,9 @@ public struct PendingWardrobeDelete: Identifiable, Equatable, Sendable {
         self.id = wardrobe.id
         self.name = wardrobe.name
         self.itemCount = (wardrobe.items ?? []).count
+        // 判据与执行同源（`DeleteService`）——两处各写一份的话，
+        // 对话框迟早说的和实际做的不是一回事。
+        self.foreignLookCount = DeleteService.foreignOutfitsAffected(byDeleting: wardrobe)
         let outfits = wardrobe.outfits ?? []
         self.lookCount = outfits.count
         let outfitIDs = Set(outfits.map(\.id))
