@@ -4,9 +4,49 @@ import SwiftData
 import ClosetModel
 import ClosetCore
 import ClosetUI
+import UIKit
+import UserNotifications
+
+/// 通知点击 → 标记本次打开来自早上那条提醒（D118）。
+///
+/// 没有这个标记就**无法知道通知到底有没有用**——而加通知的全部理由
+/// 就是 MARKET §8.1 的 D30 留存线。这个类必须活到 App 生命周期结束，
+/// 所以由 `@UIApplicationDelegateAdaptor` 持有，不能是临时对象。
+final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate,
+                                UIApplicationDelegate {
+    @MainActor
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    // `UIApplicationDelegate` 让这个类成了 MainActor 隔离的，而委托回调的参数
+    // 不是 Sendable —— 必须 `nonisolated` 再自己跳回主线程。
+    // 这类错误 macOS 的 `swift test` **一个都报不出来**（D92 实证），只有 xcodebuild 会。
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let identifier = response.notification.request.identifier
+        guard identifier.hasPrefix(DailyRitualScheduler.requestIdentifierPrefix) else { return }
+        await MainActor.run { DailyRitualScheduler.markOpenedFromNudge() }
+    }
+
+    /// App 在前台时到点：不弹横幅（用户已经在用了，弹一下是打扰）。
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        []
+    }
+}
 
 @main
 struct ClosetApp: App {
+    @UIApplicationDelegateAdaptor(NotificationRouter.self) private var notificationRouter
     let container: ModelContainer
 
     init() {

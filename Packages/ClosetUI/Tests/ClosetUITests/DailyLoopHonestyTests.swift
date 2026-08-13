@@ -199,3 +199,26 @@ struct AlwaysFailingWeather: WeatherProviding {
         throw Boom()
     }
 }
+
+/// D118：来源归因。没有它就答不了「加通知到底有没有用」——而那是加它的全部理由。
+@MainActor
+struct NudgeAttributionTests {
+
+    /// 没点通知进来 = 自发打开。
+    @Test func aPlainLaunchIsOrganic() {
+        #expect(DailyRitualScheduler.consumeOpenSource() == "organic")
+    }
+
+    /// 点通知进来 = nudge，且**只算这一次**（读取即清零）。
+    @Test func theNudgeMarkIsConsumedOnce() {
+        DailyRitualScheduler.markOpenedFromNudge()
+        #expect(DailyRitualScheduler.consumeOpenSource() == "nudge")
+        #expect(DailyRitualScheduler.consumeOpenSource() == "organic",
+                "标记没被清零 —— 之后每一次打开都会被算成通知带来的")
+    }
+
+    /// 采纳事件必须带得上这个键（白名单外的键会被静默丢弃）。
+    @Test func theAcceptedEventCarriesSource() {
+        #expect(TelemetryEvent.copilotAccepted.allowedKeys.contains("source"))
+    }
+}

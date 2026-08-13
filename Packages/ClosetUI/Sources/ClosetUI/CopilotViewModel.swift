@@ -77,6 +77,7 @@ public final class CopilotViewModel {
     }
 
     public init(wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double = 70) {
+        self.openSource = DailyRitualScheduler.consumeOpenSource()
         self.wardrobe = wardrobe
         self.occasion = occasion
         self.daytimeTempF = daytimeTempF
@@ -204,6 +205,10 @@ public final class CopilotViewModel {
         resolved ? "\(Int(temp.rounded()))°F" : "—°F"
     }
 
+    /// 本次会话的来源（提醒 / 自发）。VM 建立时定一次，整段会话沿用。
+    /// （`@Observable` 的宏不接受 `lazy`，所以在 init 里取。）
+    public let openSource: String
+
     /// 回读今天的打卡（本柜、当天）。
     public func reloadToday(in context: ModelContext) {
         let all = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
@@ -235,6 +240,9 @@ public final class CopilotViewModel {
         TelemetryGate.shared.track(.copilotAccepted, payload: [
             "mode": fullAuto ? "auto" : "anchored",
             "wear_as_is": String(wearAsIs),
+            // D118：这一次是被早上那条提醒带进来的，还是用户自己打开的。
+            // 没有这个分母就答不了「加通知到底有没有用」——而那是加它的全部理由。
+            "source": openSource,
         ])
         reloadToday(in: context)
         return result

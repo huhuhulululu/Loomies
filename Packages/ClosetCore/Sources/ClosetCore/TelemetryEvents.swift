@@ -29,7 +29,7 @@ public enum TelemetryEvent: String, CaseIterable, Sendable {
         case .copilotAccepted:
             // D116：`wear_as_is` 区分「原样穿」与「改过再穿」——
             // MARKET §8.1 判定 copilot 机制成立与否靠的正是这个区分。
-            return ["schema_version", "mode", "wear_as_is"]
+            return ["schema_version", "mode", "wear_as_is", "source"]
         case .copilotTweaked:
             return ["schema_version", "mode"]
         case .checkInRecorded:

@@ -1476,6 +1476,15 @@ BodyAvatarView = 吞手势的写法）。
 排程点放在 Today 的 `bootstrap` 而不是设置页——**「配不配打扰用户」取决于
 衣柜此刻的状态**，不是用户上次拨开关那一刻的状态。
 
+**没有归因就答不了「加它到底有没有用」**，而那是加它的全部理由。
+通知点击经 `NotificationRouter` 标记本次打开来自提醒，`copilot_accepted`
+带上 `source`（nudge / organic）。标记**读取即清零**——它描述的是「这一次打开」，
+不是一个长期状态；不清零的话之后每一次打开都会被算成通知带来的。
+前台到点不弹横幅（用户已经在用了，弹一下是打扰）。
+
 策略全在 `ClosetCore.DailyRitual`（纯 Foundation，16 条测试）；
 `UNUserNotificationCenter` 那层是 `#if canImport(UserNotifications)`，
-macOS 的 `swift test` **根本编不到**——照 D92 的教训，本波靠 `xcodebuild` 验证通过。
+macOS 的 `swift test` **根本编不到**——D92 的教训本波又应验了一次：
+四包 1143 测试全绿的状态下，`xcodebuild` 报出委托回调的
+Sendable 隔离错误（`UIApplicationDelegate` 让类成了 MainActor 隔离，
+而回调参数不是 Sendable），必须 `nonisolated` 再自己跳回主线程。

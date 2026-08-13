@@ -15,7 +15,8 @@ public enum DailyRitualScheduler {
 
     /// 通知标识前缀。一周七条（每条按周重复），重排即整批覆盖，
     /// 不会堆出一串重复提醒。
-    public static let requestIdentifierPrefix = "loomies.dailyRitual."
+    /// `nonisolated`：通知委托回调不在主线程上，而它只是个常量前缀。
+    public nonisolated static let requestIdentifierPrefix = "loomies.dailyRitual."
 
     static var allIdentifiers: [String] {
         (1...7).map { "\(requestIdentifierPrefix)\($0)" }
@@ -101,6 +102,24 @@ public enum DailyRitualScheduler {
         }
         AppLog.notice("dailyRitual scheduled hour=\(hour) days=7", .app)
         #endif
+    }
+
+    /// 本次启动是否由每日提醒带进来的。
+    ///
+    /// 没有这个标记就**无法知道这条通知到底有没有用**——而加通知的全部理由
+    /// 就是 MARKET §8.1 的 D30 留存线。读取即清零：它描述的是「这一次打开」，
+    /// 不是一个长期状态。
+    private static var pendingNudgeOpen = false
+
+    public static func markOpenedFromNudge() {
+        pendingNudgeOpen = true
+        AppLog.notice("dailyRitual opened app", .app)
+    }
+
+    /// 消费标记。归因只算**这一次**打开。
+    public static func consumeOpenSource() -> String {
+        defer { pendingNudgeOpen = false }
+        return pendingNudgeOpen ? "nudge" : "organic"
     }
 
     /// 关掉：既清开关也清挂起的请求（只清一个会留下幽灵提醒）。
