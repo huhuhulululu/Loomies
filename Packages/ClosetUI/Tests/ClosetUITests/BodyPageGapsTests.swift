@@ -289,13 +289,81 @@ struct ReportedFitTests {
                 Comment(rawValue: "预测说合身、实测说紧，却没说按哪个来：\(caption)"))
     }
 
-    /// 打卡面要说清这一问会被拿去做什么，且**不许说大**
-    ///（它影响合身标记，不影响推荐排序）。
+    /// 打卡面要说清这一问会被拿去做什么，且**不许说大**。
+    ///
+    /// D200 把「紧」接进了推荐排序，所以 D196 那句
+    /// 「It doesn't change which looks get suggested.」当场不成立、已改掉。
+    /// 新措辞要同时说到两件事：**会往后排**，且**绝不隐藏**。
     @Test func theCheckInScreenDisclosesWhatTheAnswerDoes() {
         let copy = FitFeedbackCopy.usageDisclosure
         #expect(copy.localizedCaseInsensitiveContains("fit mark"))
-        #expect(copy.localizedCaseInsensitiveContains("doesn't change")
-                || copy.localizedCaseInsensitiveContains("not change"),
-                Comment(rawValue: "没划清「不影响推荐」那条线：\(copy)"))
+        #expect(!copy.localizedCaseInsensitiveContains("doesn't change"), Comment(rawValue:
+            "还写着「不影响推荐」，而 D200 已经让它影响了：\(copy)"))
+        #expect(copy.localizedCaseInsensitiveContains("later"), Comment(rawValue:
+            "没说会往后排：\(copy)"))
+        #expect(copy.localizedCaseInsensitiveContains("never hidden")
+                || copy.localizedCaseInsensitiveContains("not hidden"),
+                Comment(rawValue: "没说清「不隐藏」——用户会以为衣服被藏了：\(copy)"))
+    }
+
+    /// **端到端**：打卡两次说紧 → 那件真的进了降权集合。
+    @Test func sayingTightTwiceFeedsTheRanking() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "P"); ctx.insert(person)
+        let w = Wardrobe(name: "Home"); w.owner = person; ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.slotRaw = "top"; tee.wardrobe = w
+        tee.statusRaw = "available"; ctx.insert(tee)
+        try ctx.save()
+        for _ in 0..<2 {
+            let rec = WearRecord(date: Date())
+            rec.wornItemIDs = [tee.id.uuidString]
+            rec.wardrobeSnapshotID = w.id
+            rec.fitFeedback = FitVerdict.tight.rawValue
+            ctx.insert(rec)
+        }
+        try ctx.save()
+
+        let vm = CopilotViewModel(wardrobe: w)
+        vm.reloadToday(in: ctx)
+        #expect(vm.reportedTightItemIDs.contains(tee.id.uuidString), Comment(rawValue:
+            "说了两次紧，推荐侧却收不到这个信号"))
+    }
+
+    /// 只说过一次不进（与合身标记同一个收敛判据，不许两处各定一套）。
+    @Test func oneReportDoesNotFeedTheRanking() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.slotRaw = "top"; tee.wardrobe = w
+        ctx.insert(tee)
+        let rec = WearRecord(date: Date())
+        rec.wornItemIDs = [tee.id.uuidString]
+        rec.wardrobeSnapshotID = w.id
+        rec.fitFeedback = FitVerdict.tight.rawValue
+        ctx.insert(rec)
+        try ctx.save()
+
+        let vm = CopilotViewModel(wardrobe: w)
+        vm.reloadToday(in: ctx)
+        #expect(vm.reportedTightItemIDs.isEmpty)
+    }
+
+    /// 说「松」不进降权集合——oversize 是一种穿法。
+    @Test func sayingLooseDoesNotDowngradeAnything() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.slotRaw = "top"; tee.wardrobe = w
+        ctx.insert(tee)
+        for _ in 0..<3 {
+            let rec = WearRecord(date: Date())
+            rec.wornItemIDs = [tee.id.uuidString]
+            rec.wardrobeSnapshotID = w.id
+            rec.fitFeedback = FitVerdict.loose.rawValue
+            ctx.insert(rec)
+        }
+        try ctx.save()
+
+        let vm = CopilotViewModel(wardrobe: w)
+        vm.reloadToday(in: ctx)
+        #expect(vm.reportedTightItemIDs.isEmpty, "说松也被降权了 —— 那是拿审美替用户做主")
     }
 }

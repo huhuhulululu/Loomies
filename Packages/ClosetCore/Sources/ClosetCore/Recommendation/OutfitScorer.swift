@@ -17,16 +17,28 @@ public struct ScoringContext: Sendable {
     public let colorSeason: PersonalColorSeason?
     /// 日间温度。**nil = 未知**——不知道冷暖就不对「要不要外套」表态（D130）。
     public let daytimeTempF: Double?
+
+    /// 用户**穿过之后反复说过「紧」**的单品（D200，收敛判据见 `FitFeedbackHistory`）。
+    ///
+    /// 只收「紧」，不收「松」：紧 = 穿着难受，多半不想再穿；
+    /// 松可能是**故意的**（oversize 是一种穿法）。一视同仁就是拿审美替用户做主。
+    ///
+    /// 用途是**降权**，不是排除——那是用户自己的衣服，
+    /// 排除会让它凭空消失而他不知道为什么（同 D89 对防重复的判断）。
+    public let reportedTightItemIDs: Set<String>
+
     public init(
         bodyShape: BodyShape? = nil,
         bodyShapeWeight: Double = 1.0,
         colorSeason: PersonalColorSeason? = nil,
-        daytimeTempF: Double? = nil
+        daytimeTempF: Double? = nil,
+        reportedTightItemIDs: Set<String> = []
     ) {
         self.daytimeTempF = daytimeTempF
         self.bodyShape = bodyShape
         self.bodyShapeWeight = bodyShapeWeight
         self.colorSeason = (colorSeason == .unknown) ? nil : colorSeason
+        self.reportedTightItemIDs = reportedTightItemIDs
     }
 }
 
@@ -80,6 +92,10 @@ public enum OutfitScorer {
             < b.outfit.itemIDs.joined(separator: ",")
     }
 
+    /// 每有一件「说过紧」的扣多少（D200）。
+    /// 0.2 夹在配色 0.3 与 60-30-10 的 0.1 之间——真实信号，但不喧宾夺主。
+    public static let reportedTightPenalty = 0.2
+
     public static func score(_ outfit: Outfit, context: ScoringContext) -> OutfitScore {
         var value = 1.0
         var reasons: [String] = []
@@ -89,6 +105,21 @@ public enum OutfitScorer {
         func note(_ reason: String, _ delta: Double) {
             reasons.append(reason)
             contributions.append((reason, abs(delta)))
+        }
+
+        // D200：**你穿过之后说过「紧」的件，往后排。**
+        //
+        // 量纲刻意夹在配色（±0.3）与 60-30-10（0.1）之间：它是一条真实的
+        // 用户信号，但不该盖过「这一身搭得好不好」。可叠加——两件都紧更靠后。
+        if !context.reportedTightItemIDs.isEmpty {
+            let tight = outfit.itemIDs.filter { context.reportedTightItemIDs.contains($0) }
+            if !tight.isEmpty {
+                let penalty = Self.reportedTightPenalty * Double(tight.count)
+                value -= penalty
+                note(tight.count == 1
+                     ? "You've said one of these felt tight"
+                     : "You've said \(tight.count) of these felt tight", penalty)
+            }
         }
 
         let colors = outfit.items.compactMap(\.color)

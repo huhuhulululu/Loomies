@@ -19,12 +19,18 @@ public enum FitFeedbackCopy {
     public static let exportDisclosure =
         "Fit notes stay on device and are included when you export your data."
 
-    /// D196：说清这一问**会被拿去做什么**——问了不用固然糟，
-    /// 用了不说同样糟（用户会发现合身标记变了却不知道为什么）。
-    /// 只说做得到的：影响合身标记，不影响推荐排序。
+    /// D196/D200：说清这一问**会被拿去做什么**——问了不用固然糟，
+    /// 用了不说同样糟（用户会发现建议变了却不知道为什么）。
+    ///
+    /// D196 时这句话结尾是「It doesn't change which looks get suggested.」——
+    /// D200 把「紧」接进了推荐排序，那句话**当场不成立**，所以跟着改。
+    /// 代码变了文案必须同一波改，这是本仓反复在修的那一类。
+    ///
+    /// 措辞仍不许说大：**只有「紧」降权，「松」不动**（oversize 是一种穿法），
+    /// 而且是**降权不是排除**——那件衣服还在，只是排后面。
     public static let usageDisclosure =
         "Say it twice and it becomes this piece's fit mark, ahead of the measurements. "
-        + "It doesn't change which looks get suggested."
+        + "Pieces you keep calling tight also get shown later — never hidden."
 
     public static func choiceTitle(_ verdict: FitVerdict) -> String {
         switch verdict {

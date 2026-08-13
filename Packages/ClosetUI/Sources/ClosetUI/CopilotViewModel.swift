@@ -364,8 +364,16 @@ public final class CopilotViewModel {
     public var openSource: String { DailyRitualScheduler.peekOpenSource() }
 
     /// 回读今天的打卡（本柜、当天）。
+    /// 用户反复说过「紧」的件（D200）。跟着 `reloadToday` 那一次取表算出来，
+    /// 不另取一遍（D156 的纪律）。
+    public private(set) var reportedTightItemIDs: Set<String> = []
+
     public func reloadToday(in context: ModelContext) {
         let all = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
+        reportedTightItemIDs = Set(
+            FitMarkService.reportedFits(from: all)
+                .filter { $0.value.verdict == .tight }
+                .keys)
         let cal = Calendar.current
         let ids = Set(all
             .filter { $0.wardrobeSnapshotID == wardrobe.id && cal.isDateInToday($0.date) }
@@ -537,7 +545,9 @@ public final class CopilotViewModel {
                 bodyShape: bodyShape,
                 bodyShapeWeight: bodyShapeWeight,
                 colorSeason: PersonalColorSeason.parse(wardrobe.owner?.personalColorSeasonRaw),
-                daytimeTempF: hasResolvedWeather ? daytimeTempF : nil),
+                daytimeTempF: hasResolvedWeather ? daytimeTempF : nil,
+                // D200：你穿过之后反复说过「紧」的件往后排（降权，不排除）。
+                reportedTightItemIDs: reportedTightItemIDs),
             maxSuggestions: 3,
             anchorIDs: validAnchors.map(\.id),
             wornHereCount: worn.intersection(availableIDs).count)
