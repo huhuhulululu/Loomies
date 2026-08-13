@@ -66,6 +66,14 @@ public enum DS {
         public static let xl: CGFloat = 24
     }
 
+    /// chip / 小圆角控件的**最小**高度（D198）。
+    ///
+    /// 用 `minHeight` 而不是 `height`：这些 chip 里装的是文字，
+    /// 而无障碍大字号下 `.caption` 能长到 40pt 以上——写死 32 就把字裁掉了。
+    /// 44 是 HIG 的最小点击区，32 是视觉高度：视觉给 32，点击区靠 padding 撑
+    ///（`lookPagerChevron` 那套同款做法）。
+    public static let chipMinHeight: CGFloat = 32
+
     public static let radius: CGFloat = 12
     public static let radiusLg: CGFloat = 18
     public static let heroMinHeight: CGFloat = 360

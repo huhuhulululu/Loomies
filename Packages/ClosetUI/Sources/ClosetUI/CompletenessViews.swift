@@ -204,6 +204,10 @@ public struct CalendarView: View {
                                 Spacer()
                                 Image(systemName: "calendar.badge.plus")
                                     .foregroundStyle(DS.accent)
+                                    // D198：行里那句 look 名已经说清这一行是什么，
+                                    // 这个图标只是装饰——不藏起来 VoiceOver 会多念
+                                    // 一句「calendar badge plus」的噪声。
+                                    .accessibilityHidden(true)
                             }
                         }
                     }

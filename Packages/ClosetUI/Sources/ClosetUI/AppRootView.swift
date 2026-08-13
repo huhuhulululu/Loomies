@@ -1018,7 +1018,7 @@ public struct ClosetGridView: View {
                 Text(title).font(.caption)
             }
             .padding(.horizontal, 10)
-            .frame(height: 32)
+            .frame(minHeight: DS.chipMinHeight)
             .background(isOn ? DS.accent.opacity(0.22) : DS.surface)
             .foregroundStyle(isOn ? DS.accent : DS.ink)
             .clipShape(Capsule())

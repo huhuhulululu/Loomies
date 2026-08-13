@@ -105,3 +105,66 @@ struct TodayCopyDriftTests {
         #expect((source ?? "").contains("OccasionMix.displayTitle"))
     }
 }
+
+/// D198：**装文字的 chip 不许写死高度。**
+///
+/// 属性 / 场合 / 颜色三种 chip 都是 `Text(...).frame(height: 32)`——
+/// 而无障碍大字号下 `.caption` 能长到 40pt 以上，32pt 的框会把字**裁掉**。
+/// 用户看得见，且这是同一条规则的**四份手抄**（本仓最熟的那个病）。
+///
+/// 收成 `DS.chipMinHeight` 并改 `minHeight`：视觉高度不变，字长了能撑开。
+///
+/// 判据只看**装了文字的**固定高度——头像图那类固定尺寸是正当的
+///（`FullNudeBodyImageView(...).frame(height: 88)` 画的是图，不是字）。
+@MainActor
+struct DynamicTypeSafetyTests {
+
+    @Test func theChipHeightTokenExists() {
+        #expect(DS.chipMinHeight > 0)
+    }
+
+    /// 结构门：源码里不许再出现「固定高度包着 Text」。
+    @Test func noTextSitsInAFixedHeightBox() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetUI")
+        var offenders: [String] = []
+        var scanned = 0
+        for case let url as URL in FileManager.default
+            .enumerator(at: root, includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+                .map(String.init)
+            for (i, line) in lines.enumerated() {
+                let t = line.trimmingCharacters(in: .whitespaces)
+                guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
+                guard t.contains(".frame(height:") else { continue }
+                scanned += 1
+                // 认**构造**：从这行往上找第一个不是修饰符的行——那才是被框住的视图。
+                //
+                // 第一版拿 8 行窗口找 `Text(` 再排除含 `View(` 的，当场假绿：
+                // `ScrollView(` 也含 `View(`，把整条排除掉了。判据在**排除侧**
+                // 太宽与在断言侧太松是同一个病（D175/D183 记过两次，这是第三次）。
+                var framed: String?
+                var j = i - 1
+                while j >= 0 {
+                    let candidate = lines[j].trimmingCharacters(in: .whitespaces)
+                    if !candidate.isEmpty, !candidate.hasPrefix("."),
+                       !candidate.hasPrefix("//") {
+                        framed = candidate
+                        break
+                    }
+                    j -= 1
+                }
+                if let framed, framed.hasPrefix("Text(") {
+                    offenders.append("\(url.lastPathComponent):\(i + 1) ~ \(framed.prefix(40))")
+                }
+            }
+        }
+        #expect(scanned >= 4, Comment(rawValue: "只扫到 \(scanned) 处 frame(height:)：口径坏了"))
+        #expect(offenders.isEmpty, Comment(rawValue:
+            "这些地方用固定高度框住了文字，大字号会裁掉：\(offenders) —— 用 minHeight"))
+    }
+}
