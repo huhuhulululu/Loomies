@@ -191,3 +191,86 @@ struct ImportWiringTests {
         #expect(text.contains("without touching"), "没说清导入不会动已有衣柜")
     }
 }
+
+/// D134：**导入此前只搬了衣柜/单品/搭配**——穿着历史、计划、存放位置、
+/// 主人、身体档案一条都没导，而收据只说「照片没跟过来」。
+/// 用户以为搬完了，实际丢了一年的记录，且导入的柜**永远没有主人**：
+/// copilot 的个性化与合身标记对它永久关闭。
+@MainActor
+struct ImportCompletenessTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 造一份「什么都有」的导出。
+    private func richExport() throws -> Data {
+        let ctx = try makeContext()
+        let person = Person(name: "Ping"); person.coldBias = 1; ctx.insert(person)
+        let w = Wardrobe(name: "Home"); w.owner = person; ctx.insert(w)
+        let rail = StorageLocation(name: "Rail"); rail.wardrobe = w; ctx.insert(rail)
+        let tee = Item(name: "Tee"); tee.slotRaw = "top"; tee.statusRaw = "available"
+        tee.wardrobe = w; tee.location = rail; ctx.insert(tee)
+        let look = ClosetModel.Outfit(name: "Look"); look.wardrobe = w; look.items = [tee]
+        ctx.insert(look)
+        let rec = WearRecord(date: Date().addingTimeInterval(-86_400))
+        rec.wornItemIDs = [tee.id.uuidString]; rec.wardrobeSnapshotID = w.id
+        ctx.insert(rec)
+        let plan = CalendarPlan(date: Date()); plan.outfit = look; ctx.insert(plan)
+        let profile = PersonBodyProfile(personID: person.id)
+        profile.bustInches = 36; profile.waistInches = 28; ctx.insert(profile)
+        try ctx.save()
+        return try DataLifecycleService.exportJSONData(in: ctx, includeBodyDimensions: true)
+    }
+
+    @Test func everyTableComesOver() throws {
+        let ctx = try makeContext()
+        let receipt = try ImportService.importSnapshot(try richExport(), into: ctx)
+        #expect(receipt.locationsAdded == 1, "存放位置没导过来")
+        #expect(receipt.wearRecordsAdded == 1, "穿着历史没导过来 —— 用户丢了一年的记录")
+        #expect(receipt.plansAdded == 1, "日历计划没导过来")
+        #expect(try ctx.fetch(FetchDescriptor<Person>()).count == 1, "主人没导过来")
+    }
+
+    /// **导入的柜必须有主人**——没有主人就没有体型档案，
+    /// copilot 个性化与合身标记对它永久关闭。
+    @Test func theImportedClosetHasAnOwner() throws {
+        let ctx = try makeContext()
+        _ = try ImportService.importSnapshot(try richExport(), into: ctx)
+        let w = try #require(try ctx.fetch(FetchDescriptor<Wardrobe>()).first)
+        #expect(w.owner != nil)
+        let profiles = try ctx.fetch(FetchDescriptor<PersonBodyProfile>())
+        #expect(profiles.first?.personID == w.owner?.id, "身体档案没跟着主人过来")
+    }
+
+    /// 穿着记录里的单品引用是**软引用**，必须重映射到新 id——
+    /// 不映射的话导进来的记录指向一批本机不存在的单品，等于没导。
+    @Test func wearRecordsPointAtTheImportedPieces() throws {
+        let ctx = try makeContext()
+        _ = try ImportService.importSnapshot(try richExport(), into: ctx)
+        let tee = try #require(try ctx.fetch(FetchDescriptor<Item>()).first)
+        let rec = try #require(try ctx.fetch(FetchDescriptor<WearRecord>()).first)
+        #expect(rec.wornItemIDs == [tee.id.uuidString])
+        #expect(rec.wardrobeSnapshotID == tee.wardrobe?.id, "记录挂在别的柜的快照上")
+    }
+
+    /// 单品的存放位置要跟过来（否则位置树是空的，而件说自己没地方放）。
+    @Test func itemsKeepTheirStorageSpot() throws {
+        let ctx = try makeContext()
+        _ = try ImportService.importSnapshot(try richExport(), into: ctx)
+        let tee = try #require(try ctx.fetch(FetchDescriptor<Item>()).first)
+        #expect(tee.location?.name == "Rail")
+    }
+
+    /// 收据要**说出**这些也搬过来了——否则用户无从判断搬全了没有。
+    @Test func theReceiptNamesWhatElseCameOver() throws {
+        let ctx = try makeContext()
+        let receipt = try ImportService.importSnapshot(try richExport(), into: ctx)
+        #expect(receipt.summary.localizedCaseInsensitiveContains("wear"),
+                Comment(rawValue: receipt.summary))
+    }
+}

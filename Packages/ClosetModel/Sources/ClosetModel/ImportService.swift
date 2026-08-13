@@ -32,6 +32,11 @@ public enum ImportService {
         public let wardrobesAdded: Int
         public let itemsAdded: Int
         public let outfitsAdded: Int
+        /// D134：此前**穿着历史、计划、位置、主人、身体档案一条都没导**，
+        /// 而收据只提「照片没跟过来」——用户以为搬完了，实际丢了一年的记录。
+        public let wearRecordsAdded: Int
+        public let plansAdded: Int
+        public let locationsAdded: Int
         /// 指向本机不存在的图片、被清掉的件数。
         public let imagePathsCleared: Int
 
@@ -43,7 +48,13 @@ public enum ImportService {
             }
             let pieces = itemsAdded == 1 ? "1 piece" : "\(itemsAdded) pieces"
             let closets = wardrobesAdded == 1 ? "1 closet" : "\(wardrobesAdded) closets"
-            return "Imported \(pieces) into \(closets). "
+            var extras: [String] = []
+            if outfitsAdded > 0 { extras.append("\(outfitsAdded) looks") }
+            if wearRecordsAdded > 0 { extras.append("\(wearRecordsAdded) wear records") }
+            if plansAdded > 0 { extras.append("\(plansAdded) plans") }
+            if locationsAdded > 0 { extras.append("\(locationsAdded) storage spots") }
+            let tail = extras.isEmpty ? "" : " Also brought over: \(extras.joined(separator: ", "))."
+            return "Imported \(pieces) into \(closets).\(tail) "
                 + "Photos aren't part of the data file — add them again when you like."
         }
     }
@@ -74,7 +85,13 @@ public enum ImportService {
         var newWardrobes: [Wardrobe] = []
         var newItems: [Item] = []
         var newOutfits: [Outfit] = []
+        var newLocations: [StorageLocation] = []
+        var newRecords: [WearRecord] = []
+        var newPlans: [CalendarPlan] = []
+        var newPersons: [Person] = []
+        var newProfiles: [PersonBodyProfile] = []
         var imagePathsCleared = 0
+        let iso = ISO8601DateFormatter()
 
         // 导入的 id 一律**重新生成**：原 id 可能与本机已有对象撞车，
         // 而撞车的后果是悄悄改写用户已有的数据。
@@ -82,13 +99,42 @@ public enum ImportService {
         let existingNames = Set((try? context.fetch(FetchDescriptor<Wardrobe>()))?
             .map(\.name) ?? [])
 
+        // D134：**主人也要带过来**——没有主人，导入的柜永远没有体型档案，
+        // copilot 的个性化与合身标记对它永久关闭。
+        var personMap: [String: Person] = [:]
+        for dto in snapshot.persons {
+            let person = Person(name: dto.name)
+            person.coldBias = dto.coldBias
+            person.personalColorSeasonRaw = dto.personalColorSeasonRaw
+            person.primaryOccasionRaw = dto.primaryOccasionRaw
+            context.insert(person)
+            personMap[dto.id] = person
+            newPersons.append(person)
+        }
+
         for dto in snapshot.wardrobes {
             let w = Wardrobe(name: uniqueName(dto.name, taken: existingNames.union(
                 newWardrobes.map(\.name))))
             w.locationCity = TextNormalize.blankToNil(dto.locationCity)
+            if let pid = dto.ownerID, let owner = personMap[pid] { w.owner = owner }
             context.insert(w)
             wardrobeMap[dto.id] = w
             newWardrobes.append(w)
+        }
+
+        // 存放位置：先建再连父子（快照里父可能排在子后面）
+        var locationMap: [String: StorageLocation] = [:]
+        for dto in snapshot.locations {
+            let loc = StorageLocation(name: dto.name)
+            if let wid = dto.wardrobeID, let w = wardrobeMap[wid] { loc.wardrobe = w }
+            context.insert(loc)
+            locationMap[dto.id] = loc
+            newLocations.append(loc)
+        }
+        for dto in snapshot.locations {
+            if let pid = dto.parentID, let parent = locationMap[pid] {
+                locationMap[dto.id]?.parent = parent
+            }
         }
 
         var itemMap: [String: Item] = [:]
@@ -121,6 +167,9 @@ public enum ImportService {
             } else if let first = newWardrobes.first {
                 item.wardrobe = first          // 快照里没柜归属 → 落到导入的第一个柜
             }
+            if let lid = dto.locationID { item.location = locationMap[lid] }
+            item.sizeSystemRaw = dto.sizeSystemRaw
+            item.lastWashedAt = dto.lastWashedAt.flatMap { iso.date(from: $0) }
             context.insert(item)
             itemMap[dto.id] = item
             newItems.append(item)
@@ -135,11 +184,55 @@ public enum ImportService {
             newOutfits.append(outfit)
         }
 
+        // 身体档案（D5 本地域）：跟着主人走
+        for dto in snapshot.bodyProfiles ?? [] {
+            guard let person = personMap[dto.personID] else { continue }
+            let profile = PersonBodyProfile(personID: person.id)
+            profile.bustInches = dto.bustInches
+            profile.waistInches = dto.waistInches
+            profile.hipInches = dto.hipInches
+            profile.highHipInches = dto.highHipInches
+            profile.popularShapeOverrideRaw = dto.popularShapeOverrideRaw
+            profile.shapeSourceRaw = dto.shapeSourceRaw
+            profile.highHipInferred = dto.highHipInferred
+            context.insert(profile)
+            newProfiles.append(profile)
+        }
+
+        // 穿着历史：`wornItemIDs` 是**软引用**，必须重映射到新 id，
+        // 否则导进来的记录指向一批本机不存在的单品（等于没导）。
+        for dto in snapshot.wearRecords {
+            guard let date = iso.date(from: dto.date) else { continue }
+            let record = WearRecord(date: date)
+            record.wornItemIDs = dto.wornItemIDs.compactMap { itemMap[$0]?.id.uuidString }
+            if let wid = dto.wardrobeSnapshotID { record.wardrobeSnapshotID = wardrobeMap[wid]?.id }
+            record.fitFeedback = dto.fitFeedback
+            context.insert(record)
+            newRecords.append(record)
+        }
+
+        var outfitMap: [String: Outfit] = [:]
+        for (i, dto) in snapshot.outfits.enumerated() where i < newOutfits.count {
+            outfitMap[dto.id] = newOutfits[i]
+        }
+        for dto in snapshot.plans {
+            guard let date = iso.date(from: dto.date) else { continue }
+            let plan = CalendarPlan(date: date)
+            if let oid = dto.outfitID { plan.outfit = outfitMap[oid] }
+            plan.needsAttention = dto.needsAttention
+            plan.dayKey = dto.dayKey ?? ""
+            context.insert(plan)
+            newPlans.append(plan)
+        }
+
         guard ModelSave.save(context, label: "importSnapshot") else {
             // 断关系再 rollback：不断的话幻影会被下一次无关 save 写进库（D112）
+            for plan in newPlans { plan.outfit = nil }
             for outfit in newOutfits { outfit.wardrobe = nil; outfit.items = [] }
-            for item in newItems { item.wardrobe = nil }
+            for item in newItems { item.wardrobe = nil; item.location = nil }
+            for loc in newLocations { loc.wardrobe = nil; loc.parent = nil }
             for w in newWardrobes { w.owner = nil }
+            _ = newRecords; _ = newProfiles; _ = newPersons
             context.rollback()
             AppLog.error("import save failed", .data)
             throw ImportError.saveFailed
@@ -150,6 +243,9 @@ public enum ImportService {
             wardrobesAdded: newWardrobes.count,
             itemsAdded: newItems.count,
             outfitsAdded: newOutfits.count,
+            wearRecordsAdded: newRecords.count,
+            plansAdded: newPlans.count,
+            locationsAdded: newLocations.count,
             imagePathsCleared: imagePathsCleared)
     }
 

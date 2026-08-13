@@ -217,6 +217,14 @@ public struct MeView: View {
                     .accessibilityHint(DataLifecycleService.exportButtonAccessibilityHint)
                     // D122：此前只有出口没有入口——政策里写着「take everything
                     // with you」，可搬出去之后没有任何地方能搬回来。
+                    // D134：用户导出拿到的是 **zip**，而导入只收 json——
+                    // 往返在真机上根本走不通（Foundation 没有解压 API）。
+                    // 补一条「只导数据文件」：它就是导入认的那种格式，
+                    // 照片仍走上面的完整包（照片本来也不参与导入）。
+                    Button("Export data file (for import)") { exportDataFileOnly() }
+                        .accessibilityHint(
+                            "Shares a JSON file you can import back into Loomies. "
+                            + "Photos are not included.")
                     Button("Import from a data file…") { showImportPicker = true }
                         .accessibilityHint(
                             "Adds a new closet from a Loomies data file. "
@@ -294,7 +302,9 @@ public struct MeView: View {
             .navigationTitle("Me")
             .fileImporter(
                 isPresented: $showImportPicker,
-                allowedContentTypes: [.json],
+                // zip 也收：用户手上多半是完整包，收下它才能给一句
+                // 走得通的指路，而不是「这不是 Loomies 的导出」（那是错的）
+                allowedContentTypes: [.json, .zip],
                 allowsMultipleSelection: false
             ) { result in
                 handleImport(result)
@@ -363,6 +373,13 @@ public struct MeView: View {
             // 安全作用域：文件来自 App 沙盒之外，不 start 会读不到
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            guard url.pathExtension.lowercased() != "zip" else {
+                // Foundation 没有解压 API——与其失败，不如指一条真能走通的路
+                dataMessage = FailureCopy.line(.needsUserAction(
+                    "That's the full backup (a .zip)",
+                    next: "Use Export data file, or uncompress the zip in Files and pick data.json"))
+                return
+            }
             do {
                 let data = try Data(contentsOf: url)
                 let receipt = try ImportService.importSnapshot(data, into: context)
@@ -410,6 +427,29 @@ public struct MeView: View {
         dailyRitualNote = DailyRitual.shouldSchedule(availableItemCount: count)
             ? DailyRitual.permissionRationale
             : "Starts once your closet can put a full look together."
+    }
+
+    /// 仅数据文件（D134）。完整包是 zip、含照片；而**导入只认 JSON**——
+    /// 没有这条，用户导出之后无路可回。
+    private func exportDataFileOnly() {
+        do {
+            let data = try DataLifecycleService.exportJSONData(
+                in: context, includeBodyDimensions: includeBodyInExport)
+            ExportBundleService.sweepTemporaryExports()
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent(
+                    "\(ExportBundleService.temporaryDirectoryPrefix)\(UUID().uuidString)",
+                    isDirectory: true)
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let url = dir.appendingPathComponent("Loomies-data.json")
+            try data.write(to: url, options: .atomic)
+            shareFileURL = url
+            dataMessage = DataLifecycleService.exportReadyMessage(
+                includeBodyDimensions: includeBodyInExport)
+        } catch {
+            dataMessage = DataLifecycleService.exportFailedMessage
+            AppLog.error("data-file export failed: \(AppLog.errRef(error))", .data)
+        }
     }
 
     private func exportBundle() {

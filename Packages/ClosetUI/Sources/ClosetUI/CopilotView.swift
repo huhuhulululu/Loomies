@@ -149,11 +149,16 @@ public struct CopilotView: View {
                 }
                 controlsCard
                 if shouldShowAnchors { anchorSection }
-                if !vm.suggestions.isEmpty { otherLooksSection }
-                if showMeasureInvite { measureInviteRow }
-                else if !vm.statusMessage.isEmpty && !vm.isColdStart && !vm.isRefreshing {
+                // D134：D117 把 `measureInviteRow` 插进了 if/else 中间，
+                // `else` 于是改挂在 `showMeasureInvite` 上——**有推荐的正常屏
+                // 也会在下面渲染一张「没有匹配」的卡片**。
+                // 两件事本来就无关，分开写，不再靠 else 链耦合。
+                if !vm.suggestions.isEmpty {
+                    otherLooksSection
+                } else if !vm.statusMessage.isEmpty && !vm.isColdStart && !vm.isRefreshing {
                     emptyLooksNote
                 }
+                if showMeasureInvite { measureInviteRow }
                 if let checkInNote {
                     feedbackChip(checkInNote)
                 }
