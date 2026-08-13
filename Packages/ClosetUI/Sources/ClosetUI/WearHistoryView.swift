@@ -51,8 +51,17 @@ public final class WearHistoryViewModel {
         let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         // 本柜快照（转移不改历史统计口径——记录固化了当时的衣柜）
         let mine = records.filter { $0.wardrobeSnapshotID == wardrobe.id }
+        // D147：`uniqueKeysWithValues` 对重复 key 直接 `fatalError`，而 schema
+        // **没有**把 `Item.id` 声明为 unique——导入/同步产生的重复 id 会让一个
+        // 「给历史行取几个名字」的路径把整页变成一次进程终止。
+        // D105 已经在 `TransferHistory.closetNames`（按衣柜 id）判过同一件事，
+        // 只是没走到这里；单品比衣柜多两个数量级，这一处暴露面更大。
+        // 取**确定的**胜者：同一个库跑两次，用户看到的名字得一样。
         let byID = Dictionary(
-            uniqueKeysWithValues: (wardrobe.items ?? []).map { ($0.id.uuidString, $0) })
+            (wardrobe.items ?? []).map { ($0.id.uuidString, $0) }
+        ) { lhs, rhs in
+            (lhs.name, lhs.id.uuidString) <= (rhs.name, rhs.id.uuidString) ? lhs : rhs
+        }
         entries = mine
             // 最近在前；同日按 id 决胜（排序确定性，禁止依赖 fetch 顺序）
             .sorted { ($0.date, $0.id.uuidString) > ($1.date, $1.id.uuidString) }
