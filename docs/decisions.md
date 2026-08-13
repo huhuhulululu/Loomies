@@ -1994,3 +1994,39 @@ D118 把每日回访做全了：策略纯函数、七条按周重复的排程、
 两个入口共用 `enable`、拒绝真的落盘、邀请卡挂在自己的条件上而不是 `else` 链
 （D134 的错位就发生在同一个文件里）。三个门在改动前对 HEAD 源码全部命中 0 次——
 证明得了它们能红。
+
+---
+
+## D141 — 零调用点族的收口 + 三处替用户做主的猜测（2026-08-13）
+
+**`FailureCopy.outOfSpace` 零生产调用点。** 那一档的注释白纸黑字写着
+「磁盘满了重试一百次还是满的」，而全仓没有任何一处会产出它——最该用上它的地方
+（把整柜照片打进一个 zip 的导出）照旧说「— try again」，用户在一部快满的手机上
+会一直点，直到以为 App 坏了。D128 建好了分类，却没接到会填满磁盘的那条路上。
+
+判据不靠猜：错误码就在 catch 里（`NSFileWriteOutOfSpaceError` / `ENOSPC`，
+`FileManager` 常包在 `NSUnderlyingErrorKey` 里所以要递归看）。
+**认不出来的一律回落 `.transient`**——宁可说「重试」，也不要让一个网络抖动的
+失败去叫用户删照片。
+
+**`ExportError.noCroquis` 的两句文案自相矛盾**：`toastMessage` 是 D128 改对的
+那条（「没有身形底图不是偶发，去 Me → Body 设一个」），而 `errorDescription`
+原封不动还写着「Try again in a moment」。同一个错误两处说法相反，哪句到用户眼前
+取决于谁调了哪个属性——那不是用户该承担的不确定性。
+
+**`writerFailed` 一口咬定「腾点空间」**，而它的成因未知（`canAdd`/`startWriting`
+返回 false 的原因多了去了）。猜错时用户白删了照片。改成不冒充知道原因。
+连带修掉那条把猜测钉成契约的旧断言——它要求文案里必须出现 "storage"。
+
+**`displayName` 把 `J.CREW` 改成「J.crew」。** 按空格切词、每段首字母大写，
+而 `J.CREW` 整体是一个词（字母数 5，越过了「≤4 视为缩写」的闸）。
+`L.L.BEAN` → `L.l.bean` 更明显，`SAINT-LAURENT` → `Saint-laurent`（写测试时才发现）。
+品牌是检索页的匹配字段（D120 的 #1 JTBD「店里那一刻我有没有这件」），
+洗标 OCR 又正是它的主要来源。改成按**字母段**大写：分隔符原样留着，
+`J.Crew` / `L.L.Bean` / `Saint-Laurent` 自己就对了。
+
+**检索每敲一个字，按柜各扫一遍全表。** `refreshWearStats` 对结果里出现的每个柜
+调一次 `stats(forItemsIn:)`，而那个方法每次 `fetch(FetchDescriptor<WearRecord>())`
+取全表——跨柜命中 5 个柜就是 5 次全表扫描，挂在 0.25s 的防抖上。
+而 `WearRecord` 是这个 App 里增长最快的表（每天至少一条，从不删）。
+改成 `stats(forItemIDs:)` 一次取完；整柜版转成它的薄封装，两条路不会给出不同答案。

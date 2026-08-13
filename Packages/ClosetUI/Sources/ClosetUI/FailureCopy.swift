@@ -43,6 +43,30 @@ public enum FailureCopy {
         }
     }
 
+    /// 把手上的错误分到上面那三档去（D141）。
+    ///
+    /// `.outOfSpace` 此前**零生产调用点**——那一档写着「重试无意义」，
+    /// 而最该用上它的地方（把整柜照片打进一个 zip 的导出）照旧说「try again」，
+    /// 用户在一部快满的手机上会一直点。
+    ///
+    /// 判据不靠猜：错误码就在 catch 里。认不出来的一律回落 `.transient`——
+    /// 宁可说「重试」，也不要让一个网络抖动的失败去叫用户删照片。
+    public static func classify(_ error: Error, fallback: String) -> Kind {
+        isOutOfSpace(error) ? .outOfSpace : .transient(fallback)
+    }
+
+    /// 递归看底层错误：`FileManager` 常把 `ENOSPC` 包在 `NSUnderlyingErrorKey` 里。
+    static func isOutOfSpace(_ error: Error, depth: Int = 0) -> Bool {
+        guard depth < 4 else { return false }          // 循环引用的错误链见过，别栈溢出
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain, ns.code == 640 { return true }   // NSFileWriteOutOfSpaceError
+        if ns.domain == NSPOSIXErrorDomain, ns.code == 28 { return true }    // ENOSPC
+        if let inner = ns.userInfo[NSUnderlyingErrorKey] as? Error {
+            return isOutOfSpace(inner, depth: depth + 1)
+        }
+        return false
+    }
+
     public static func line(_ kind: Kind) -> String {
         switch kind {
         case .transient(let what):

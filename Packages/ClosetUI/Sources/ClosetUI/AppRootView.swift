@@ -469,7 +469,8 @@ public struct MeView: View {
             dataMessage = .success(DataLifecycleService.exportReadyMessage(
                 includeBodyDimensions: includeBodyInExport))
         } catch {
-            dataMessage = .failure(.transient(DataLifecycleService.exportFailedMessage))
+            dataMessage = .failure(FailureCopy.classify(
+                error, fallback: DataLifecycleService.exportFailedMessage))
             AppLog.error("data-file export failed: \(AppLog.errRef(error))", .data)
         }
     }
@@ -514,13 +515,17 @@ public struct MeView: View {
                 case .failure(let error):
                     // 失败分支也要收拾自己建的目录
                     try? FileManager.default.removeItem(at: dir)
-                    dataMessage = .failure(.transient(ExportBundleService.bundleFailedMessage))
+                    // D141：磁盘满是这条路上最常见的真实原因（整柜照片进 zip），
+                    // 而「try again」在那种情况下是把用户往走不通的路上推
+                    dataMessage = .failure(FailureCopy.classify(
+                        error, fallback: ExportBundleService.bundleFailedMessage))
                     AppLog.error("export bundle failed: \(AppLog.errRef(error))", .data)
                 }
             }
         } catch {
             isBuildingExport = false
-            dataMessage = .failure(.transient(ExportBundleService.bundleFailedMessage))
+            dataMessage = .failure(FailureCopy.classify(
+                error, fallback: ExportBundleService.bundleFailedMessage))
             AppLog.error("export plan failed: \(AppLog.errRef(error))", .data)
         }
     }

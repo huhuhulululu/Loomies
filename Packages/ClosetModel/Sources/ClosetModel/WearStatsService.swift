@@ -86,12 +86,27 @@ public enum WearStatsService {
     public static func stats(
         forItemsIn wardrobe: Wardrobe, in context: ModelContext
     ) -> [UUID: Stats] {
+        stats(forItemIDs: Set((wardrobe.items ?? []).map(\.id)), in: context)
+    }
+
+    /// 按 id 批量（D141）。
+    ///
+    /// 跨柜检索此前对结果里出现的**每个柜**各调一次整柜版，而每次都要读全表：
+    /// 命中 5 个柜 = 5 次全表扫描，还挂在 0.25s 的防抖上，每敲一个字重来一遍。
+    /// 而 `WearRecord` 是这个 App 里增长最快的表（每天至少一条，从不删）。
+    /// 要的其实只是「这些件的统计」——一次取完就够。
+    @MainActor
+    public static func stats(
+        forItemIDs ids: Set<UUID>, in context: ModelContext
+    ) -> [UUID: Stats] {
+        guard !ids.isEmpty else { return [:] }
+        let wanted = Set(ids.map(\.uuidString))
         let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         var counts: [String: Int] = [:]
         var lasts: [String: Date] = [:]
-        // 同上：按单品 id 聚合，不按柜快照过滤——否则转移过的件全成「没穿过」
+        // 按单品 id 聚合，不按柜快照过滤——否则转移过的件全成「没穿过」（D134）
         for r in records {
-            for id in r.wornItemIDs {
+            for id in r.wornItemIDs where wanted.contains(id) {
                 counts[id, default: 0] += 1
                 if let existing = lasts[id] {
                     if r.date > existing { lasts[id] = r.date }
@@ -100,10 +115,11 @@ public enum WearStatsService {
                 }
             }
         }
+        // 每个问到的 id 都给一条：缺键会让调用方分不清「没查」和「没穿过」
         var out: [UUID: Stats] = [:]
-        for item in wardrobe.items ?? [] {
-            let key = item.id.uuidString
-            out[item.id] = Stats(count: counts[key] ?? 0, lastWorn: lasts[key])
+        for id in ids {
+            let key = id.uuidString
+            out[id] = Stats(count: counts[key] ?? 0, lastWorn: lasts[key])
         }
         return out
     }

@@ -97,10 +97,13 @@ struct AvatarCinematicLookbookTests {
             .localizedCaseInsensitiveContains("try")
             || AvatarCinematicExporter.ExportError.noCroquis.toastMessage
             .localizedCaseInsensitiveContains("preview"))
-        #expect(AvatarCinematicExporter.ExportError.writerFailed.toastMessage
-            .localizedCaseInsensitiveContains("storage")
-            || AvatarCinematicExporter.ExportError.writerFailed.toastMessage
-            .localizedCaseInsensitiveContains("retry"))
+        // D141：原断言要求这句话里出现 "storage"——把「腾点空间」这个**猜测**
+        // 钉成了契约。`writerFailed` 的成因未知，猜错时用户白删了照片。
+        // 该断言的是它的性质：给得出下一步（重试），且不冒充知道原因。
+        let writer = AvatarCinematicExporter.ExportError.writerFailed.toastMessage
+        #expect(writer.localizedCaseInsensitiveContains("try"), Comment(rawValue: writer))
+        #expect(!writer.localizedCaseInsensitiveContains("storage"),
+                Comment(rawValue: "又在替系统猜原因：\(writer)"))
     }
 }
 

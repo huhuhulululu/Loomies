@@ -167,3 +167,46 @@ struct LabelBrandFalsePositiveTests {
         ]).brand == "Uniqlo")
     }
 }
+
+/// D141：**带点的缩写品牌被改坏**。`displayName` 按空格切词、每段首字母大写，
+/// 于是 `J.CREW`（字母数 5，越过「≤4 视为缩写」的闸）整段被当作一个词：
+/// `J` + `.crew` = **「J.crew」**。真实品牌是 `J.Crew`。
+/// `L.L.BEAN` → `L.l.bean` 更明显。
+///
+/// 这一条不是排版洁癖：品牌是检索页的匹配字段（D120 的 #1 JTBD——
+/// 「店里那一刻我有没有这件」），而洗标 OCR 是它的主要来源。
+/// 按**字母段**大写而不是按空格切词，既修了这个，也顺手让
+/// `L.L.Bean` / `A.P.C.` 这类名字自己就对了。
+struct BrandCaseTests {
+
+    @Test func dottedAcronymBrandsKeepTheirShape() {
+        #expect(LabelTextParser.displayName("J.CREW") == "J.Crew")
+        #expect(LabelTextParser.displayName("L.L.BEAN") == "L.L.Bean")
+    }
+
+    /// 普通全大写照旧变成人读的样子。
+    @Test func ordinaryAllCapsBecomesTitleCase() {
+        #expect(LabelTextParser.displayName("EVERLANE") == "Everlane")
+        #expect(LabelTextParser.displayName("BANANA REPUBLIC") == "Banana Republic")
+    }
+
+    /// 短缩写原样保留（COS 不该变成 Cos）。
+    @Test func shortAcronymsAreLeftAlone() {
+        #expect(LabelTextParser.displayName("COS") == "COS")
+        #expect(LabelTextParser.displayName("NA-KD") == "NA-KD")
+        #expect(LabelTextParser.displayName("H&M") == "H&M")
+    }
+
+    /// 本来就不是全大写的，一个字符都不许动——
+    /// 用户/OCR 给的 `adidas`、`lululemon` 是品牌自己的写法。
+    @Test func mixedCaseIsNeverTouched() {
+        #expect(LabelTextParser.displayName("adidas") == "adidas")
+        #expect(LabelTextParser.displayName("lululemon") == "lululemon")
+        #expect(LabelTextParser.displayName("Uniqlo") == "Uniqlo")
+    }
+
+    /// 连字符里的每一段也各自成词（`SAINT-LAURENT`）。
+    @Test func hyphenatedWordsEachGetACapital() {
+        #expect(LabelTextParser.displayName("SAINT-LAURENT") == "Saint-Laurent")
+    }
+}

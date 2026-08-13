@@ -187,3 +187,79 @@ struct WearDateCopyTests {
                 Comment(rawValue: "一年前穿的和上周读起来一样：\(text)"))
     }
 }
+
+/// D141：**检索的每一次按键都在扫整张穿着记录表——而且按柜扫了好几遍。**
+///
+/// `SearchViewModel.refreshWearStats` 对结果里出现的**每个柜**调一次
+/// `stats(forItemsIn:)`，而那个方法每次都 `fetch(FetchDescriptor<WearRecord>())`
+/// 取全表。跨柜检索命中 5 个柜 = 5 次全表扫描，挂在 0.25s 的防抖上，
+/// 每敲一个字重来一遍。而 `WearRecord` 是这个 App 里**增长最快**的表
+/// （每天至少一条，一年三百多条，还从不删）。
+///
+/// 要的其实只是「结果里这些件的统计」——按 id 一次取完就够。
+@MainActor
+struct WearStatsBatchByIDTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 一次取多件，跨柜也一次搞定（这正是跨柜检索的形状）。
+    @Test func oneLookupCoversItemsFromDifferentClosets() throws {
+        let ctx = try makeContext()
+        let home = Wardrobe(name: "Home"); ctx.insert(home)
+        let box = Wardrobe(name: "Off-season"); ctx.insert(box)
+        let tee = Item(name: "Tee"); tee.wardrobe = home; ctx.insert(tee)
+        let coat = Item(name: "Coat"); coat.wardrobe = box; ctx.insert(coat)
+        try ctx.save()
+        for (item, wardrobe, days) in [(tee, home, 3), (tee, home, 1), (coat, box, 9)] {
+            let rec = WearRecord(date: Date().addingTimeInterval(-86_400 * Double(days)))
+            rec.wornItemIDs = [item.id.uuidString]
+            rec.wardrobeSnapshotID = wardrobe.id
+            ctx.insert(rec)
+        }
+        try ctx.save()
+
+        let stats = WearStatsService.stats(forItemIDs: [tee.id, coat.id], in: ctx)
+        #expect(stats[tee.id]?.count == 2)
+        #expect(stats[coat.id]?.count == 1)
+    }
+
+    /// 没穿过的件也要有一条（缺键会让调用方分不清「没查」和「没穿过」）。
+    @Test func everyRequestedIDGetsAnAnswer() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.wardrobe = w; ctx.insert(tee)
+        try ctx.save()
+
+        let stats = WearStatsService.stats(forItemIDs: [tee.id], in: ctx)
+        #expect(stats[tee.id]?.count == 0)
+        #expect(stats[tee.id]?.lastWorn == nil)
+    }
+
+    /// 空集合不扫盘（不筛的时候不该为零个 id 去读全表）。
+    @Test func anEmptyRequestDoesNoWork() throws {
+        let ctx = try makeContext()
+        #expect(WearStatsService.stats(forItemIDs: [], in: ctx).isEmpty)
+    }
+
+    /// 与逐件查的口径一致（两条路给出不同答案是最难查的那种 bug）。
+    @Test func itAgreesWithTheSingleItemLookup() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.wardrobe = w; ctx.insert(tee)
+        try ctx.save()
+        let rec = WearRecord(date: Date().addingTimeInterval(-86_400 * 2))
+        rec.wornItemIDs = [tee.id.uuidString]
+        rec.wardrobeSnapshotID = w.id
+        ctx.insert(rec)
+        try ctx.save()
+
+        #expect(WearStatsService.stats(forItemIDs: [tee.id], in: ctx)[tee.id]
+                == WearStatsService.stats(for: tee, in: ctx))
+    }
+}

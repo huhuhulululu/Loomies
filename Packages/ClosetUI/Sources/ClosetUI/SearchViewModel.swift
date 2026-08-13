@@ -63,11 +63,12 @@ public final class SearchViewModel {
 
     /// D120：「上次什么时候穿的」是判断「要不要再买一件」的另一半依据。
     /// 批量取一次——每行各查一遍在百件规模上是 N 次全表扫描。
+    /// D141：一次取完。此前对结果里出现的**每个柜**各调一次整柜版，
+    /// 而每次都要读全表——跨柜命中 5 个柜就是 5 次全表扫描，
+    /// 挂在 0.25s 的防抖上每敲一个字重来一遍。要的只是结果这些件。
     private func refreshWearStats(in context: ModelContext) {
-        wearStats = [:]
-        for wardrobe in Set(results.compactMap(\.wardrobe)) {
-            wearStats.merge(WearStatsService.stats(forItemsIn: wardrobe, in: context)) { a, _ in a }
-        }
+        wearStats = WearStatsService.stats(
+            forItemIDs: Set(results.map(\.id)), in: context)
     }
 
     /// 结果计数的用户读法——「你已经有 4 件」。

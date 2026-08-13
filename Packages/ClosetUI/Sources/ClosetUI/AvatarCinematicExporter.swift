@@ -80,10 +80,16 @@ public enum AvatarCinematicExporter {
 
         public var errorDescription: String? {
             switch self {
+            // D141：这两句此前与 `toastMessage` **自相矛盾**——短文案（D128 改对的那条）
+            // 说「没有身形底图不是偶发，去 Me → Body 设一个」，长文案却还写着
+            // 「Try again in a moment」。同一个错误两处说法相反，哪句到用户眼前
+            // 取决于谁调了哪个属性，而那不是用户该承担的不确定性。
             case .noCroquis:
-                return "Couldn't build the nude body preview. Try again in a moment."
+                return "No body preview yet. Set your shape in Me → Body, then export."
             case .writerFailed:
-                return "Couldn't start the video writer. Free some storage and try again."
+                // 不替系统猜原因：writerFailed 可能是任何缘由，
+                // 而原文案一口咬定「腾点空间」——猜错时用户白删了照片
+                return "Couldn't start the video writer. Try again in a moment."
             case .encodeFailed:
                 return "Couldn't finish encoding the preview. Try again in a moment."
             case .garmentsUnavailable:
@@ -97,7 +103,7 @@ public enum AvatarCinematicExporter {
             // D128：没有可用的身形底图**不是偶发**——再点一次结果一样。
             // 给一条真能走通的路（去 Body 设一个体型），而不是让他一直点。
             case .noCroquis: return "No body preview yet — set your shape in Me → Body"
-            case .writerFailed: return "Couldn't export — free storage & retry"
+            case .writerFailed: return "Couldn't start the export — try again"
             case .encodeFailed: return "Couldn't export preview — try again"
             case .garmentsUnavailable: return "Item photos missing — can't export look"
             }

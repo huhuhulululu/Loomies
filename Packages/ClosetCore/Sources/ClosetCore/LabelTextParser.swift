@@ -152,9 +152,22 @@ public enum LabelTextParser {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         let isAllCaps = trimmed == trimmed.uppercased()
         guard isAllCaps, trimmed.filter(\.isLetter).count > 4 else { return trimmed }
-        return trimmed
-            .split(separator: " ")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
-            .joined(separator: " ")
+        // D141：按**字母段**大写，不按空格切词。
+        // 按空格切的话 `J.CREW` 是一个词 → `J` + `.crew` = 「J.crew」，
+        // `L.L.BEAN` → 「L.l.bean」——而品牌是检索页的匹配字段（D120 的 #1 JTBD），
+        // 洗标 OCR 又正是它的主要来源。按字母段处理，`L.L.Bean` /
+        // `Saint-Laurent` 这类名字自己就对了，分隔符原样留着。
+        var out = ""
+        var startOfWord = true
+        for ch in trimmed {
+            if ch.isLetter {
+                out.append(startOfWord ? ch : Character(ch.lowercased()))
+                startOfWord = false
+            } else {
+                out.append(ch)
+                startOfWord = true      // 空格/点/连字符之后都是新的一段
+            }
+        }
+        return out
     }
 }
