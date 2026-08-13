@@ -32,10 +32,12 @@ public enum OutfitCompleter {
         pool: [CandidateItem],
         context: FilterContext,
         scoring: ScoringContext,
-        maxSuggestions: Int
+        maxSuggestions: Int,
+        isSuperseded: () -> Bool = { Task.isCancelled }
     ) -> [ScoredOutfit] {
         completeDetailed(anchors: anchors, pool: pool, context: context,
-                         scoring: scoring, maxSuggestions: maxSuggestions).suggestions
+                         scoring: scoring, maxSuggestions: maxSuggestions,
+                         isSuperseded: isSuperseded).suggestions
     }
 
     /// 截断前的廉价预排序（D133）。
@@ -86,6 +88,8 @@ public enum OutfitCompleter {
         context: FilterContext,
         scoring: ScoringContext,
         maxSuggestions: Int
+    ,
+        isSuperseded: () -> Bool = { Task.isCancelled }
     ) -> Result {
         let anchorIDs = Set(anchors.map(\.id))
         // 候选池：过四条正确性 + 去掉已锚定项（防重复用）。
@@ -139,6 +143,9 @@ public enum OutfitCompleter {
 
         var seen = Set<[String]>()
         var results: [ScoredOutfit] = []
+        // D159：被取代就当场收手（D152 把计算挪到后台之后，用户点得动第二下了——
+        // 九个触发点都不挡并发，旧的那次此前会一路烧到底）。
+        var abandoned = false
         // D151：**枚举时只留前 K。**
         //
         // 此前把每一套都物化进 `results`，最后才排序取 `maxSuggestions`——
@@ -151,6 +158,8 @@ public enum OutfitCompleter {
         let keep = max(1, maxSuggestions)
         let wornIDs = outcome.recentlyWornIDs
         func consider(_ picks: [CandidateItem?]) {
+            if abandoned { return }
+            if isSuperseded() { abandoned = true; return }
             let items = anchors + picks.compactMap { $0 }
             // grammar 仍是最终裁判（拆枝只削去必废组合，不替代校验）
             guard OutfitGrammar.isValid(items) else { return }

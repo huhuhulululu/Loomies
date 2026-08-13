@@ -523,14 +523,27 @@ public final class CopilotViewModel {
         applyRefresh(result, for: request)
     }
 
+    /// 在途的那次后台计算。新的一次开始时取消它（D159）。
+    private var computeTask: Task<OutfitCompleter.Result, Never>?
+
     /// 后台刷新（Today 走这条）。计算不快，但界面不冻。
+    ///
+    /// D159：**开新的一次就取消旧的。** D152 把计算挪到后台之后界面不再冻，
+    /// 代价是用户点得动第二下了——而九个触发点（换场合/切筛选/切柜/回前台…）
+    /// 都不挡并发。代际检查保证只有新的落地，但旧的那次此前会一路烧到底。
+    /// `OutfitCompleter` 在枚举过程中读 `Task.isCancelled`，收到就收手。
     public func refreshOffMain() async {
         guard let request = makeRefreshRequest() else { return }
+        computeTask?.cancel()
         let t0 = CFAbsoluteTimeGetCurrent()
-        let result = await Task.detached(priority: .userInitiated) {
+        let task = Task.detached(priority: .userInitiated) {
             Self.computeRefresh(request)
-        }.value
+        }
+        computeTask = task
+        let result = await task.value
         lastRefreshMS = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+        // 自己被取消了就不落地——代际检查是第二道，这是第一道
+        guard !task.isCancelled else { return }
         applyRefresh(result, for: request)
     }
 

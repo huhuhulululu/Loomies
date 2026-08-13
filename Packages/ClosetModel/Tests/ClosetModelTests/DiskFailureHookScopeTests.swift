@@ -47,18 +47,29 @@ struct DiskFailureHookScopeTests {
         #expect(await neighbour, "并行任务被别人的失败开关波及了")
     }
 
-    /// 结构门：**不许再有进程级的失败开关。**
-    @Test func noProcessWideFailureFlagRemains() throws {
+    /// 结构门：**这个文件里不许有任何非 task-local 的可变静态量。**
+    ///
+    /// 第一版只 grep 旧名字 `forceFailureEnabled`——那只挡得住「原样恢复那一行」，
+    /// 挡不住**下一个同类**：换个名字加一个 `static var` 就绕过去了。
+    /// 判据要认**构造**（可变的存储型静态量 = 进程级共享状态），不认名字。
+    /// 计算属性（带 `{`）不算：它没有状态。
+    @Test func noProcessWideMutableStateRemains() throws {
         let file = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/ClosetModel/ItemImageStore.swift")
         let text = try String(contentsOf: file, encoding: .utf8)
-        let offends = text.split(separator: "\n").contains { line in
+        var offenders: [String] = []
+        for line in text.split(separator: "\n") {
             let t = line.trimmingCharacters(in: .whitespaces)
-            return t.contains("static var forceFailureEnabled")
-                && !t.hasPrefix("//") && !t.hasPrefix("///")
+            guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
+            guard t.contains("static var") else { continue }
+            guard !t.contains("{") else { continue }          // 计算属性无状态
+            guard !t.contains("@TaskLocal") else { continue }  // 按任务作用域，安全
+            offenders.append(t)
         }
-        #expect(!offends, "进程级失败开关还在 —— 并行套件会互相波及")
+        #expect(offenders.isEmpty, Comment(rawValue:
+            "这里有进程级可变状态，并行套件会互相波及：\(offenders) —— "
+            + "属于某次调用的用 @TaskLocal，属于某个对象的按对象记名（D143/D154/D158）"))
     }
 }
