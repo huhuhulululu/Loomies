@@ -76,12 +76,15 @@ public enum CalendarPlanService {
         }
     }
 
-    /// 刷新某搭配关联计划的 needsAttention 并立即落盘（独立调用方使用）。
-    @discardableResult
-    public static func refreshAttention(for outfit: Outfit, in context: ModelContext) -> Bool {
-        recomputeAttention(for: outfit, in: context)
-        return ModelSave.save(context, label: "calendarRefresh")
-    }
+    // D146：`refreshAttention(for:in:)` 已删——**全仓零调用点**（连测试都没有）。
+    // 它做的是 `recomputeAttention` + 立即 save，而每个真实调用点都要
+    // 把 attention 的重算并进**自己那一次** save（中途 save 会提前提交
+    // pending 变更——这条纪律在 deleteItem/transfer 的注释里反复写过）。
+    // 换句话说它的语义与本仓的写入模型相冲，永远不会有人该调它。
+    //
+    // 复活条件：出现一个「只改 attention、不改别的」的独立入口
+    //（比如日历页手动「刷新提醒」按钮）。那时再加回来，
+    // 并且必须有人检查它的返回值——失败了不许静默。
 
     /// 查询某日计划（按 dayKey 日历日对齐，跨时区稳定）。
     public static func plan(

@@ -49,7 +49,7 @@ struct SearchDebounceTests {
 
     /// 代际：慢的那次回来时若已被新输入取代，结果必须被丢弃——
     /// 否则用户会看到上一个搜索词的结果。
-    @Test func aStaleRunDoesNotOverwriteANewerOne() throws {
+    @Test func aStaleRunDoesNotOverwriteANewerOne() async throws {
         let ctx = try makeContext()
         let w = Wardrobe(name: "Main"); ctx.insert(w)
         for name in ["Navy tee", "Red tee"] {
@@ -60,28 +60,24 @@ struct SearchDebounceTests {
 
         let vm = SearchViewModel()
         vm.homeWardrobeID = w.id
+
+        // D146：过去这里用 `beginRun()` + `applyIfCurrent(generation:)` 演示
+        // 「慢的那次回来覆盖了新的一次」——而 `applyIfCurrent` **生产零调用点**，
+        // 那条路根本不存在：`run(in:)` 每次都现读 `vm.text` 现查，
+        // 一个迟到的防抖任务醒来只会照着**当前**输入再查一遍，
+        // 结果与用户此刻看到的一致。演出来的风险不是风险。
+        //
+        // 真正该守的用户保证只有一条：无论中间发生过什么，
+        // 屏幕上的结果对得上输入框里的字。
         vm.text = "navy"
-        let stale = vm.beginRun()          // 取一个代号
+        let inFlight = Task { await vm.runDebounced(in: ctx) }
+        await Task.yield()              // 让它领到代号并进入 sleep
         vm.text = "red"
-        vm.run(in: ctx)                    // 新的一次跑完
-        let namesAfterFresh = vm.results.map(\.name)
-        #expect(namesAfterFresh == ["Red tee"], Comment(rawValue: "\(namesAfterFresh)"))
-
-        vm.applyIfCurrent(generation: stale, results: [], in: ctx)
+        vm.run(in: ctx)
+        #expect(vm.results.map(\.name) == ["Red tee"])
+        await inFlight.value             // 迟到的那次醒来
         #expect(vm.results.map(\.name) == ["Red tee"],
-                "过期的那次结果覆盖了更新的一次")
-    }
-
-    /// 当前代的结果正常落地。
-    @Test func theCurrentRunApplies() throws {
-        let ctx = try makeContext()
-        let w = Wardrobe(name: "Main"); ctx.insert(w)
-        try ctx.save()
-        let vm = SearchViewModel()
-        vm.homeWardrobeID = w.id
-        let gen = vm.beginRun()
-        vm.applyIfCurrent(generation: gen, results: [], in: ctx)
-        #expect(vm.results.isEmpty)
+                "迟到的那次防抖把结果搅乱了")
     }
 
     /// 结构门：文本输入必须走防抖路径，不得直接 `run`。

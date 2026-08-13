@@ -110,17 +110,19 @@ public final class SearchViewModel {
 
     /// 领一个代号。
     @discardableResult
-    public func beginRun() -> Int {
+    private func beginRun() -> Int {
         runGeneration &+= 1
         return runGeneration
     }
 
-    /// 只有仍是当前代才落地。
-    public func applyIfCurrent(generation: Int, results: [Item], in context: ModelContext) {
-        guard generation == runGeneration else { return }
-        self.results = results
-        refreshWearStats(in: context)
-    }
+    // D146：`applyIfCurrent(generation:results:in:)` 已删——**生产零调用点**。
+    // 它模拟的是「异步结果回来时再决定落不落地」，而本页的搜索是**同步**跑的：
+    // `run(in:)` 每次现读 `text` 现查，一个迟到的防抖任务醒来也只会照着
+    // 当前输入再查一遍。那条「旧结果盖掉新结果」的路根本不存在，
+    // 而它的测试却让人以为那道防线被验过了。
+    //
+    // 复活条件：搜索改成真正异步（后台 actor / 远端），结果回来时才落地。
+    // 那时这个方法要回来，并且**测试必须打在真实调用点上**。
 
     /// 防抖跑一次。`sleep` 期间被新输入取代 → 直接放弃。
     public func runDebounced(in context: ModelContext) async {

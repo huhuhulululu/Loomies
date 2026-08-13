@@ -43,22 +43,52 @@ public enum StorageLocationService {
     public static let topLevelName = "Top level"
 
     /// 删除一个位置的后果快照（子位置与衣物会被提升到父级——此前完全静默）。
+    /// 提升子格时被迫改的名（D146）。
+    public struct Rename: Sendable, Equatable {
+        public let from: String
+        public let to: String
+    }
+
     public struct DeletePlan: Sendable, Equatable {
         public let name: String
         public let childCount: Int
         public let itemCount: Int
         public let destinationName: String
+        /// D146：提升上去会与新兄弟撞名、因而被改掉的那些子格。
+        public var renamedChildren: [Rename] = []
         /// 有东西会被搬动才需要确认；空叶子直接删，不吓唬用户。
         public var needsConfirmation: Bool { childCount > 0 || itemCount > 0 }
     }
 
     @MainActor
     public static func deletePlan(for location: StorageLocation) -> DeletePlan {
-        DeletePlan(
+        let children = location.children ?? []
+        // D146：**预测与执行同源**——问 `deduplicatedSiblingName` 本人，
+        // 不另写一套「大概会不会撞名」。两套判据分叉的那天，
+        // 对话框预告的名字和事后真实的名字对不上。
+        //
+        // 逐个模拟：先提升的那个占了名字，后面的才知道自己也得让位。
+        var renames: [Rename] = []
+        if let wardrobe = location.wardrobe {
+            var claimed: [String] = []
+            for child in children {
+                let settled = deduplicatedSiblingName(
+                    child.name, in: wardrobe, parent: location.parent,
+                    excluding: child, alsoTaken: claimed)
+                if settled != child.name {
+                    renames.append(Rename(from: child.name, to: settled))
+                }
+                // 存**已定的名字**：前一个改叫「Attic 2」之后，
+                // 后一个本来就叫「Attic 2」的也得再让一次
+                claimed.append(settled)
+            }
+        }
+        return DeletePlan(
             name: location.name,
-            childCount: (location.children ?? []).count,
+            childCount: children.count,
             itemCount: (location.items ?? []).count,
-            destinationName: location.parent?.name ?? topLevelName)
+            destinationName: location.parent?.name ?? topLevelName,
+            renamedChildren: renames)
     }
 
     public static func deleteWarning(_ plan: DeletePlan) -> String {
@@ -70,19 +100,37 @@ public enum StorageLocationService {
             parts.append("\(plan.childCount) \(plan.childCount == 1 ? "spot" : "spots")")
         }
         guard !parts.isEmpty else { return "Nothing is stored here." }
-        return parts.joined(separator: " and ") + " move to \(plan.destinationName). "
+        let verb = (plan.itemCount + plan.childCount) == 1 ? "moves" : "move"
+        var text = parts.joined(separator: " and ") + " \(verb) to \(plan.destinationName). "
             + "Nothing is deleted except this spot."
+        // D146：**改名也得说。** 提升上去撞名的子格会被追加后缀
+        //（改名本身是对的——两行长得一模一样比改名更糟，D85），
+        // 但用户亲手起名「Attic」的那一格事后叫「Attic 2」而没人告诉他，
+        // 他会去找「Attic」，然后对着两个相似的名字发愣。
+        let renames = plan.renamedChildren
+        if renames.count == 1, let r = renames.first {
+            text += " “\(r.from)” becomes “\(r.to)” to keep names apart."
+        } else if renames.count > 1 {
+            text += " \(renames.count) spots get a number added to keep names apart."
+        }
+        return text
     }
 
     /// 同级去重命名：提升子节点时若与新兄弟撞名，追加后缀而不是让两行长得一模一样。
     /// 用户的数据不能凭空消失，但也不能变成分辨不出的两行。
+    /// - Parameter alsoTaken: 尚未落到对象图上、但已经被占掉的名字（D146）。
+    ///   真实执行是逐个把子格挂到新父级、后来者自然看得见先来者；
+    ///   而**预测**时谁都还没挂上去，得把已定的名字显式递进来，
+    ///   否则两个都叫「Attic」的子格会被预告成同一个新名字。
     public static func deduplicatedSiblingName(
         _ name: String, in wardrobe: Wardrobe, parent: StorageLocation?,
-        excluding: StorageLocation? = nil
+        excluding: StorageLocation? = nil, alsoTaken: [String] = []
     ) -> String {
+        let taken = Set(alsoTaken)
         var candidate = name
         var suffix = 2
-        while siblingNameConflicts(candidate, in: wardrobe, parent: parent, excluding: excluding) {
+        while taken.contains(candidate)
+                || siblingNameConflicts(candidate, in: wardrobe, parent: parent, excluding: excluding) {
             candidate = "\(name) \(suffix)"
             suffix += 1
             if suffix > 50 { return "\(name) \(UUID().uuidString.prefix(4))" }

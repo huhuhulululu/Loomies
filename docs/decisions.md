@@ -2142,3 +2142,36 @@ and body data」——**视障用户拿到的披露比明眼用户更差**。同
 顺带一条实测：失败分支里「先还原内存值、再 `rollback`」的顺序是对的——
 我试过反过来（先 rollback 再还原），结果还原动作自己把 context 弄脏，
 `hasChanges` 当场为真。原代码是对的。
+
+---
+
+## D146 — 删存放位的改名告知 + 两处零调用点死码（2026-08-13）
+
+**删一个存放位会悄悄给提升上来的子格改名。** 警告说的是
+「N pieces and M spots move to <父级>. Nothing is deleted except this spot.」
+——听起来除了这一格什么都没变。而 `deleteLocation` 在提升子格时，
+一旦与新的兄弟撞名就追加后缀：用户亲手起名「Attic」的那一格，事后叫「Attic 2」。
+
+改名本身是对的（D85 定过：两行长得一模一样比改名更糟）——**问题是没告诉他**。
+他会去找「Attic」，然后对着两个相似的名字发愣。与 D139/D144 同一条底线。
+
+预测与执行**同源**：`DeletePlan.renamedChildren` 问的是 `deduplicatedSiblingName`
+本人，不另写一套「大概会不会撞名」。为此给它加了 `alsoTaken`——真实执行是逐个把
+子格挂到新父级、后来者自然看得见先来者；而预测时谁都还没挂上去，得把已定的名字
+显式递进来，否则两个都叫「Attic」的子格会被预告成同一个新名字。
+（顺手修掉「1 spot **move**」的单复数。）
+
+### 两处零调用点死码：删除并留复活条件（D100 先例）
+
+**`CalendarPlanService.refreshAttention`**——全仓零调用点，连测试都没有。
+它做的是 `recomputeAttention` + 立即 save，而每个真实调用点都要把 attention 的
+重算并进**自己那一次** save（中途 save 会提前提交 pending 变更，这条纪律在
+deleteItem/transfer 的注释里反复写过）。它的语义与本仓的写入模型相冲，
+永远不会有人该调它。复活条件：出现「只改 attention、不改别的」的独立入口。
+
+**`SearchViewModel.applyIfCurrent(generation:results:in:)`**——生产零调用点，
+只有测试在用。它模拟「异步结果回来时再决定落不落地」，而本页搜索是**同步**跑的：
+`run(in:)` 每次现读 `text` 现查，一个迟到的防抖任务醒来也只会照着当前输入再查一遍。
+那条「旧结果盖掉新结果」的路根本不存在——**而它的测试让人以为那道防线被验过了**，
+这比没有测试更糟。测试改成打在真实路径上，断言唯一真正的用户保证：
+屏幕上的结果对得上输入框里的字。`beginRun` 随之收成 private。
