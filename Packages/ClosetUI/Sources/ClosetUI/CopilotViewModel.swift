@@ -116,17 +116,62 @@ public final class CopilotViewModel {
 
     public func isAnchored(_ item: Item) -> Bool { anchorIDs.contains(item.id) }
 
+    /// D126：刚发生的锚定替换（「Chinos replaced Jeans」）。nil = 上一次没有替换。
+    /// 静默替换会让用户以为自己点漏了。
+    public private(set) var anchorNote: String?
+
     public func toggleAnchor(_ item: Item) {
-        if anchorIDs.contains(item.id) { anchorIDs.remove(item.id) }
-        else { anchorIDs.insert(item.id) }
+        if anchorIDs.contains(item.id) {
+            anchorIDs.remove(item.id)
+            anchorNote = nil
+        } else {
+            // D126：锚定曾可以选出一个**永远拼不出**的组合——两条下装、
+            // 裙 + 上装、两双鞋。`OutfitGrammar` 早把这些定为非法，
+            // 而这里一条都不查：用户选完看到一片空白，没人告诉他
+            // 是自己选的组合本身不成立。copilot 的核心机制就是
+            // 「用户挑几件、App 补齐」，挑的那一步给死局等于机制在最关键处失灵。
+            //
+            // 不禁止点击——用户的意图（「我今天就想穿这条裙子」）比规则重要。
+            // 取「后选的替换先选的同类」：那正是他真实的意思。
+            let replaced = Self.conflicts(with: item, among: availableItems, anchored: anchorIDs)
+            anchorIDs.subtract(replaced.map(\.id))
+            anchorIDs.insert(item.id)
+            anchorNote = replaced.isEmpty
+                ? nil
+                : "\(item.name) replaced \(replaced.map(\.name).sorted().joined(separator: ", "))"
+        }
         AppLog.debug("anchor toggle item=\(AppLog.ref(item.id)) now=\(anchorIDs.count)", .copilot)
         // 换某件/重配 = tweak（只记模式，不记是哪件）
         TelemetryGate.shared.track(.copilotTweaked,
                                    payload: ["mode": fullAuto ? "auto" : "anchored"])
     }
 
+    /// 与新选的这件互斥的已锚定件。
+    ///
+    /// 判据直接问 `OutfitGrammar`——**不在这里另写一套规则**：
+    /// 两处规则迟早会分叉，而分叉的那天用户看到的是「明明合法却被换掉了」。
+    static func conflicts(
+        with item: Item, among items: [Item], anchored: Set<UUID>
+    ) -> [Item] {
+        let candidate = item.toCandidateItem()
+        return items
+            .filter { anchored.contains($0.id) && $0.id != item.id }
+            .filter { existing in
+                let pair = [existing.toCandidateItem(), candidate]
+                // 只看**互斥**类违规：缺件是补全器的活儿，不算冲突
+                return OutfitGrammar.violations(pair).contains {
+                    switch $0 {
+                    case .missingTop, .missingBottom, .missingShoes: return false
+                    case .dressWithSeparates, .duplicate, .duplicateSubtype: return true
+                    }
+                }
+            }
+            .sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+    }
+
     public func clearAnchors() {
         anchorIDs = []
+        anchorNote = nil
         AppLog.debug("anchors cleared", .copilot)
     }
 

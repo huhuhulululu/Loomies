@@ -34,54 +34,86 @@ public enum OutfitScorer {
     /// 推荐排序才可跨 outfit 比较。
     public static let scoreRange: ClosedRange<Double> = 0...2
 
+    /// 体型项能贡献的**上限**（正负各一半值域，D127）。
+    ///
+    /// affinity 是各单品属性权重之和、本身无界——12 件全带加分属性就能加到
+    /// +2 以上，把最终分顶到值域上界。那时配色好不好、色季合不合
+    /// **对排序完全不起作用**：配色维度在大衣柜上直接消失，
+    /// 而配色恰恰是用户一眼能验证对错的那一维。
+    ///
+    /// 0.35 略小于配色项的合计幅度（±0.4），保证「两套体型都很合适时，
+    /// 配色仍然能决定谁排前面」。
+    public static let maxBodyShapeContribution = 0.35
+
     public static func score(_ outfit: Outfit, context: ScoringContext) -> OutfitScore {
         var value = 1.0
         var reasons: [String] = []
+        /// 每条理由**对最终分的实际贡献**。UI 只显示第一条，
+        /// 而排序键必须与用户看到的名次同源——否则展示的不是拉开差距的那一项（D127）。
+        var contributions: [(reason: String, magnitude: Double)] = []
+        func note(_ reason: String, _ delta: Double) {
+            reasons.append(reason)
+            contributions.append((reason, abs(delta)))
+        }
 
         let colors = outfit.items.compactMap(\.color)
         if colors.count >= 2 {
             if ColorHarmony.isHarmonious(colors) {
                 value += 0.3
-                reasons.append("Colors work well together")
+                note("Colors work well together", 0.3)
             } else {
                 value -= 0.3
-                reasons.append("Color clash — swap one piece")
+                note("Color clash — swap one piece", 0.3)
             }
             if ColorHarmony.followsSixtyThirtyTen(colors) {
                 value += 0.1
-                reasons.append("Balanced 60-30-10 color mix")
+                note("Balanced 60-30-10 color mix", 0.1)
             } else {
-                reasons.append("Many colors — try one main color")
+                note("Many colors — try one main color", 0)
             }
         }
         // 体型×属性加权（BodyShapeStyling 表）。测量置信度缩放该项，快选不得与实测同权。
         if let shape = context.bodyShape, context.bodyShapeWeight > 0 {
             let affinity = BodyShapeStyling.affinity(items: outfit.items, shape: shape.popularCategory)
-            let delta = 0.2 * affinity * context.bodyShapeWeight
+            // D127：先钳后缩放——无界的 affinity 必须在这里收口，
+            // 否则它会独吞整个值域（见 `maxBodyShapeContribution` 的说明）。
+            let raw = 0.2 * affinity
+            let capped = min(Self.maxBodyShapeContribution,
+                             max(-Self.maxBodyShapeContribution, raw))
+            let delta = capped * context.bodyShapeWeight
             // D115：DESIGN §10.4 文案红线——合身语言只评价**衣服**，不评价身体。
             // 「Flatters your body shape」既踩了明令禁止的词，也把主语放在了用户身上；
             // 它还是排第一的推荐理由，等于把项目自己的信任底线摆在最显眼处破掉。
             // 改成描述这套**剪裁**做了什么：主语是衣服，句子仍然说清了为什么被推荐。
             if affinity > 0 {
                 value += delta
-                reasons.append("Cuts that work with your proportions")
+                note("Cuts that work with your proportions", delta)
             } else if affinity < 0 {
                 value += delta
-                reasons.append("Cut fights your proportions — swap one piece")
+                note("Cut fights your proportions — swap one piece", delta)
             }
         }
         if let season = context.colorSeason {
             let affinity = season.colorAffinity(colors: colors)
             if affinity > 0 {
                 value += 0.15 * affinity
-                reasons.append("Colors suit your \(season.displayName.lowercased()) season")
+                note("Colors suit your \(season.displayName.lowercased()) season", 0.15 * affinity)
             } else if affinity < 0 {
                 value += 0.15 * affinity
-                reasons.append("Colors sit outside your \(season.displayName.lowercased()) season")
+                note("Colors sit outside your \(season.displayName.lowercased()) season", 0.15 * affinity)
             }
         }
+        // D127：**把真正拉开分差的那一项排到最前**。
+        // UI 只显示 `reasons.first`，而理由此前按「配色 → 体型 → 色季」的
+        // 书写顺序追加——于是体型主导的那一套，展示的却是配色的话。
+        // 排序键是各项对最终分的**绝对贡献**，跟用户看到的名次同源。
+        let ordered = contributions
+            .sorted { $0.magnitude != $1.magnitude
+                ? $0.magnitude > $1.magnitude
+                : $0.reason < $1.reason }
+            .map(\.reason)
         return OutfitScore(
             value: min(Self.scoreRange.upperBound, max(Self.scoreRange.lowerBound, value)),
-            reasons: reasons)
+            reasons: ordered.isEmpty ? reasons : ordered)
     }
 }

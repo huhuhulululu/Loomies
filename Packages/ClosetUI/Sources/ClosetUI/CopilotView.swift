@@ -709,7 +709,7 @@ public struct CopilotView: View {
                 Text(vm.availableItems.isEmpty
                      ? "No pieces yet"
                      : "Anchor pieces")
-                    .font(.subheadline.weight(.semibold))
+                    .font(DS.Text.sectionTitle)
                     .foregroundStyle(DS.ink)
                 Spacer()
                 if !vm.anchorIDs.isEmpty {
@@ -717,6 +717,15 @@ public struct CopilotView: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(DS.accent)
                 }
+            }
+            // D126：互斥的两件不能同时锚定（否则永远拼不出任何一套）——
+            // 后选的替换先选的同类，而**替换要说出来**，
+            // 静默替换会让用户以为自己点漏了。
+            if let note = vm.anchorNote {
+                Label(note, systemImage: "arrow.left.arrow.right")
+                    .font(DS.Text.meta)
+                    .foregroundStyle(DS.muted)
+                    .accessibilityLabel(note)
             }
             if vm.availableItems.isEmpty {
                 Text("Add from Closet, or load samples above.")

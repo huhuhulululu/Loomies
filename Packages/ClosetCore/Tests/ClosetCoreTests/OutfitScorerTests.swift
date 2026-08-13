@@ -54,6 +54,11 @@ struct OutfitScorerTests {
     }
 
     /// C4: affinity 是无界求和，最终分必须钳在文档化值域 [0, 2]。
+    ///
+    /// D127 修正了这条断言的口径：旧断言要求体型项能把分**推到值域两端**——
+    /// 而那正是缺陷本身（体型项独吞值域，配色对排序完全不起作用）。
+    /// 现在体型项自身有上限（`maxBodyShapeContribution`），
+    /// 值域仍然有界，但不再由单项独吞。
     @Test func scoreIsClampedToDocumentedRange() {
         let suited = Outfit(items: (0..<12).map { i in
             CandidateItem(id: "f\(i)", slot: .top, attributes: [.wrap, .belt, .highWaist])
@@ -64,9 +69,12 @@ struct OutfitScorerTests {
         let hourglassCtx = ScoringContext(bodyShape: .hourglass)
         let hi = OutfitScorer.score(suited, context: hourglassCtx)
         let lo = OutfitScorer.score(avoid, context: hourglassCtx)
-        #expect(hi.value == OutfitScorer.scoreRange.upperBound)
-        #expect(lo.value == OutfitScorer.scoreRange.lowerBound)
+        #expect(OutfitScorer.scoreRange.contains(hi.value))
+        #expect(OutfitScorer.scoreRange.contains(lo.value))
         #expect(hi.value > lo.value)
+        // 单项贡献有上限：体型再合适也留得下配色能改变名次的余地
+        #expect(hi.value - 1.0 <= OutfitScorer.maxBodyShapeContribution + 0.0001)
+        #expect(1.0 - lo.value <= OutfitScorer.maxBodyShapeContribution + 0.0001)
     }
 
     @Test func personalColorSeasonMovesTheScore() {
