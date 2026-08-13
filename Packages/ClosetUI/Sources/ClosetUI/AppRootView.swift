@@ -634,9 +634,8 @@ public struct ClosetGridView: View {
     /// nil = all types; chips use GarmentSlot + displaySlot name correction.
     @State private var slotFilter: String? = nil
     /// Bottom flash chip: Load samples Outcome + intake post-save honesty (no silent fail).
-    @State private var seedFlash: String?
-    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast。
-    @State private var seedFlashToken = 0
+    /// D183：代际 + 定时清收在 `FlashState` 一处。
+    @State private var seedFlashState = FlashState()
     /// Live query so Me → Body edits refresh FitMark badges without tab remount.
     @Query private var bodyProfiles: [PersonBodyProfile]
 
@@ -744,8 +743,9 @@ public struct ClosetGridView: View {
                     wardrobe: wardrobe,
                     items: items.filter { selectedIDs.contains($0.id) }
                 ) { summary in
-                    seedFlash = summary
-                    seedFlashToken += 1
+                    // D183：这里原来只赋值、连计时器都没起——批量移动的回执
+                    // 会永久压在屏幕底部。
+                    flashSeedChip(summary)
                     isSelecting = false
                     selectedIDs = []
                 }
@@ -761,7 +761,7 @@ public struct ClosetGridView: View {
                 }
             }
             .overlay(alignment: .bottom) {
-                if let seedFlash {
+                if let seedFlash = seedFlashState.message {
                     // Load samples Outcome — fail orange (parity Favorites / Calendar).
                     CustomerFlashStyle.overlayChip(seedFlash)
                         .padding()
@@ -778,14 +778,9 @@ public struct ClosetGridView: View {
     }
 
     /// Bottom overlay chip with 3s auto-clear (Load samples Outcome / intake post-save honesty).
+    /// D183：代际 + 定时清收在 `FlashState` 一处。
     private func flashSeedChip(_ message: String?) {
-        seedFlashToken &+= 1
-        let token = seedFlashToken
-        seedFlash = message
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            if seedFlashToken == token { seedFlash = nil }
-        }
+        seedFlashState.show(message, seconds: 3)
     }
 
     private var statusFilterBar: some View {

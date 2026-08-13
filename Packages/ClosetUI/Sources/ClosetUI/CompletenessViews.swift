@@ -44,7 +44,9 @@ public struct CalendarView: View {
     @State private var showPlanPicker = false
     @State private var planDate = Date()
     @State private var favorites: [ClosetModel.Outfit] = []
-    @State private var message: String?
+    // D183：提示条要能自己消失（此前只赋值不清除，「Planned …」永久压在屏幕底部，
+    // 一次删除失败后即使后续删除成功了那句 try again 也一直在）。
+    @State private var flash = FlashState()
     @State private var actions = OutfitActionsViewModel()
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
@@ -115,7 +117,7 @@ public struct CalendarView: View {
             }
             .sheet(isPresented: $showPlanPicker) { planSheet }
             .overlay(alignment: .bottom) {
-                if let message {
+                if let message = flash.message {
                     // Fail orange (parity Favorites / Today); Plan / swipe-delete VO via chip label.
                     CustomerFlashStyle.overlayChip(message)
                         .padding()
@@ -174,7 +176,7 @@ public struct CalendarView: View {
                                 lookTitle: lookTitle(outfit))
                             // Surface the honest flash either way; dismiss only on commit
                             // (stay-open-on-fail parity with TransferSheet / ItemDetail delete).
-                            message = actions.message
+                            flash.show(actions.message)
                             if plan != nil {
                                 showPlanPicker = false
                                 reload()
@@ -270,7 +272,7 @@ public struct CalendarView: View {
         reload()
         // After reload, failed rows reappear; flash so swipe is not silent success.
         if saveFailed {
-            message = CalendarPlanService.removeSaveFailedMessage
+            flash.show(CalendarPlanService.removeSaveFailedMessage)
         }
     }
 }
@@ -370,9 +372,12 @@ public struct StorageLocationsView: View {
     private func add() {
         guard let n = TextNormalize.blankToNil(newName) else { return }
         let parent = newParentID.flatMap { id in nodes.first { $0.location.id == id }?.location }
-        // 提交前先判重名：诚实报「同名已存在」，而不是笼统的 "Couldn't add — try again"
-        guard !StorageLocationService.siblingNameConflicts(n, in: wardrobe, parent: parent) else {
-            message = StorageLocationService.duplicateSiblingMessage
+        // 提交前问一次拒绝理由：诚实报出是哪一条，而不是笼统的 "Couldn't add — try again"。
+        // D182：这里原来只手抄了「同名已存在」一条，层数满了的时候用户被叫去
+        // 重试一件永远不会成的事。理由收在服务层一处，这里不再自己判任何一条。
+        if let rejection = StorageLocationService.createRejection(
+            name: n, in: wardrobe, parent: parent) {
+            message = rejection
             return
         }
         if StorageLocationService.create(name: n, in: wardrobe, parent: parent, context: context) != nil {

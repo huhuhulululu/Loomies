@@ -3244,3 +3244,84 @@ let scale = max(1, max(width, height) / max(1, maxPixel))   // 4032 / 2048 == 1
 记在 `.claude-state/audit-round4.md` #03。
 
 两道门都撞过：把上限改回 999999，结构门与时间比值门同时红。
+
+## D182 — 层数满了，App 却叫你「再试一次」（2026-08-13）
+
+`StorageLocationService.create` 有四条拒绝理由，UI 只手抄了其中一条（同级重名），
+其余三条都落进笼统的 “Couldn't add location — try again”——
+而层数满了的时候，重试永远不会成。
+
+最刺眼的是：专门为它写的诚实文案 `depthLimitMessage`
+（“Storage nests up to 3 levels. Put this one a level up.”）**全仓零生产调用点**，
+唯一提到它的测试断言只是「这个常量含有 level 这个词」——那只证明常量存在。
+
+这条路走得到：位置 Picker 用 `listWithDepth` 列**全部**层级、不做任何过滤，
+第三层节点照样能被选成父节点。
+
+### 为什么接线门没抓到它
+
+`WiringLintTests` 扫的是 View 与 ViewModel（`everyViewHasACallSite` /
+`everyViewModelHasAProductionCallSite`），**文案常量不在扫描面内**。
+所以它从门底下漏过去是结构性的，不是巧合——
+「零调用点」这个病，门只覆盖了它的两种宿主。
+
+### 处置：拒绝理由收成一处
+
+新增 `createRejection(name:in:parent:)`，UI 只问这一次，
+原来那句手抄的重名预检一并撤掉（同一条规则不该写两遍）。
+`create` 仍然自己全查一遍——public API 不能只靠 View 层守门。
+
+结构门数 `create` 里的拒绝分支与 `createRejection` 的返回分支是否对齐；
+撞过一次：给 create 加第五条拒绝理由 → `create 有 5 条拒绝理由，
+createRejection 只说得出 4 条`。
+
+## D183 — 提示条只赋值不清除，四处（2026-08-13）
+
+日历的 `message` 只有两处赋值（排期后、删除失败），**零处置 nil**，
+而 overlay 是无条件常驻的静态 chip。于是「Planned …」永久压在屏幕底部；
+一次删除失败之后，后续删除**成功了**，屏上仍写着「Couldn't remove plan — try again」。
+
+`CalendarView` 是 TabView 的直接子视图、没有 `.id()` 强制重建，
+切 tab 回来 `@State` 原样保留，换柜的 `onChange` 也只 reload 不清 message。
+
+修的过程中又撞出三处同病：
+- **批量移动的回执**（`AppRootView`）——只赋值，连计时器都没起；
+- **试衣间**（`FittingRoomViewModel`）——保存成功那句「Saved …」一直在；
+- 而 Favorites / Closet 网格 / Today 三处**各写了一份**「token + sleep」，
+  时长还各不相同（2s / 3s / 3.5s）。
+
+同一条规则的第七次抄写机会。收成 `FlashState` 一处（D148/D175 同款处置）。
+
+### 门的判据第一版又太宽
+
+第一版判据是「文件里出现 token 自增 + `Task.sleep`」，当场误伤
+`cinematicExportFailed`——那是给失败三角计时的**布尔**标记，不是提示文案，
+硬塞进一个字符串容器只会更糟。
+
+改成对准缺陷本身：**渲染提示条（`overlayChip`/`feedbackChip`）的文件，
+必须由 `FlashState` 驱动**（自己持有或它的 VM 持有）。
+撞过一次：把试衣间改回裸 `message` 赋值 → 门点名 `FittingRoomView.swift`。
+
+D175 记过一次「判据太紧」，这是第二次。**太宽与太松是同一个病的两个方向**：
+太松假绿，太宽把正当代码挡下来、很快会被绕过或删掉。
+
+## D184 — 转移之后再点 Save，永远报「重试」（2026-08-13）
+
+`ItemDetailViewModel.locationID` 是 init 的一次性快照，而 `storageLocations`
+按 `item.wardrobe` 现读。`TransferService` 把 wardrobe 换成目的柜并把
+`item.location` 抹成 nil；详情页的 vm 是 `@State` 一次构造，转移只 `dismiss()`
+了 sheet，全文件没有任何 onChange 重置它。
+
+于是 `applyLocation` 在目的柜的位置表里找不到源柜那个 id → `return false`，
+而 `ItemEditorService.apply` **早已提交**——名字确实存进去了却报错。
+目的柜一个存放位置都没有时连 Picker 都不渲染，用户没有任何手段清掉它，成死路。
+
+「找不到就诚实报错」这条本身是对的（位置被**删掉**时就该这样，已有用例钉着）。
+区别在于：删除 = 那个位置不存在了；转移 = 它还在，只是不属于这件衣服现在的柜。
+后者不是错误，是这件衣服换了柜子，picker 的快照理应跟着作废。
+
+### 写的时候踩到自己一次
+
+第一版把基准写成 `let openedInWardrobeID`，于是**每一次**保存都发现「柜不一样」，
+把用户在新柜里刚选好的位置一并抹掉——测试当场红。
+基准要跟着更新：作废一次，不是每次都作废。

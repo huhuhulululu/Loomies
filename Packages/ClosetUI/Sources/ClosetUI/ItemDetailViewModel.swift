@@ -89,8 +89,19 @@ public final class ItemDetailViewModel {
     /// Set after a successful delete so the detail screen can dismiss.
     public private(set) var didDelete = false
 
+    /// 上一次对齐时这件衣服在哪个柜。
+    ///
+    /// D184：`locationID` 是 init 的一次性快照，而转移会把 `wardrobe` 换掉、
+    /// 把 `location` 抹成 nil。有了这个基准就能把两件事分开：
+    /// 位置**被删**（id 指向一个不存在的东西 → 诚实报错，刻意设计）
+    /// 与这件衣服**换了柜**（id 指向源柜里仍然存在的位置 → 快照作废，不是错误）。
+    ///
+    /// 换柜后要**跟着更新**——否则此后每一次保存都会把用户在新柜里刚选的位置抹掉。
+    private var lastKnownWardrobeID: UUID?
+
     public init(item: Item) {
         self.item = item
+        self.lastKnownWardrobeID = item.wardrobe?.id
         self.name = item.name
         // Type picker uses GarmentSlot.allCases rawValues — show resolved product truth
         // (dirty storage "top" + "Navy Blazer" → outerwear), same as Closet/Search labels.
@@ -245,6 +256,14 @@ public final class ItemDetailViewModel {
     /// Resolves picker `locationID` against this wardrobe and assigns (nil clears).
     @discardableResult
     func applyLocation(in context: ModelContext) -> Bool {
+        // D184：这件衣服在本页打开之后被转到了别的柜 —— 位置属源柜，
+        // 转移时已经脱离（`TransferService` 置 nil）。picker 里那个快照
+        // 指的是源柜的位置，不该当成「保存失败」拦着用户，
+        // 更不该在目的柜没有存放位置（连 Picker 都不渲染）时把人堵死。
+        if item.wardrobe?.id != lastKnownWardrobeID {
+            locationID = item.location?.id
+            lastKnownWardrobeID = item.wardrobe?.id
+        }
         let target: StorageLocation?
         if let id = locationID {
             guard let found = storageLocations.first(where: { $0.id == id }) else {

@@ -10,9 +10,9 @@ public struct CopilotView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var vm: CopilotViewModel
-    @State private var checkInNote: String?
-    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast（按值判等无法区分代）。
-    @State private var flashToken = 0
+    /// D183：代际 + 定时清收在 `FlashState` 一处（原来三个视图各写一份，
+    /// 时长 2s/3s/3.5s 各不相同，而日历那份根本没写）。
+    @State private var checkInFlash = FlashState()
     @State private var showCheckInSheet = false
     /// 冷启动「真实起步」路径：直接开入库面（DESIGN §475 双路径之一）
     @State private var showAddPieceSheet = false
@@ -184,7 +184,7 @@ public struct CopilotView: View {
                     emptyLooksNote
                 }
                 if showMeasureInvite { measureInviteRow }
-                if let checkInNote {
+                if let checkInNote = checkInFlash.message {
                     feedbackChip(checkInNote)
                 }
             }
@@ -1216,15 +1216,7 @@ public struct CopilotView: View {
         Task { await vm.refreshOffMain() }
     }
 
-    private func flash(_ message: String) {
-        flashToken &+= 1
-        let token = flashToken
-        checkInNote = message
-        Task {
-            try? await Task.sleep(nanoseconds: 3_500_000_000)
-            if flashToken == token { checkInNote = nil }
-        }
-    }
+    private func flash(_ message: String) { checkInFlash.show(message, seconds: 3.5) }
 
     private func bootstrap() async {
         // D125：**先把该画的画出来**。目录对账与临时目录扫尾都要扫盘，

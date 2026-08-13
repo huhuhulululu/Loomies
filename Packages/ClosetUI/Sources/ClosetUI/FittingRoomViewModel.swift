@@ -13,7 +13,10 @@ public final class FittingRoomViewModel {
     public let wardrobe: Wardrobe
     /// 槽位 → 选中单品（displaySlot 纠偏后的槽位；dress 与 top/bottom 互斥）。
     public private(set) var selection: [BodyAvatarSlot: Item] = [:]
-    public var message: String?
+    /// D183：提示条要能自己消失。此前这里只赋值不清除——保存成功那句
+    /// 「Saved …」会一直压在试衣间底部，下次失败的提示也叠不掉它。
+    public let flash = FlashState()
+    public var message: String? { flash.message }
 
     public init(wardrobe: Wardrobe) {
         self.wardrobe = wardrobe
@@ -78,7 +81,7 @@ public final class FittingRoomViewModel {
     @discardableResult
     public func saveAsFavorite(named rawName: String?, in context: ModelContext) -> ClosetModel.Outfit? {
         guard canSave else {
-            message = Self.emptySaveMessage
+            flash.show(Self.emptySaveMessage)
             return nil
         }
         let name = TextNormalize.blankToNil(rawName) ?? Self.defaultLookName
@@ -90,10 +93,10 @@ public final class FittingRoomViewModel {
                 in: wardrobe,
                 source: "fittingRoom",
                 context: context)
-            message = Self.savedMessage(name: name)
+            flash.show(Self.savedMessage(name: name))
             return outfit
         } catch {
-            message = Self.saveFailedMessage
+            flash.show(Self.saveFailedMessage)
             AppLog.error("fittingRoom save failed: \(AppLog.errRef(error))", .app)
             return nil
         }

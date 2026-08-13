@@ -752,9 +752,8 @@ public struct FavoritesView: View {
     let wardrobe: Wardrobe
     @State private var outfits: [ClosetModel.Outfit] = []
     @State private var actions = OutfitActionsViewModel()
-    @State private var flashMessage: String?
-    /// Toast 代际：同文案连发时旧计时器不得提前清掉新 toast。
-    @State private var flashToken = 0
+    /// D183：代际 + 定时清收在 `FlashState` 一处（原来三个视图各写一份，时长还不同）。
+    @State private var flashState = FlashState()
 
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
@@ -793,7 +792,7 @@ public struct FavoritesView: View {
             // 而行上的删除/排期会真的作用到那个柜。
             .onChange(of: wardrobe.id) { _, _ in reload() }
         .overlay(alignment: .bottom) {
-            if let flashMessage {
+            if let flashMessage = flashState.message {
                 CustomerFlashStyle.overlayChip(flashMessage)
                     .padding()
                     .transition(.opacity)
@@ -863,15 +862,7 @@ public struct FavoritesView: View {
         return "\(count) pieces · \(occ)"
     }
 
-    private func flash(_ message: String) {
-        flashToken &+= 1
-        let token = flashToken
-        flashMessage = message
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            if flashToken == token { flashMessage = nil }
-        }
-    }
+    private func flash(_ message: String) { flashState.show(message) }
 
     private func reload() {
         outfits = OutfitFavoriteService.favorites(in: wardrobe)

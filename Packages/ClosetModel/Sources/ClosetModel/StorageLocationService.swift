@@ -138,6 +138,32 @@ public enum StorageLocationService {
         return candidate
     }
 
+    /// 建之前问一次：这次会被拒吗？被拒的话**用用户读得懂的话说清楚**。
+    /// 能建返回 nil。
+    ///
+    /// D182：`create` 有四条拒绝理由，而 UI 只手抄了其中一条（同级重名），
+    /// 其余三条都落进笼统的 “Couldn't add location — try again”——
+    /// 层数满了的时候，重试永远不会成。专为它写的 `depthLimitMessage`
+    /// 因此在全仓零调用点。
+    ///
+    /// 理由收在这一处：UI 只问这一次，不再自己判任何一条。
+    /// `create` 仍然全查一遍——public API 不能只靠 View 层守门。
+    public static func createRejection(
+        name: String, in wardrobe: Wardrobe, parent: StorageLocation? = nil
+    ) -> String? {
+        guard let trimmed = TextNormalize.blankToNil(name) else { return blankNameMessage }
+        if let parent, parent.wardrobe?.id != wardrobe.id { return crossWardrobeParentMessage }
+        if depthLimitReached(parent: parent) { return depthLimitMessage }
+        if siblingNameConflicts(trimmed, in: wardrobe, parent: parent) {
+            return duplicateSiblingMessage
+        }
+        return nil
+    }
+
+    public static let blankNameMessage = "Give this spot a name first."
+    public static let crossWardrobeParentMessage =
+        "That spot belongs to another closet. Pick one from this closet."
+
     @discardableResult
     public static func create(
         name: String, in wardrobe: Wardrobe, parent: StorageLocation? = nil,
