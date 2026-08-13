@@ -490,32 +490,45 @@ struct CopilotEmptyReasonHonestyTests {
         }
     }
 
-    @Test func reasonNeverBlamesAntiRepeatWhenItWasRelaxed() throws {
-        // 防重复已降级 → 空结果的原因不在它，文案不得甩锅给它
-        let reason = CopilotEmptyReason.text(
-            candidates: pool(8), wornCount: 8, anchorCount: 0, repeatGateRelaxed: true)
-        #expect(!reason.localizedCaseInsensitiveContains("worn in last 7 days"))
+    /// D188：**空态永远不许把原因归给防重复。**
+    ///
+    /// 引擎保证「拼不出 ⟹ 放宽重试已试过并失败」
+    ///（`EmptyResultNeverBlamesRepeatTests`），所以那句「你这周把这里穿遍了，
+    /// 等一天」在空态里恒无用——等到明天还是拼不出。
+    ///
+    /// 这两条原来一条传 `repeatGateRelaxed: true`（生产不可达的组合），
+    /// 另一条传 false 并断言「可以这么说」——把唯一可达却必然错的那条路
+    /// 钉成了期望行为。
+    @Test func theEmptyReasonNeverBlamesAntiRepeat() {
+        for worn in [0, 4, 8, 12] {
+            let reason = CopilotEmptyReason.text(
+                candidates: pool(8), wornCount: worn, anchorCount: 0)
+            #expect(!reason.localizedCaseInsensitiveContains("worn"), Comment(rawValue:
+                "wornCount=\(worn) 时仍在甩锅给防重复：\(reason)"))
+            #expect(!reason.localizedCaseInsensitiveContains("wait a day"))
+        }
     }
 
-    /// 真的是防重复清空的（没降级）→ 可以这么说，但不得让用户去点 Debug 开关。
-    @Test func reasonMayBlameAntiRepeatOnlyWhenItActuallyApplied() {
+    /// 拿掉那条之后，给的仍是一条**能做的**下一步。
+    @Test func theEmptyReasonStillOffersSomethingToDo() {
         let reason = CopilotEmptyReason.text(
-            candidates: pool(8), wornCount: 8, anchorCount: 0, repeatGateRelaxed: false)
-        #expect(reason.localizedCaseInsensitiveContains("worn"))
+            candidates: pool(8), wornCount: 8, anchorCount: 0)
+        #expect(reason.localizedCaseInsensitiveContains("try")
+                || reason.localizedCaseInsensitiveContains("add"),
+                Comment(rawValue: "没有下一步：\(reason)"))
         #expect(!reason.localizedCaseInsensitiveContains("debug"))
         #expect(!reason.localizedCaseInsensitiveContains("toggle"))
     }
 
     /// 全部理由都必须是用户语言：不出现 debug / grammar / filter 这类实现词。
     @Test func everyReasonIsInCustomerLanguage() {
-        let cases: [(Int, Int, Int, Bool)] = [
-            (0, 0, 0, false), (2, 0, 0, false), (8, 8, 0, false),
-            (8, 8, 0, true), (8, 0, 2, false), (8, 0, 0, false),
+        let cases: [(Int, Int, Int)] = [
+            (0, 0, 0), (2, 0, 0), (8, 8, 0), (8, 0, 2), (8, 0, 0),
         ]
-        for (available, worn, anchors, relaxed) in cases {
+        for (available, worn, anchors) in cases {
             let r = CopilotEmptyReason.text(
                 candidates: pool(available), wornCount: worn,
-                anchorCount: anchors, repeatGateRelaxed: relaxed)
+                anchorCount: anchors)
             #expect(!r.isEmpty)
             for word in ["debug", "grammar", "filters", "toggle"] {
                 #expect(!r.localizedCaseInsensitiveContains(word),
@@ -529,7 +542,7 @@ struct CopilotEmptyReasonHonestyTests {
         for (available, worn, anchors) in [(0, 0, 0), (2, 0, 0), (8, 8, 0), (8, 0, 2)] {
             let r = CopilotEmptyReason.text(
                 candidates: pool(available), wornCount: worn,
-                anchorCount: anchors, repeatGateRelaxed: false)
+                anchorCount: anchors)
             let actionable = ["add", "try", "pick", "wait", "change", "tag"]
                 .contains { r.localizedCaseInsensitiveContains($0) }
             #expect(actionable, Comment(rawValue: "没有下一步：\(r)"))

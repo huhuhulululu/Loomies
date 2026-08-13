@@ -194,3 +194,156 @@ struct MoveAndDeleteDisclosureTests {
             + "用户会在对话框上读到「empty」"))
     }
 }
+
+/// D188 之二：**全自动模式丢掉锚定件，而 chip 与 advisory 还在屏上说反话。**
+///
+/// `forceAnchor = isColdStart || !fullAuto`，else 分支把 `anchors` 置空却对
+/// `anchorAdvisory` 一字未动，`anchorIDs` 也原样留着——视图的 `shouldShowAnchors`
+/// 在「fullAuto + anchorIDs 非空」时仍为 true，于是那句
+/// 「— keeping it in anyway.」照常渲染，而引擎根本没用它。
+///
+/// 可达路径不止手动切 toggle：冷启动下锚定一件 → 点「Load samples」会把
+/// `fullAuto` 置 true 并刷新，播完 9 件后 `isColdStart` 转 false，锚定即被丢弃。
+///
+/// D131 加那句 advisory 的理由正是「不吭声会让用户以为过滤坏了」——
+/// 这条路把它从「如实说」变成了「主动说反话」。
+@MainActor
+struct FullAutoDropsAnchorsTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 造一个**过了冷启动**的衣柜（否则 forceAnchor 恒真，走不到那条分支）。
+    private func warmWardrobe(_ ctx: ModelContext) throws -> Wardrobe {
+        let w = Wardrobe(name: "Home"); ctx.insert(w)
+        let slots = ["top", "bottom", "shoes", "outerwear"]
+        for i in 0..<12 {
+            let item = Item(name: "piece-\(i)")
+            item.wardrobe = w
+            item.slotRaw = slots[i % slots.count]
+            item.statusRaw = "available"
+            item.warmthRaw = Warmth.medium.rawValue
+            ctx.insert(item)
+        }
+        try ctx.save()
+        return w
+    }
+
+    /// **本波的核心**：锚定被丢弃时，屏上不许还留着「仍然照你说的用」。
+    @Test func fullAutoDoesNotLeaveAStaleAnchorOnScreen() throws {
+        let ctx = try makeContext()
+        let w = try warmWardrobe(ctx)
+        let vm = CopilotViewModel(wardrobe: w)
+        let pinned = try #require((w.items ?? []).first)
+        vm.toggleAnchor(pinned)      // 走真正的用户入口，不是直接改内部状态
+        vm.fullAuto = false
+        _ = vm.makeRefreshRequest()
+        #expect(vm.anchorAdvisory != nil || vm.anchorIDs == [pinned.id],
+                "前提不成立：非全自动时锚定本该生效")
+
+        vm.fullAuto = true
+        _ = vm.makeRefreshRequest()
+        #expect(vm.anchorIDs.isEmpty, Comment(rawValue:
+            "全自动已经把锚定丢了，chip 却还在：\(vm.anchorIDs)"))
+        #expect(vm.anchorAdvisory == nil, Comment(rawValue:
+            "引擎没用这件衣服，advisory 还写着「keeping it in anyway」：\(vm.anchorAdvisory ?? "")"))
+    }
+
+    /// 冷启动时锚定仍然生效（那条分支不受影响）。
+    @Test func aColdStartStillHonoursTheAnchor() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Cold"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.wardrobe = w; tee.slotRaw = "top"
+        tee.statusRaw = "available"; ctx.insert(tee)
+        try ctx.save()
+
+        let vm = CopilotViewModel(wardrobe: w)
+        vm.fullAuto = true
+        vm.toggleAnchor(tee)
+        _ = vm.makeRefreshRequest()
+        #expect(vm.anchorIDs == [tee.id], "冷启动下锚定被误清了")
+    }
+}
+
+/// D188 之三：**跨天回到前台，天气与推荐不重算。**
+///
+/// D136 修好了「今天已定」那条带（回前台重读打卡），但同一个处理器里
+/// **只**做了这一件事：`daytimeTempF` / `weatherSourceLabel` /
+/// `precipProbabilityPercent` / `suggestions` 全停在上一次刷新，
+/// 而 `hasResolvedWeather` 仍为 true——于是昨天那个具体温度会被当成今天的印出来。
+///
+/// `applyWeather` 的生产调用点只有两个：bootstrap（被 `didBootstrap` 锁死一次）
+/// 与换城市。进程只要没被系统回收，早安提醒把用户导向的就是昨天那套 look
+/// 和昨天的温度。
+///
+/// 判据取**跨日历日**而不是「过了多久」：同一天内不重算——
+/// 用户切去相册查个东西再回来，建议在他眼皮底下换一批是更糟的体验。
+@MainActor
+struct NewDayRefreshTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    private func makeVM() throws -> CopilotViewModel {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.wardrobe = w; tee.slotRaw = "top"
+        tee.statusRaw = "available"; ctx.insert(tee)
+        try ctx.save()
+        return CopilotViewModel(wardrobe: w)
+    }
+
+    /// 还没刷新过 → 不需要「重算」（bootstrap 会做第一次）。
+    @Test func beforeTheFirstRefreshThereIsNothingToRedo() throws {
+        let vm = try makeVM()
+        #expect(vm.needsNewDayRefresh() == false)
+    }
+
+    /// **本波的核心**：跨了午夜就要重算。
+    @Test func crossingMidnightAsksForARecompute() throws {
+        let vm = try makeVM()
+        _ = vm.makeRefreshRequest()          // 让 lastRefreshAt 落到「今天」
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        #expect(vm.needsNewDayRefresh(now: tomorrow), Comment(rawValue:
+            "跨天回到前台不重算 —— 早安提醒把用户带到的是昨天那套 look 和昨天的温度"))
+    }
+
+    /// 同一天内回来不重算（别在用户眼皮底下换一批建议）。
+    @Test func comingBackTheSameDayLeavesTheLookAlone() throws {
+        let vm = try makeVM()
+        _ = vm.makeRefreshRequest()
+        let laterToday = Date().addingTimeInterval(3 * 3600)
+        let sameDay = Calendar.current.isDate(laterToday, inSameDayAs: Date())
+        #expect(vm.needsNewDayRefresh(now: laterToday) == !sameDay,
+                "同一天内不该重算（跨过午夜的那几小时除外）")
+    }
+
+    /// 接线门：回前台的处理器必须**真的**去问这个判据。
+    /// 常量/方法写了没人调，是本仓反复栽的那一类（D182）。
+    @Test func theForegroundHandlerActuallyAsks() throws {
+        let text = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/ClosetUI/CopilotView.swift"),
+            encoding: .utf8)
+        guard let r = text.range(of: "onChange(of: scenePhase)") else {
+            Issue.record("找不到回前台处理器"); return
+        }
+        let rest = text[r.lowerBound...]
+        let end = rest.range(of: "\n                }")?.lowerBound ?? rest.endIndex
+        let body = String(rest[rest.startIndex..<end])
+        #expect(body.contains("needsNewDayRefresh"), Comment(rawValue:
+            "回前台没问跨天判据 —— 天气与推荐会停在昨天：\(body)"))
+    }
+}

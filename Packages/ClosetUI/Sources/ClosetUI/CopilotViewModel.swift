@@ -33,6 +33,22 @@ public final class CopilotViewModel {
     /// 最近一次 refresh 耗时 ms。
     public private(set) var lastRefreshMS: Double = 0
     public private(set) var lastRefreshAt: Date?
+
+    /// 回到前台时该不该重算天气与推荐（D188）。
+    ///
+    /// 判据是**跨了日历日**，不是「过了多久」：
+    /// - 跨天必须重算——早安提醒把用户导向 Today，而进程只要没被系统回收，
+    ///   温度 pill、`weatherSourceLabel`、降水概率、整页建议全停在昨天，
+    ///   `hasResolvedWeather` 仍为 true，于是那个昨天的温度会被当成今天的印出来。
+    ///   D136 修的是同一条路上的「今天已定」那一条带，天气与推荐没跟上。
+    /// - 同一天内**不重算**：用户切去相册查个东西再回来，
+    ///   建议在他眼皮底下换一批是更糟的体验（而温度一天内的漂移不改穿衣决策）。
+    ///
+    /// 比 `lastRefreshAt` 本身是不行的——同一天的两个时刻也不相等。
+    public func needsNewDayRefresh(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let last = lastRefreshAt else { return false }
+        return !calendar.isDate(last, inSameDayAs: now)
+    }
     public private(set) var isRefreshing: Bool = false
 
     public var selectedSuggestion: ScoredOutfit? {
@@ -436,7 +452,23 @@ public final class CopilotViewModel {
                 return nil
             }
         } else {
+            // D188：全自动模式下锚定件根本不参与枚举——那就别让 chip 与
+            // 「— keeping it in anyway.」继续留在屏上说反话。
+            //
+            // 可达路径不止手动切 toggle：冷启动下锚定一件 → 点「Load samples」
+            // 会把 fullAuto 置 true 并刷新，播完 9 件后 isColdStart 转 false，
+            // 锚定就被静默丢弃，而那句 advisory 还在。D131 加它的理由正是
+            // 「不吭声会让用户以为过滤坏了」，这条路把它变成主动说反话。
+            //
+            // 清掉而不是「照样用」：用户按下「Just decide for me」本身就是一次
+            // 掌舵动作，把它的效果如实呈现（chip 消失）比偷偷保留更诚实。
             anchors = []
+            if !anchorIDs.isEmpty {
+                anchorIDs = []
+                anchorNote = nil
+                AppLog.notice("anchors dropped: full auto", .copilot)
+            }
+            anchorAdvisory = nil
         }
         isRefreshing = true
         let worn: Set<String> = dbg.disableAntiRepeat ? [] : wornWithin7DaysIDs
@@ -554,7 +586,7 @@ public final class CopilotViewModel {
             // D142：件数由它自己数，不再另传一个可能对不上的数。
             candidates: availableItems.map { $0.toCandidateItem() },
             wornCount: wornCount,
-            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed)
+            anchorCount: anchors.count)
     }
 }
 
@@ -578,9 +610,17 @@ public enum CopilotEmptyReason {
     /// 而旧代码正有一条分支挂在它上面（`candidates.isEmpty, available < 3`）——
     /// 生产路径永远走不到，测试却靠传入矛盾入参把它测绿了：**假信心**。
     /// 那句话本身也已被 `missingSlotSentence` 说得更好（点名缺哪个槽位）。
+    /// D188：**删掉了「你这周把这里穿遍了」那条归因，连同它的 `repeatGateRelaxed` 入参。**
+    ///
+    /// `OutfitCompleter` 保证：拼不出任何一套时，防重复的放宽重试**已经试过并失败**，
+    /// 于是它把 `repeatGateRelaxed` 重置为 false（`EmptyResultNeverBlamesRepeatTests`
+    /// 把这条不变式钉在引擎上）。而本函数只在 `suggestions.isEmpty` 时被调用——
+    /// 也就是说那条分支的前置在空态里**恒真**，而它给的下一步（「等一天」）**恒无用**。
+    ///
+    /// 只要它出现就一定是错的，所以不是收紧条件，是整条拿掉。
+    /// 入参一并删除：留着一个没人读的开关，下一个人会以为它还管着什么。
     public static func text(
-        candidates: [CandidateItem], wornCount: Int, anchorCount: Int,
-        repeatGateRelaxed: Bool
+        candidates: [CandidateItem], wornCount: Int, anchorCount: Int
     ) -> String {
         let available = candidates.count
         if available == 0 {
@@ -590,11 +630,6 @@ public enum CopilotEmptyReason {
         // 捷径在这里会说错话：对一个「有裙有鞋」的用户说
         // 「去加上装和下装」，那两件他根本不需要。
         if let missing = missingSlotSentence(candidates) { return missing }
-        // 只有防重复**真的**在起作用时才归因于它
-        if !repeatGateRelaxed, wornCount > 0, wornCount >= available {
-            return "You've worn everything here in the past week — wait a day, "
-                + "or add something new."
-        }
         if anchorCount > 0 {
             return "Nothing in this closet finishes that pick for today's weather "
                 + "and occasion — try a different piece."

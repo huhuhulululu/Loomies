@@ -90,7 +90,7 @@ public struct CopilotView: View {
                     }
                 }
                 .onChange(of: vm.wardrobe.locationCity) { _, _ in
-                    Task { await reapplyWeatherAfterCityChange() }
+                    Task { await reapplyWeatherAndLooks() }
                 }
                 .onChange(of: ownerBodySnapshot) { _, _ in
                     reapplyBodyProfileIfNeeded()
@@ -104,6 +104,13 @@ public struct CopilotView: View {
                     guard phase == .active else { return }
                     vm.reloadToday(in: context)
                     vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
+                    // D188：跨天回来还要重算**天气与推荐**。此前只补了上面那条
+                    // 「今天穿了什么」——温度 pill、天气来源、降水概率、整页建议
+                    // 全停在昨天，而 `hasResolvedWeather` 仍为 true，
+                    // 于是昨天那个具体温度会被当成今天的印出来。
+                    if vm.needsNewDayRefresh() {
+                        Task { await reapplyWeatherAndLooks() }
+                    }
                 }
         }
     }
@@ -1248,8 +1255,9 @@ public struct CopilotView: View {
         AppLog.debug("Copilot hero polished appear items=\(vm.availableItems.count)", .copilot)
     }
 
-    /// After closet city changes (Me → City), refresh climate + looks so °F / outerwear track the new city.
-    private func reapplyWeatherAfterCityChange() async {
+    /// 重取天气 + 重算建议。两个触发点：换城市（Me → City），以及**跨天回到前台**（D188）。
+    /// 名字原来只提换城市，加了第二个触发点之后就名不副实了。
+    private func reapplyWeatherAndLooks() async {
         await vm.applyWeather(CompositeWeatherProvider.production)
         runRefresh()
         AppLog.info(

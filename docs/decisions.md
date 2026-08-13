@@ -3448,3 +3448,54 @@ D88 修的是同一个病的上一次发作（当时判空只看 items，漏了 
 本仓反复栽在「常量写了、零调用点」上（D182 的 `depthLimitMessage` 就是），
 所以钉的不是常量存在，是 `Text(...)` 真的出现在那两个 sheet 里。
 三道门都撞过。
+
+## D188 — Today 的三条：停在昨天、必然误判、说反话（2026-08-13）
+
+### 1. 跨天回到前台，天气与推荐不重算
+
+D136 修好了「今天已定」那条带（回前台重读打卡），但同一个处理器里**只**做了这一件事。
+`applyWeather` 的生产调用点只有两个：bootstrap（被 `didBootstrap` 锁死一次）与换城市。
+进程只要没被系统回收，`daytimeTempF` / `weatherSourceLabel` / `precipProbabilityPercent` /
+`suggestions` 全停在上一次刷新，而 `hasResolvedWeather` 仍为 true——
+**昨天那个具体温度会被当成今天的印出来**。而早安提醒恰恰把用户导向这条路径。
+
+判据取**跨日历日**，不是「过了多久」：同一天内不重算，
+用户切去相册查个东西再回来、建议在他眼皮底下换一批是更糟的体验。
+（比 `lastRefreshAt` 本身不行——同一天的两个时刻也不相等。）
+
+`reapplyWeatherAfterCityChange` 随之改名 `reapplyWeatherAndLooks`：
+加了第二个触发点之后，原名就名不副实了。
+
+### 2. 「你这周把这里穿遍了」——只要出现就一定是错的
+
+`OutfitCompleter` 保证：严格通道拼不出时先摘掉防重复再拼一次，
+**放宽了还拼不出**就把 `repeatGateRelaxed` 重置为 false（D89 纪律 #2）。
+而 `emptyReason` 只在 `suggestions.isEmpty` 时被调用——两者相乘得到：
+
+> 空态 ⟹ `repeatGateRelaxed == false` 恒成立 ⟹ 那条分支的前置恒真，
+> 而它给的下一步（「等一天」）恒无用：明天再来还是拼不出。
+
+所以不是收紧条件，是**整条拿掉**，连同 `repeatGateRelaxed` 入参
+（留着一个没人读的开关，下一个人会以为它还管着什么）。
+
+先把不变式钉在**引擎**上（`EmptyResultNeverBlamesRepeatTests`）再动下游——
+否则这条改动只是「我读代码觉得它恒假」。
+
+两条旧用例正是「假信心」的标本：一条传 `repeatGateRelaxed: true` + wornCount 8
+（生产不可达的组合），另一条传 false 并断言「可以这么说」——
+**把唯一可达却必然错的那条路钉成了期望行为**。
+
+### 3. 全自动丢掉锚定件，chip 与 advisory 还在说反话
+
+`forceAnchor = isColdStart || !fullAuto`，else 分支把 `anchors` 置空却对
+`anchorIDs` 与 `anchorAdvisory` 一字未动，于是那句「— keeping it in anyway.」
+照常渲染，而引擎根本没用它。
+
+可达路径不止手动切 toggle：冷启动下锚定一件 → 点「Load samples」会把
+`fullAuto` 置 true 并刷新，播完 9 件后 `isColdStart` 转 false，锚定即被静默丢弃。
+
+D131 加那句 advisory 的理由正是「不吭声会让用户以为过滤坏了」——
+这条路把它从「如实说」变成了「主动说反话」，比不说更糟。
+
+处置是**清掉**而不是「照样用」：用户按下「Just decide for me」本身就是一次掌舵动作，
+把它的效果如实呈现（chip 消失）比偷偷保留更诚实，也不违反 copilot 铁律。
