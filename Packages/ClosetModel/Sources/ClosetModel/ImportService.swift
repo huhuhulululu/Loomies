@@ -176,6 +176,7 @@ public enum ImportService {
         for dto in snapshot.items {
             let item = Item(name: dto.name)
             item.slotRaw = dto.slotRaw
+            item.slotUserSet = dto.slotUserSet   // D194：用户的明确选择要跟着走
             item.statusRaw = dto.statusRaw
             item.subtype = dto.subtype
             item.occasionsRaw = dto.occasionsRaw

@@ -173,3 +173,109 @@ private struct FailingMattingService: MattingService {
     struct Failure: Error {}
     func removeBackground(_ imageData: Data) async throws -> Data { throw Failure() }
 }
+
+/// D194：**「Add to closet」那一下不该才开始算叠衣层。**
+///
+/// D181 把解码封了顶（12MP 6597ms → 1657ms，debug），但那条链仍在主线程，
+/// 而 `confirm()` 是一次原子的 SwiftData 写——改 async 会波及按钮闭包与
+/// 批量队列的次序与重入。
+///
+/// 换个方向：用户在确认页填名字/改类型的这几秒里后台把层图备好，
+/// confirm 只是取现成的。**正确性不依赖预备是否命中**——没备上就原地算。
+@MainActor
+struct LayerPreparationTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    private func makeVM() -> IntakeViewModel {
+        IntakeViewModel(
+            matting: MockMattingService(),
+            tagging: MockTaggingService(tags: ItemTags(slot: .top)),
+            ocr: nil, productLookup: nil)
+    }
+
+    /// 备好之后 confirm 用的是那一张（同一份字节）。
+    @Test func aPreparedLayerIsWhatGetsSaved() async throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w); try ctx.save()
+        let vm = makeVM()
+        await vm.process(TestImages.png(width: 400, height: 600))
+        vm.draft?.name = "Tee"
+        await vm.prepareLayer()
+
+        let slot = IntakeViewModel.layerNormalizeSlot(
+            slotRaw: vm.draft!.slot.rawValue, name: "Tee")
+        let prepared = try #require(vm.preparedLayerPNG(slot: slot), "层图没备上")
+        let item = try #require(vm.confirm(into: w, context: ctx))
+        let path = try #require(item.localImageRelativePath)
+        defer { ItemImageStore.deleteAll(relativePath: path) }
+        #expect(ItemImageStore.loadData(relativePath: path) == prepared,
+                "落盘的不是备好的那一张")
+    }
+
+    /// **没备上照样能入库**（正确性不依赖预备）。
+    @Test func confirmingWithoutPreparationStillWorks() async throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Home"); ctx.insert(w); try ctx.save()
+        let vm = makeVM()
+        await vm.process(TestImages.png(width: 300, height: 400))
+        vm.draft?.name = "Tee"
+        // 不调 prepareLayer
+        let item = try #require(vm.confirm(into: w, context: ctx))
+        let path = try #require(item.localImageRelativePath)
+        defer { ItemImageStore.deleteAll(relativePath: path) }
+        #expect(ItemImageStore.loadData(relativePath: path) != nil)
+    }
+
+    /// 改了类型 → 备好的那张作废（槽位不同，画布对齐也不同）。
+    @Test func changingTheTypeInvalidatesThePreparedLayer() async throws {
+        let vm = makeVM()
+        await vm.process(TestImages.png(width: 300, height: 400))
+        vm.draft?.name = "Tee"
+        await vm.prepareLayer()
+        #expect(vm.preparedLayerPNG(slot: .top) != nil)
+        #expect(vm.preparedLayerPNG(slot: .shoes) == nil, "换了槽位却把上装那张给了它")
+    }
+
+    /// 手修一笔之后要重新备（旧的那张是修之前的像素）。
+    @Test func retouchingInvalidatesThePreparedLayer() async throws {
+        let vm = makeVM()
+        await vm.process(TestImages.png(width: 300, height: 400))
+        vm.draft?.name = "Tee"
+        await vm.prepareLayer()
+        #expect(vm.preparedLayerPNG(slot: .top) != nil)
+        #expect(vm.applyRetouchedMatte(TestImages.png(width: 300, height: 400)))
+        #expect(vm.preparedLayerPNG(slot: .top) == nil, "手修过了还在用修之前那张")
+    }
+
+    /// 换一张照片同样作废。
+    @Test func anewPhotoInvalidatesThePreparedLayer() async throws {
+        let vm = makeVM()
+        await vm.process(TestImages.png(width: 300, height: 400))
+        vm.draft?.name = "Tee"
+        await vm.prepareLayer()
+        #expect(vm.preparedLayerPNG(slot: .top) != nil)
+        await vm.process(TestImages.png(width: 320, height: 420))
+        #expect(vm.preparedLayerPNG(slot: .top) == nil)
+    }
+
+    /// 接线门：确认页必须真的去后台备（否则这条能力就是零调用点）。
+    @Test func theConfirmScreenActuallyPreparesIt() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("ClosetUI/Sources/ClosetUI/PhotoCaptureViews.swift")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        let wired = text.split(separator: "\n").contains { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t.contains("prepareLayer()") && !t.hasPrefix("//") && !t.hasPrefix("///")
+        }
+        #expect(wired, "确认页没有接后台预备 —— confirm 那一下还是当场算")
+    }
+}

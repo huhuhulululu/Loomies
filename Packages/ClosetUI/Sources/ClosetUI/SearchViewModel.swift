@@ -242,7 +242,7 @@ public enum ClosetItemRowCopy {
     /// Convenience from live `Item` (displaySlot truth + human status).
     public static func metaLine(for item: Item, includesCloset: Bool = false) -> String {
         metaLine(
-            slotDisplayTitle: GarmentSlot.resolved(item.slotRaw, name: item.name).displayTitle,
+            slotDisplayTitle: item.resolvedSlot.displayTitle,
             statusDisplayName: ItemStatusService.displayName(item.statusRaw),
             locationName: item.location?.name,
             closetName: includesCloset ? (item.wardrobe?.name ?? "") : nil)

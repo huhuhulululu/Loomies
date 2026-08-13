@@ -55,7 +55,7 @@ public enum DiagnosticsExport {
                 // Resolved slots match paper-doll / search / FitMark (dirty blazer-as-top → outerwear).
                 var slots: [String: Int] = [:]
                 for i in wItems {
-                    let key = GarmentSlot.resolved(i.slotRaw, name: i.name).rawValue
+                    let key = i.resolvedSlot.rawValue
                     slots[key, default: 0] += 1
                 }
                 return WardrobeSummary(

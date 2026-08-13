@@ -70,7 +70,7 @@ public enum SearchService {
         if let status = statusRaw, status != "all", item.statusRaw != status { return false }
         if let slot = slotRaw {
             let want = GarmentSlot.resolved(slot)
-            let have = GarmentSlot.resolved(item.slotRaw, name: item.name)
+            let have = item.resolvedSlot
             if have != want { return false }
         }
         return true

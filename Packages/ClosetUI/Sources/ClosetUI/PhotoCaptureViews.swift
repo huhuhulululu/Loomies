@@ -165,7 +165,7 @@ public struct ItemThumbnailView: View {
                     .scaledToFill()
             } else {
                 // Soft gradient + SF Symbol + human label (no raw slotRaw leak).
-                let slot = GarmentSlot.resolved(item.slotRaw, name: item.name)
+                let slot = item.resolvedSlot
                 ZStack {
                     LinearGradient(
                         colors: [
@@ -308,6 +308,9 @@ public struct AddPieceSheet: View {
                 confirmPreview = intakeVM.mattedImage.flatMap(UIImage.init(data:))
             }
             #endif
+            // D194：用户在这一页填名字/改类型的这几秒里，后台把叠衣层备好——
+            // 「Add to closet」那一下就只是取现成的，不再当场跑一遍归一。
+            .task(id: intakeVM.layerPrepKey) { await intakeVM.prepareLayer() }
             .navigationTitle(title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

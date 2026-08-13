@@ -113,6 +113,11 @@ public enum ItemEditorService {
         let oldCareRaw = item.careRaw
         let oldNotes = item.notes
         let oldRevision = item.revision
+        let oldSlotUserSet = item.slotUserSet
+        // D194：表单打开时显示的是哪个槽位。判「用户有没有真的改 Type」要拿它比——
+        // **必须在改名之前取**：只改名字（Tee → Navy Blazer）会让 `resolvedSlot`
+        // 自己从 top 变成 outerwear，改名之后再比就会把它误判成「用户选了 top」。
+        let slotShownInForm = item.resolvedSlot.rawValue
 
         if let name = patch.name {
             guard let t = TextNormalize.blankToNil(name) else {
@@ -123,9 +128,21 @@ public enum ItemEditorService {
             item.name = t
         }
         // Persist displaySlot truth (same as intake persistSlot): dirty top + blazer name → outerwear.
+        //
+        // D194：**用户明确改过 Type 就原样存**，不再让名字把它改回去。
+        // 判据是「送上来的值与表单打开时显示的那个不同」——详情页每次保存
+        // 都会把 slotRaw 塞进 patch，光看「非空」分不出用户动没动过它。
         let draftSlot = patch.slotRaw ?? item.slotRaw
-        if patch.slotRaw != nil || patch.name != nil {
-            item.slotRaw = GarmentSlot.resolved(draftSlot, name: item.name).rawValue
+        if let requested = patch.slotRaw, requested != slotShownInForm {
+            item.slotRaw = requested
+            item.slotUserSet = true
+            AppLog.info("slot set by user item=\(AppLog.ref(item.id)) slot=\(requested)", .data)
+        } else if patch.slotRaw != nil || patch.name != nil {
+            // Type 没动（只改了名字等）→ 维持既有语义：名字纠偏脏数据。
+            // 用户已经明确设过的，纠偏对它不再生效（`resolvedSlot` 会拦住）。
+            item.slotRaw = item.slotUserSet
+                ? draftSlot
+                : GarmentSlot.resolved(draftSlot, name: item.name).rawValue
         }
         if let occ = patch.occasionsRaw { item.occasionsRaw = occ }
         // brand/size 与 name 同一判空标准（trim）：" " 落库会阻塞条码补全且详情页显示空白非 nil。
@@ -168,6 +185,7 @@ public enum ItemEditorService {
             // 还原内存值，再 rollback 清脏标记——UI 不得显示未入库的新值。
             item.name = oldName
             item.slotRaw = oldSlotRaw
+            item.slotUserSet = oldSlotUserSet
             item.occasionsRaw = oldOccasionsRaw
             item.brand = oldBrand
             item.sizeLabel = oldSizeLabel

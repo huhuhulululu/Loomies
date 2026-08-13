@@ -24,6 +24,7 @@ ENTITY Item domain=main
   A sizeLabel type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A sizeSystemRaw type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A slotRaw type=String opt=0 uniq=0 trans=0 hasDefault=1
+  A slotUserSet type=Bool opt=0 uniq=0 trans=0 hasDefault=1
   A statusRaw type=String opt=0 uniq=0 trans=0 hasDefault=1
   A subtype type=Optional<String> opt=1 uniq=0 trans=0 hasDefault=0
   A waistFlatWidthInches type=Optional<Double> opt=1 uniq=0 trans=0 hasDefault=0

@@ -106,7 +106,7 @@ public final class ItemDetailViewModel {
         self.name = item.name
         // Type picker uses GarmentSlot.allCases rawValues — show resolved product truth
         // (dirty storage "top" + "Navy Blazer" → outerwear), same as Closet/Search labels.
-        self.slotRaw = GarmentSlot.resolved(item.slotRaw, name: item.name).rawValue
+        self.slotRaw = item.resolvedSlot.rawValue
         self.brand = item.brand ?? ""
         self.sizeLabel = item.sizeLabel ?? ""
         self.statusRaw = item.statusRaw
@@ -236,7 +236,7 @@ public final class ItemDetailViewModel {
             // Only on committed save — on failure the services roll item back in
             // memory, so re-reading here would silently discard typed fields.
             name = item.name
-            slotRaw = GarmentSlot.resolved(item.slotRaw, name: item.name).rawValue
+            slotRaw = item.resolvedSlot.rawValue
             chestFlat = item.chestFlatWidthInches.map { String($0) } ?? ""
             waistFlat = item.waistFlatWidthInches.map { String($0) } ?? ""
             locationID = item.location?.id

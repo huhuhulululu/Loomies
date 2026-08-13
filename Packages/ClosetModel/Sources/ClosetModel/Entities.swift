@@ -90,6 +90,16 @@ public final class Item {
     public var outfits: [Outfit]? = []           // Outfit.items 的反向（多对多）
     // 推荐引擎所需属性（CloudKit 安全：枚举存 raw、Set 存 Array）
     public var slotRaw: String = "top"           // GarmentSlot
+    /// 用户**明确**设过类型吗（D194；加法 schema，默认 false 兼容存量行）。
+    ///
+    /// `GarmentSlot.resolved(slotRaw, name:)` 会用名字纠偏「西装写在 top」这类脏数据，
+    /// 而它在**八个读取点**都跑一遍——于是用户在详情页把 Type 改回 Top、保存，
+    /// 下次打开还是被名字改回去。这与 copilot 铁律（推荐永远可被用户覆盖）相反。
+    ///
+    /// 有了这一位就能把两件事分开：**脏数据**（默认 top + 名字像外套 → 纠偏）
+    /// 与**用户的明确选择**（他自己挑的那个，原样用）。
+    /// 只在用户真的动过 Type 时置 true——入库确认页里没碰过的预填不算。
+    public var slotUserSet: Bool = false
     public var subtype: String?
     public var occasionsRaw: [String] = []       // Set<String> 存为数组
     public var warmthRaw: Int?                   // Warmth rawValue

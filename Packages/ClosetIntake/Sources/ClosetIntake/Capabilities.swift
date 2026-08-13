@@ -50,9 +50,15 @@ public struct IntakeDraft: Sendable, Equatable {
     public var size: String?
     /// Optional retail barcode (UPC/EAN/GTIN digits) for Open*Facts lookup.
     public var barcode: String?
+    /// 预填时给的那个类型（D194）。用户在确认页把 `slot` 改成别的
+    /// 才算「明确设过」——**没碰过的预填不算**，那只是个猜测。
+    public private(set) var suggestedSlot: GarmentSlot
+    public var slotWasChangedByUser: Bool { slot != suggestedSlot }
+
     /// Default name is empty so confirm UI can require an intentional label
     /// (process() usually prefills brand + slot display title).
     public init(name: String = "", slot: GarmentSlot = .top) {
         self.name = name; self.slot = slot; self.occasions = []
+        self.suggestedSlot = slot
     }
 }

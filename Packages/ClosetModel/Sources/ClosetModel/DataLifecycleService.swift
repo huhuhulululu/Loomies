@@ -87,6 +87,10 @@ public enum DataLifecycleService {
         public var locationID: String?
         public var statusRaw: String
         public var slotRaw: String
+        /// D194：用户明确设过 Type 吗。**不带上它，恢复备份就会丢掉用户的选择**
+        /// ——名字纠偏会把那些件重新改回去（正是 D186 修的那一类）。
+        /// 有默认值：旧的导出文件解得开（缺键 → false，与存量行同义）。
+        public var slotUserSet: Bool = false
         public var subtype: String?
         public var occasionsRaw: [String]
         public var warmthRaw: Int?
@@ -206,6 +210,7 @@ public enum DataLifecycleService {
                 ItemDTO(
                     id: $0.id.uuidString, name: $0.name, wardrobeID: $0.wardrobe?.id.uuidString,
                     locationID: $0.location?.id.uuidString, statusRaw: $0.statusRaw, slotRaw: $0.slotRaw,
+                    slotUserSet: $0.slotUserSet,
                     subtype: $0.subtype, occasionsRaw: $0.occasionsRaw, warmthRaw: $0.warmthRaw,
                     colorHue: $0.colorHue, colorIsNeutral: $0.colorIsNeutral, attributesRaw: $0.attributesRaw,
                     brand: $0.brand, sizeLabel: $0.sizeLabel, sizeSystemRaw: $0.sizeSystemRaw,

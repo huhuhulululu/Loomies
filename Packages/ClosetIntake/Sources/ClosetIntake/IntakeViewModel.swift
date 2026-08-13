@@ -15,14 +15,62 @@ public final class IntakeViewModel {
 
     public var draft: IntakeDraft?
     public private(set) var mattedImage: Data?
+    /// 抠图结果的代号。换一张图 / 手修一笔都自增——**预备好的层图靠它判新旧**，
+    /// 比拿 `Data` 做等值比较便宜（那是逐字节 O(n)，而这条路每次击键都会走）。
+    public private(set) var mattedGeneration = 0
     /// 抠图前的原图。手修的「找回」要从这里取像素——不留着就只能擦不能恢复（D96）。
     /// 手修结果回写（D96）。只在有真改动时调用，避免无谓重编码。
     @discardableResult
     public func applyRetouchedMatte(_ data: Data) -> Bool {
         guard mattedImage != nil else { return false }
         mattedImage = data
+        mattedGeneration &+= 1
+        preparedLayer = nil          // 手修过了，预备的那张作废
         AppLog.info("matte retouched", .intake)
         return true
+    }
+
+    // MARK: - 叠衣层预备（D194）
+
+    /// 已经在后台算好的叠衣层。
+    ///
+    /// D181 把解码封了顶（12MP 6597ms → 1657ms，debug），但那条链**仍在主线程**：
+    /// `confirm()` 是一次原子的 SwiftData 写（insert + 落盘 + save + 失败回滚），
+    /// 把它改 async 会波及按钮闭包与批量队列的次序与重入。
+    ///
+    /// 换个方向：**别让 confirm 那一下才开始算**。用户在确认页填名字/改类型的
+    /// 这几秒里后台就把层图备好，confirm 只是取现成的。
+    /// 备不及（用户秒按、或刚改完类型）则原地算——**正确性不依赖预备是否命中**。
+    private var preparedLayer: (generation: Int, slot: BodyAvatarSlot, png: Data)?
+
+    /// 预备的 key：抠图代号 + 归一目标槽位。槽位由类型与名字共同决定，
+    /// 所以用户改任一个都会让它变，`.task(id:)` 随之重跑。
+    public var layerPrepKey: String {
+        guard let d = draft else { return "none" }
+        let slot = Self.layerNormalizeSlot(slotRaw: d.slot.rawValue, name: d.name)
+        return "\(mattedGeneration)|\(slot.rawValue)"
+    }
+
+    /// 后台算好叠衣层。可重复调用；被取消或输入已变则不落地。
+    public func prepareLayer() async {
+        guard let image = mattedImage, let d = draft else { return }
+        let generation = mattedGeneration
+        let slot = Self.layerNormalizeSlot(slotRaw: d.slot.rawValue, name: d.name)
+        if let ready = preparedLayer, ready.generation == generation, ready.slot == slot { return }
+        let png = await Task.detached(priority: .userInitiated) {
+            GarmentLayerNormalizer.normalize(imageData: image, slot: slot)
+        }.value
+        guard !Task.isCancelled, mattedGeneration == generation, let png else { return }
+        preparedLayer = (generation, slot, png)
+        AppLog.debug("layer prepared slot=\(slot.rawValue)", .intake)
+    }
+
+    /// 取预备好的层图；没命中返回 nil（调用方原地算）。
+    func preparedLayerPNG(slot: BodyAvatarSlot) -> Data? {
+        guard let ready = preparedLayer,
+              ready.generation == mattedGeneration, ready.slot == slot
+        else { return nil }
+        return ready.png
     }
 
     public private(set) var originalImage: Data?
@@ -159,6 +207,8 @@ public final class IntakeViewModel {
         d.name = Self.suggestedName(for: d)
         guard generation == processGeneration else { return }  // 已被新照片/reset 取代
         mattedImage = mattingSucceeded ? workingImage : nil
+        mattedGeneration &+= 1
+        preparedLayer = nil
         originalImage = imageData
         mattingFailed = !mattingSucceeded
         brandOrSizeFromLabel = labelFilled
@@ -318,8 +368,13 @@ public final class IntakeViewModel {
         let item = Item(name: name)
         item.wardrobe = wardrobe
         // Store resolved slot (name-aware) so detail Type / chips == paper-doll layer.
-        let slot = Self.persistSlot(draftSlot: d.slot, name: name)
+        // D194：用户在确认页动过 Type 就原样存并记住是他设的；
+        // 没碰过的预填仍走名字纠偏（「西装写在 top」这类脏数据是它存在的理由）。
+        let slot = d.slotWasChangedByUser
+            ? d.slot
+            : Self.persistSlot(draftSlot: d.slot, name: name)
         item.slotRaw = slot.rawValue
+        item.slotUserSet = d.slotWasChangedByUser
         item.occasionsRaw = Self.normalizedOccasions(d.occasions)
         item.warmthRaw = d.warmth?.rawValue
         if let c = d.color { item.colorHue = c.hueDegrees; item.colorIsNeutral = c.isNeutral }
@@ -332,7 +387,10 @@ public final class IntakeViewModel {
         if let img = mattedImage {
             // 叠衣层归一：紧 bbox + 槽位肩/腰/脚对齐标准画布
             let bodySlot = Self.layerNormalizeSlot(slotRaw: slot.rawValue, name: name)
-            if let layerPNG = GarmentLayerNormalizer.normalize(imageData: img, slot: bodySlot) {
+            // D194：优先用后台备好的那张；没备上（用户秒按/刚改完类型）才原地算。
+            let layer = preparedLayerPNG(slot: bodySlot)
+                ?? GarmentLayerNormalizer.normalize(imageData: img, slot: bodySlot)
+            if let layerPNG = layer {
                 if let rel = ItemImageStore.save(data: layerPNG, for: item.id, ext: "png") {
                     item.localImageRelativePath = rel
                     lastWrittenLayerImagePath = rel // test hook：回滚测试精确断言此文件
@@ -428,6 +486,7 @@ public final class IntakeViewModel {
         mattedImage = nil
         originalImage = nil
         mattingFailed = false
+        preparedLayer = nil            // D194：上一张备好的层图不得留给下一张
         brandOrSizeFromLabel = false   // D193：上一张的判断不得留给下一张
         colorFromPhoto = false
         isProcessing = false
