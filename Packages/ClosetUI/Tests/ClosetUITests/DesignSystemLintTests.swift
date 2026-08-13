@@ -205,3 +205,66 @@ struct TypeScaleLintTests {
             "小字占比 \(Int(ratio * 100))% —— 每一行都在小声说话，读起来像设置页"))
     }
 }
+
+/// D129：**间距没有尺度**。全 app 实际用的是 2pt 网格，却混着 3 / 9 / 11——
+/// 它们不来自任何判断，只是当时手感调出来的。
+///
+/// 离格值本身不致命，致命的是没有尺度：下一个人照着旁边那行写 13，
+/// 再下一个写 7，「拼装感」就是这么一步步攒出来的。
+///
+/// 这条门**只挡离格**，不规定每一处该用哪一档——
+/// 已经在格上的四十处间距刻意不动（盲改我无法目视验证，
+/// 只会把不确定摊到全 app）。
+@MainActor
+struct SpacingGridLintTests {
+
+    private var sourcesDir: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().appendingPathComponent("Sources/ClosetUI")
+    }
+
+    /// 间距/内距一律落在 2pt 网格上。
+    @Test func spacingStaysOnTheGrid() throws {
+        var violations: [String] = []
+        let patterns = [
+            #"\.padding\((?:\.\w+,\s*)?(\d+)\)"#,
+            #"spacing:\s*(\d+)"#,
+        ]
+        let fm = FileManager.default
+        for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
+        where url.pathExtension == "swift" {
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            for (i, line) in lines.enumerated() {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), !trimmed.hasPrefix("///") else { continue }
+                for pattern in patterns {
+                    guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+                    let ns = line as NSString
+                    for match in regex.matches(
+                        in: line, range: NSRange(location: 0, length: ns.length)) {
+                        let value = Int(ns.substring(with: match.range(at: 1))) ?? 0
+                        if value % 2 != 0 {
+                            violations.append("\(url.lastPathComponent):\(i + 1) → \(value)")
+                        }
+                    }
+                }
+            }
+        }
+        #expect(violations.isEmpty, Comment(rawValue:
+            "间距落在 2pt 网格外——没有尺度，下一个人就会写 13 或 7：\n"
+            + violations.joined(separator: "\n")))
+    }
+
+    /// 尺度必须存在且各档不同（否则「有尺度」只是句空话）。
+    @Test func theScaleIsDeclared() throws {
+        let ds = try String(
+            contentsOf: sourcesDir.appendingPathComponent("DesignSystem.swift"), encoding: .utf8)
+        #expect(ds.contains("enum Space"))
+        let steps = Set([DS.Space.xs, DS.Space.s, DS.Space.m, DS.Space.l, DS.Space.xl])
+        #expect(steps.count == 5)
+        #expect(steps.allSatisfy { $0.truncatingRemainder(dividingBy: 4) == 0 },
+                "尺度自己就不在 4pt 步长上")
+    }
+}

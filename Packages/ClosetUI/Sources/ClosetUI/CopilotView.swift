@@ -256,7 +256,7 @@ public struct CopilotView: View {
                 // 场合色微边光（细、不抢切边）
                 RoundedRectangle(cornerRadius: DS.radiusLg, style: .continuous)
                     .strokeBorder(heroEdgeGlow(heroBackdrop), lineWidth: 0.8)
-                    .padding(3)
+                    .padding(4)
                     .allowsHitTesting(false)
 
                 HStack {
@@ -602,7 +602,7 @@ public struct CopilotView: View {
                 Text(CopilotColdStartCopy.realStartTitle)
                     .font(.subheadline.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
+                    .padding(.vertical, 12)
                     .background(DS.accent)
                     .foregroundStyle(DS.onAccent)
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
@@ -625,7 +625,7 @@ public struct CopilotView: View {
                 Text("Load samples")
                     .font(.subheadline.weight(.medium))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
+                    .padding(.vertical, 8)
                     .background(DS.accent.opacity(0.12))
                     .foregroundStyle(DS.accent)
                     .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
@@ -850,7 +850,7 @@ public struct CopilotView: View {
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(itemNames(for: scored).joined(separator: " · "))
                         .font(DS.Text.rowTitle)
                         .foregroundStyle(DS.ink)
@@ -930,7 +930,7 @@ public struct CopilotView: View {
             Label(title, systemImage: systemImage)
                 .font(.caption.weight(.semibold))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
+                .padding(.vertical, 12)
                 .background(DS.bg)
                 .foregroundStyle(DS.accent)
                 .clipShape(RoundedRectangle(cornerRadius: DS.radius, style: .continuous))

@@ -61,7 +61,11 @@ public enum CitySearch {
     }
 
     public static let noMatchMessage = "No city by that name — check the spelling."
-    public static let searchFailedMessage = "Couldn't reach the city lookup — try again."
+    /// D128：网络确实可能恢复，所以「重试」不算错——但离线时用户干等没有意义。
+    /// 同时给出**这一刻就能走通**的那条路：天气有离线气候兜底。
+    public static let searchFailedMessage =
+        "Couldn't reach the city lookup. Try again, or set the city later — "
+        + "the forecast falls back to an offline estimate."
     /// 未选中候选时的诚实说明：天气要靠这个名字去查。
     public static let unresolvedHint =
         "Pick a city from the list so the forecast knows where you are."

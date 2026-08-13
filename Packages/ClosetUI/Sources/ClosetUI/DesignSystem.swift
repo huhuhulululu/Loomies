@@ -48,6 +48,24 @@ public enum DS {
     public static let hairline = adaptive(\.hairline)
     /// BodyAvatar 默认棚灰（≈ RGB 158）；croquis 已透明，棚灰走 `AvatarBackdrop.studio`
     public static let studioGray = Color(red: 158 / 255, green: 158 / 255, blue: 158 / 255)
+    /// 间距尺度（D129）。
+    ///
+    /// 全 app 实际用的是 **2pt 网格**，但混着 3 / 9 / 11 这三个离格值——
+    /// 它们不来自任何判断，只是当时手感调出来的。离格值本身不致命，
+    /// 致命的是没有尺度：下一个人照着旁边那行写 13，再下一个写 7，
+    /// 「拼装感」就是这么一步步攒出来的。
+    ///
+    /// **刻意不重排已经在格上的四十处间距**——那种改动我无法目视验证，
+    /// 盲改只会把「不确定」摊到全 app。这里只做三件事：
+    /// 命名尺度、修掉离格值、加门挡住新的。
+    public enum Space {
+        public static let xs: CGFloat = 4
+        public static let s: CGFloat = 8
+        public static let m: CGFloat = 12
+        public static let l: CGFloat = 16
+        public static let xl: CGFloat = 24
+    }
+
     public static let radius: CGFloat = 12
     public static let radiusLg: CGFloat = 18
     public static let heroMinHeight: CGFloat = 360

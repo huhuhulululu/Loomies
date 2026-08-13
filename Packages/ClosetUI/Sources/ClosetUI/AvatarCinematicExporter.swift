@@ -94,7 +94,9 @@ public enum AvatarCinematicExporter {
         /// Short chip copy for Today toast (HIG: concise, actionable).
         public var toastMessage: String {
             switch self {
-            case .noCroquis: return "Couldn't preview body — try again"
+            // D128：没有可用的身形底图**不是偶发**——再点一次结果一样。
+            // 给一条真能走通的路（去 Body 设一个体型），而不是让他一直点。
+            case .noCroquis: return "No body preview yet — set your shape in Me → Body"
             case .writerFailed: return "Couldn't export — free storage & retry"
             case .encodeFailed: return "Couldn't export preview — try again"
             case .garmentsUnavailable: return "Item photos missing — can't export look"
