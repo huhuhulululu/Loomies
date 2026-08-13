@@ -126,3 +126,59 @@ struct RecognitionDisclosureTests {
         #expect(text.contains("VisionOCRService()"))
     }
 }
+
+/// D124：主色必须真的**填进草稿**——否则 `DominantColor` 就是又一个
+/// 「算出来了没人调」。
+@MainActor
+struct DominantColorWiringTests {
+
+    /// 纯色图入库后，草稿里带上了颜色。
+    @Test func aSolidColourPhotoFillsTheDraftColour() async throws {
+        let vm = IntakeViewModel(
+            matting: MockMattingService(),
+            tagging: MockTaggingService(tags: ItemTags(
+                slot: .top, color: nil, occasions: ["casual"], warmth: .light)))
+        await vm.process(try solidPNG(red: 0.13, green: 0.19, blue: 0.35))   // navy
+        let draft = try #require(vm.draft)
+        #expect(draft.color != nil, "抠好的图里有明确主色，草稿的颜色却还是未知")
+    }
+
+    /// 打标已经给出颜色时**不覆盖**——用户/模型给的优先于像素投票。
+    @Test func anExistingTagColourWins() async throws {
+        let tagged = GarmentColor(hueDegrees: 350, isNeutral: false)
+        let vm = IntakeViewModel(
+            matting: MockMattingService(),
+            tagging: MockTaggingService(tags: ItemTags(
+                slot: .top, color: tagged, occasions: ["casual"], warmth: .light)))
+        await vm.process(try solidPNG(red: 0.13, green: 0.19, blue: 0.35))
+        #expect(vm.draft?.color == tagged, "像素投票盖掉了打标给出的颜色")
+    }
+
+    /// 生产源码里必须存在调用点。
+    @Test func theSamplerIsWiredIntoIntake() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetIntake/IntakeViewModel.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("DominantColorSampler.dominantEntry"))
+    }
+
+    /// 指定颜色的极小 PNG。
+    private func solidPNG(red: Double, green: Double, blue: Double) throws -> Data {
+        let cs = CGColorSpaceCreateDeviceRGB()
+        let ctx = try #require(CGContext(
+            data: nil, width: 8, height: 8,
+            bitsPerComponent: 8, bytesPerRow: 32,
+            space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        ctx.setFillColor(red: red, green: green, blue: blue, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        let img = try #require(ctx.makeImage())
+        let data = NSMutableData()
+        let dest = try #require(CGImageDestinationCreateWithData(
+            data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(dest, img, nil)
+        #expect(CGImageDestinationFinalize(dest))
+        return data as Data
+    }
+}

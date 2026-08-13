@@ -114,6 +114,15 @@ public final class IntakeViewModel {
         }
         var d = IntakeDraft(slot: tags?.slot ?? .top)
         d.color = tags?.color
+        // D124：颜色此前永远是「未知」，除非用户逐件手选色板——
+        // 而它是 `OutfitScorer` 的输入（配色协调 / 60-30-10 / 色季）：
+        // 没人填过颜色的衣柜，那几项打分全程不参与。
+        // 抠图已经算出来了，主色是顺手就能拿到的东西，不需要任何模型。
+        // 只在抠图**成功**时取：失败时 workingImage 是原图，背景色会赢过衣服。
+        if d.color == nil, mattingSucceeded,
+           let entry = DominantColorSampler.dominantEntry(in: workingImage) {
+            d.color = entry.color
+        }
         d.occasions = tags?.occasions ?? []
         d.warmth = tags?.warmth
         var ocrFailed = false
