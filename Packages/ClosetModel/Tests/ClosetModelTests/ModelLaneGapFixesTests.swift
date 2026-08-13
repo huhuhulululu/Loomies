@@ -379,9 +379,11 @@ struct ModelLaneGapFixesTests {
         let ctx = try makeContext()
         let w = Wardrobe(name: "A"); ctx.insert(w)
         try ctx.save()
-        ItemImageStore.forceFailure(true)
-        defer { ItemImageStore.forceFailure(false) }
-        #expect(DemoSeedService.seed(w, in: ctx) == .added(9))
+        // D158：作用域式——并行的其他套件看不见这个开关（此前是进程级）
+        let outcome = ItemImageStore.$forcedSaveFailure.withValue(true) {
+            DemoSeedService.seed(w, in: ctx)
+        }
+        #expect(outcome == .added(9))
         #expect(try ctx.fetch(FetchDescriptor<Item>()).count == 9)
         #expect((w.items ?? []).allSatisfy { $0.localImageRelativePath == nil })
     }

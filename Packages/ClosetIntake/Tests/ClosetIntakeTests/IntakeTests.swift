@@ -852,9 +852,10 @@ struct IntakeTests {
         let vm = makeVM(ItemTags(slot: .top))
         await vm.process(try tinyPNG()) // 可解码 PNG → 归一成功，走到 save
         vm.draft?.name = "Silk Tee"
-        ItemImageStore.forceFailure()
-        defer { ItemImageStore.forceFailure(false) }
-        let item = vm.confirm(into: w, context: ctx)
+        // D158：作用域式——并行的其他套件看不见这个开关（此前是进程级）
+        let item = ItemImageStore.$forcedSaveFailure.withValue(true) {
+            vm.confirm(into: w, context: ctx)
+        }
         #expect(item != nil) // 衣物本体仍入库
         #expect(item?.localImageRelativePath == nil) // 但层图未落盘
         #expect(vm.lastError == nil)

@@ -6,17 +6,17 @@ import ClosetCore
 public enum ItemImageStore {
     public static let folderName = "ItemImages"
 
-    /// Test hook: when enabled, `save` returns nil without writing (tests force
-    /// the disk-failure path). Mirrors ModelSave.forceFailure.
-    private static let forceFailureLock = NSLock()
-    nonisolated(unsafe) private static var forceFailureEnabled = false
-
-    /// Test hook: force all `save` calls to fail (returns nil, no write).
-    static func forceFailure(_ enabled: Bool = true) {
-        forceFailureLock.lock()
-        forceFailureEnabled = enabled
-        forceFailureLock.unlock()
-    }
+    /// 测试钩子：作用域内 `save` 直接返回 nil（不写盘），用来走磁盘失败那条路。
+    ///
+    /// D158：此前是**进程级** `static var`——五个测试文件跨两个包在用它，
+    /// 而 `@Suite(.serialized)` 只保证套件**内**串行，套件之间照样并行：
+    /// A 把开关拨开的那几毫秒里 B 正在存图，B 的写入就无缘无故失败了。
+    /// 这是 D143（堆地址注册表）、D154（全局调试开关）之后同一族的第三个。
+    ///
+    /// `@TaskLocal` 按**调用任务**作用域，而每个测试各跑在自己的任务里——
+    /// 天然不串味，也不需要锁和「记得还原」的纪律。
+    /// 用法：`ItemImageStore.$forcedSaveFailure.withValue(true) { … }`
+    @TaskLocal public static var forcedSaveFailure = false
 
     /// 图片存储基目录（生产 = Application Support，行为不变）。
     /// 测试可设环境变量 ITEM_IMAGE_ROOT 重定向到按进程隔离的临时目录——
@@ -57,10 +57,8 @@ public enum ItemImageStore {
     /// 写入 PNG/JPEG 数据，返回相对路径（如 `ItemImages/{uuid}.jpg`）。
     @discardableResult
     public static func save(data: Data, for itemID: UUID, ext: String = "jpg") -> String? {
-        forceFailureLock.lock()
-        let forced = forceFailureEnabled
-        forceFailureLock.unlock()
-        if forced {
+        // task-local 天生按任务隔离，不需要锁（D158）
+        if forcedSaveFailure {
             AppLog.error("item image save forced failure (test hook)", .data)
             return nil
         }
