@@ -24,6 +24,13 @@ public enum TransferService {
     public static func transfer(
         _ item: Item, to wardrobe: Wardrobe, in context: ModelContext, on date: Date = Date()
     ) -> Bool {
+        // D145：**转到它已经在的那个柜 = 什么都不该发生。**
+        // 没有这道守卫的话，下面会照常把 `item.location` 抹掉
+        //（理由是「位置属源柜，转移即脱离」——可这次根本没换柜），
+        // 还写一条「从 A 到 A」的历史。批量版 `transferAll` 与单件 VM
+        // 各自在外面挡了一次，唯独服务自己没挡——挡在调用方的不变量，
+        // 迟早会有第三个调用方不知道。
+        guard item.wardrobe?.id != wardrobe.id else { return true }
         let previousWardrobe = item.wardrobe
         let previousLocation = item.location
         let previousRevision = item.revision
