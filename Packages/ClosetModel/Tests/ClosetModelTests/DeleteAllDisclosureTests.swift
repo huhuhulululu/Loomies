@@ -32,11 +32,14 @@ struct DeleteAllDisclosureTests {
     /// 否则下面那条门会红——这正是它存在的意义。
     private let nouns: [String: [String]] = [
         "CalendarPlan": ["plan"],
-        "TransferRecord": ["transfer", "moved"],
+        "TransferRecord": ["transfer", "have moved"],
         "WearRecord": ["wear history", "worn"],
         "Outfit": ["look"],
         "Item": ["piece"],
-        "StorageLocation": ["storage", "spot", "where"],
+        // D161：原来这里放了 "where"——而披露里「where pieces have moved」
+        // （那是**转移历史**的说法）恰好也含 "where"，于是拿掉「storage spots」
+        // 之后门照样绿。同义词要**互不串味**，否则一个实体的说法会替另一个背书。
+        "StorageLocation": ["storage spot"],
         "Wardrobe": ["closet"],
         "Person": ["people", "person", "profile"],
         "PersonBodyProfile": ["body"],

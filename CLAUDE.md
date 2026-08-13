@@ -10,6 +10,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（需 Xcode）| 主分�
 - SwiftData 双域 ModelConfiguration（D5）；遥测字段走 TelemetryEvents/Payload 白名单
 - 每包独立 `swift test` 必须全绿（Core 492 / Model 374 / UI 526 / Intake 57 = 1449）
 - **Schema 单向门（D84）**：改实体前先读 `docs/decisions.md` D84；破坏性变更会让 `SchemaGuardTests` 硬失败，加法式变更需 `LOOMIES_SCHEMA_GOLDEN=record swift test --package-path Packages/ClosetModel --filter SchemaGuard` 重录 golden 并进 diff 审查；改 app-shell 装配后必须 `xcodebuild` 真编译验证（不参与 swift test）；**任何 `#if os(iOS)` 块同理**——macOS 的 swift test 根本编不到它（D92 实证：并发 Sendable 错误只有 xcodebuild 报）
+- **结构门写完必须撞一次**（D160/D161）：用一次**真实的破坏**去撞你刚写的门，看它是否当场点名。本仓五次实测里，初版判据有四次比意图松——常见形态：只 grep 旧符号名（挡不住下一个同类）、断言符号存在而非用在决策点、固定字数窗口（加两行注释即误红/漏检）、同义词串味（一个实体的说法替另一个背书）
 - Debug：`LOOMIES_DEBUG=1` 或 scheme 参数 `-debugVerbose` / `-debugPanel`；Me → 调试台 / Export diagnostics
 
 ## 文档
