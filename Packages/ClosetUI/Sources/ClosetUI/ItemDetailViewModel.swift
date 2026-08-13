@@ -72,6 +72,9 @@ public final class ItemDetailViewModel {
         wearSummary = WearStatsService.stats(for: item, records: records).summary
         transferHistory = TransferHistory.forItem(item.id, in: context)
         closetNames = TransferHistory.closetNames(in: context)
+        // D196：这一次取表顺手把「用户反复说过的合身结论」也收敛出来
+        //（记录已经在手上了，不再取第二遍——D156 的纪律）。
+        reportedFit = FitMarkService.reportedFits(from: records)[item.id.uuidString]
     }
     /// Me Storage location — nil = unassigned. Save applies via `StorageLocationService.assign`.
     public var locationID: UUID?
@@ -83,6 +86,27 @@ public final class ItemDetailViewModel {
     public var showsFitMeasures: Bool {
         FitMarkService.supportsFitMark(slotRaw: slotRaw, name: name)
     }
+    /// 用户穿过之后反复报告的合身结论（D196）；没收敛出来就是 nil。
+    public private(set) var reportedFit: FitFeedbackHistory.Settled?
+
+    /// 实测与预测**不一致**时的那句说明；一致或没实测则 nil（别造噪声）。
+    public var fitSourceCaption: String? {
+        guard let reportedFit else { return nil }
+        guard let predicted = FitMarkService.mark(
+            slotRaw: slotRaw, name: name,
+            chestFlatWidthInches: MeasurementEntry.inches(from: chestFlat, unit: measureUnit),
+            waistFlatWidthInches: MeasurementEntry.inches(from: waistFlat, unit: measureUnit),
+            hipFlatWidthInches: MeasurementEntry.inches(from: hipFlat, unit: measureUnit),
+            profile: lastFitProfile ?? PersonBodyProfile(personID: UUID()))
+        else { return FitFeedbackHistory.caption(reportedFit) }
+        return FitFeedbackHistory.disagreementCaption(
+            settled: reportedFit, predicted: predicted)
+            ?? FitFeedbackHistory.caption(reportedFit)
+    }
+
+    /// `refreshFit` 上一次拿到的档案（算「预测是什么」时要用同一份）。
+    private var lastFitProfile: PersonBodyProfile?
+
     public private(set) var fitLabel: String?
     /// Measurement-ease caption under the badge (proportion guide, not try-on).
     public private(set) var fitDetail: String?
@@ -171,6 +195,15 @@ public final class ItemDetailViewModel {
 
     /// Live FitMark from form fields (name/type/flat widths) so users see verdict before Save.
     public func refreshFit(profile: PersonBodyProfile?) {
+        lastFitProfile = profile
+        // D196：用户穿过之后说过的话压过尺寸算出来的预测。
+        if let reportedFit {
+            fitLabel = FitMarkCopy.label(reportedFit.verdict)
+            fitDetail = FitFeedbackHistory.caption(reportedFit)
+            TelemetryGate.shared.track(
+                .fitMarkShown, payload: ["verdict": String(describing: reportedFit.verdict)])
+            return
+        }
         guard let profile else {
             fitLabel = nil
             fitDetail = nil

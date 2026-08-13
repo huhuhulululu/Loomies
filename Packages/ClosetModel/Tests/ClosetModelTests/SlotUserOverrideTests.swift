@@ -84,6 +84,7 @@ struct SlotUserOverrideTests {
         let ctx = try makeContext()
         let item = try makeItem(ctx, name: "Navy Blazer", slot: "top")
         ModelSave.forceFailure(on: ctx)
+        defer { ModelSave.clearForcedFailure(on: ctx) }   // 注册表是进程级的，用完就清
         _ = ItemEditorService.apply(
             ItemEditorService.Patch(slotRaw: GarmentSlot.top.rawValue), to: item, in: ctx)
         #expect(item.slotUserSet == false, "保存失败了，标记位却留下了")

@@ -79,6 +79,9 @@ public struct CheckInView: View {
                     .pickerStyle(.segmented)
                     .accessibilityLabel(FitFeedbackCopy.prompt)
                 } footer: {
+                    // D196：这一问现在**会被拿去做事**（报够两次就成为合身标记），
+                    // 那就得说出口——问了不用糟，用了不说同样糟。
+                    Text(FitFeedbackCopy.usageDisclosure)
                     Text(FitFeedbackCopy.exportDisclosure)
                 }
                 if !vm.message.isEmpty {

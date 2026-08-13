@@ -102,6 +102,14 @@ public struct ItemDetailView: View {
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
                     }
+                    // D196：结论是**你穿过之后说的**还是**尺寸算的**，要说清——
+                    // 两者混在一起，用户没法判断该信哪个。
+                    if let source = vm.fitSourceCaption, source != vm.fitDetail {
+                        Text(source)
+                            .font(.caption2)
+                            .foregroundStyle(DS.accent)
+                            .accessibilityLabel(source)
+                    }
                 } else {
                     Text("Enter body profile + flat widths for fit mark.")
                         .font(.caption).foregroundStyle(DS.muted)

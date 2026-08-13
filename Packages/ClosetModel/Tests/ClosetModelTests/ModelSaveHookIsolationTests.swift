@@ -46,15 +46,23 @@ struct ModelSaveHookIsolationTests {
     /// **没人清也不许留下遗产**：注册过的 context 释放之后，
     /// 注册表里不得再留着那条记录（留着就是给下一个同址对象埋雷）。
     @Test func aReleasedContextLeavesNoResidue() throws {
+        // D196：断言改成看**自己这一条**有没有留下，而不是全局归零。
+        //
+        // 注册表是**进程级**的，而 swift-testing 并行跑套件——
+        // 任何同时持有强制失败 context 的别处测试都会让「全局 == 0」假红。
+        // 本波加 `SlotUserOverrideTests.aFailedSaveRestoresTheFlag` 时当场撞上了。
+        // 这条门要守的是「死掉的 context 不留遗产」，那用增量判就够，
+        // 而且**不受邻居影响**。
+        let before = ModelSave.forcedFailureCount
         do {
             let doomed = try makeContext()
             ModelSave.forceFailure(on: doomed)      // 故意不清
-            #expect(ModelSave.forcedFailureCount >= 1)
+            #expect(ModelSave.forcedFailureCount >= before + 1)
         }
         // 触一次 save 让注册表自检（也可能已被 ARC 释放后自动落空）
         let fresh = try makeContext()
         #expect(ModelSave.save(fresh) == true, "新建的 context 继承了别人的强制失败")
-        #expect(ModelSave.forcedFailureCount == 0,
+        #expect(ModelSave.forcedFailureCount <= before,
                 "死掉的 context 还占着注册表 —— 下一个同址对象会凭空开始失败")
     }
 

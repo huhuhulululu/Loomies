@@ -186,3 +186,116 @@ struct BodyPageGapsTests {
             "同意卡写着「You can delete them any time」，而界面上没有任何删除入口"))
     }
 }
+
+/// D196：**合身标记采信「你穿过之后说的」，压过尺寸算出来的预测。**
+///
+/// 打卡那一问（「今天穿着怎么样」）此前只写不用——`FitFeedbackCopy` 的抬头
+/// 写着这是 v1.0 的刻意取舍。那在没有记录的阶段是对的；有了记录还不用，
+/// 就成了**问了不用**，比不问更糟。
+///
+/// `MARKET.md` 把「合身判断」判为 H3「唯一无人占据的纵深，没人做决策层的合身」——
+/// 而决策层的合身，起点就是采信用户穿过的结果。
+@MainActor
+struct ReportedFitTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    private func setup() throws -> (ModelContext, Item, PersonBodyProfile) {
+        let ctx = try makeContext()
+        let person = Person(name: "P"); ctx.insert(person)
+        let w = Wardrobe(name: "Home"); w.owner = person; ctx.insert(w)
+        let profile = PersonBodyProfile(personID: person.id)
+        profile.bustInches = 36; profile.waistInches = 28; profile.hipInches = 38
+        profile.highHipInches = 34
+        ctx.insert(profile)
+        // 平铺 20 英寸 × 胸围 36 → ease 4，落在 1…5 的合身带里
+        let tee = Item(name: "Tee"); tee.slotRaw = "top"; tee.wardrobe = w
+        tee.chestFlatWidthInches = 20
+        ctx.insert(tee)
+        try ctx.save()
+        return (ctx, tee, profile)
+    }
+
+    private func logWear(_ ctx: ModelContext, _ item: Item, _ verdict: FitVerdict) throws {
+        let rec = WearRecord(date: Date())
+        rec.wornItemIDs = [item.id.uuidString]
+        rec.fitFeedback = verdict.rawValue
+        ctx.insert(rec)
+        try ctx.save()
+    }
+
+    /// 基线：没报过就按尺寸算。
+    @Test func withoutFeedbackTheMeasurementsDecide() throws {
+        let (_, tee, profile) = try setup()
+        #expect(FitMarkService.mark(item: tee, profile: profile) == .fitted)
+    }
+
+    /// **本波的核心**：报够两次「紧」，标记就是紧——哪怕尺寸算出来是合身。
+    @Test func whatYouWoreBeatsWhatTheTapeSays() throws {
+        let (ctx, tee, profile) = try setup()
+        try logWear(ctx, tee, .tight)
+        try logWear(ctx, tee, .tight)
+
+        let records = try ctx.fetch(FetchDescriptor<WearRecord>())
+        let reported = FitMarkService.reportedFits(from: records)[tee.id.uuidString]
+        #expect(reported?.verdict == .tight, "两次「紧」没收敛出结论")
+        #expect(FitMarkService.mark(item: tee, profile: profile, reported: reported) == .tight,
+                Comment(rawValue: "用户穿过两次都说紧，标记还写着「合身」"))
+    }
+
+    /// 只报过一次不算——一次可能是那天吃多了。
+    @Test func oneReportDoesNotOverrideTheMeasurements() throws {
+        let (ctx, tee, profile) = try setup()
+        try logWear(ctx, tee, .tight)
+        let records = try ctx.fetch(FetchDescriptor<WearRecord>())
+        let reported = FitMarkService.reportedFits(from: records)[tee.id.uuidString]
+        #expect(reported == nil)
+        #expect(FitMarkService.mark(item: tee, profile: profile, reported: reported) == .fitted)
+    }
+
+    /// 鞋/配饰仍然没有合身结论（D180 那条不得被实测绕过——
+    /// 那两类没有「合身」这个维度，硬给一个就是编）。
+    @Test func shoesStillHaveNoFitMarkEvenIfReported() throws {
+        let ctx = try makeContext()
+        let person = Person(name: "P"); ctx.insert(person)
+        let profile = PersonBodyProfile(personID: person.id)
+        profile.bustInches = 36; ctx.insert(profile)
+        let boots = Item(name: "Boots"); boots.slotRaw = "shoes"; ctx.insert(boots)
+        try ctx.save()
+        let settled = FitFeedbackHistory.Settled(verdict: .tight, count: 3, total: 3)
+        #expect(FitMarkService.mark(item: boots, profile: profile, reported: settled) == nil)
+    }
+
+    /// 详情页要把「这是你说的」画出来。
+    @Test func theDetailPageSaysWhereTheVerdictCameFrom() throws {
+        let (ctx, tee, profile) = try setup()
+        try logWear(ctx, tee, .tight)
+        try logWear(ctx, tee, .tight)
+
+        let vm = ItemDetailViewModel(item: tee)
+        vm.loadHistory(in: ctx)
+        #expect(vm.reportedFit?.verdict == .tight)
+        vm.refreshFit(profile: profile)
+        #expect(vm.fitLabel == FitMarkCopy.label(.tight))
+        let caption = try #require(vm.fitSourceCaption)
+        #expect(caption.localizedCaseInsensitiveContains("you"), Comment(rawValue: caption))
+        #expect(caption.localizedCaseInsensitiveContains("measurement"),
+                Comment(rawValue: "预测说合身、实测说紧，却没说按哪个来：\(caption)"))
+    }
+
+    /// 打卡面要说清这一问会被拿去做什么，且**不许说大**
+    ///（它影响合身标记，不影响推荐排序）。
+    @Test func theCheckInScreenDisclosesWhatTheAnswerDoes() {
+        let copy = FitFeedbackCopy.usageDisclosure
+        #expect(copy.localizedCaseInsensitiveContains("fit mark"))
+        #expect(copy.localizedCaseInsensitiveContains("doesn't change")
+                || copy.localizedCaseInsensitiveContains("not change"),
+                Comment(rawValue: "没划清「不影响推荐」那条线：\(copy)"))
+    }
+}

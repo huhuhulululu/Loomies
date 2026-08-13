@@ -10,17 +10,44 @@ public enum FitMarkService {
     /// 下装默认 ease 带。
     public static let defaultBottomBand = EaseBand(minEase: 0.5, maxEase: 3)
 
-    /// 按槽位选平铺宽 × 身体围：top/outerwear/dress→胸；bottom→腰。
+    /// 这件衣服的合身结论。
+    ///
+    /// 预测那半：按槽位选平铺宽 × 身体围（top/outerwear/dress→胸；bottom→腰）。
     /// 槽位经 `GarmentSlot.resolved`（与纸娃娃 displaySlot 同真相）：canonical
     /// `outerwear`、别名 `outer`/`blazer`、脏数据 blazer-as-top 均可标记。
-    public static func mark(item: Item, profile: PersonBodyProfile) -> FitVerdict? {
-        mark(
+    ///
+    /// D196：`reported` 非空时**它说了算**——那是用户穿过之后报告的实测，
+    /// 而尺寸算出来的 ease 只是预测。两者冲突时没有理由继续相信预测。
+    /// 界面必须说清结论是哪来的（`FitFeedbackHistory.caption`），
+    /// 否则用户分不清该信哪个。
+    public static func mark(
+        item: Item, profile: PersonBodyProfile,
+        reported: FitFeedbackHistory.Settled? = nil
+    ) -> FitVerdict? {
+        // 槽位本来就出不了结论时（鞋/配饰，D180），实测也不给——
+        // 那两类没有「合身」这个维度可谈，硬给一个反而是编。
+        guard supportsFitMark(slotRaw: item.slotRaw, name: item.name) else { return nil }
+        if let reported { return reported.verdict }
+        return mark(
             slotRaw: item.slotRaw,
             name: item.name,
             chestFlatWidthInches: item.chestFlatWidthInches,
             waistFlatWidthInches: item.waistFlatWidthInches,
             hipFlatWidthInches: item.hipFlatWidthInches,
             profile: profile)
+    }
+
+    /// 从穿着记录收敛出「用户反复说过的合身结论」（D196）。
+    /// 键是单品 id 的字符串——与 `WearRecord.wornItemIDs` 的软引用同口径。
+    public static func reportedFits(from records: [WearRecord]) -> [String: FitFeedbackHistory.Settled] {
+        var entries: [FitFeedbackHistory.Entry] = []
+        for record in records {
+            guard let verdict = FitFeedbackCopy.parse(record.fitFeedback) else { continue }
+            for id in record.wornItemIDs {
+                entries.append(FitFeedbackHistory.Entry(itemID: id, verdict: verdict))
+            }
+        }
+        return FitFeedbackHistory.settled(from: entries)
     }
 
     /// 这个槽位**能不能**出合身结论。
