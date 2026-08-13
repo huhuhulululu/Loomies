@@ -3371,3 +3371,41 @@ D173 立的百件冷天性能 smoke 当场红：HEAD 2.055s → 改动后 2.969s
   它挡得住什么，取决于当下实测值离门限还有多远。
 - 我差点把它当成机器负载的假红——四包并行跑时那次报的是 7552ms。
   **隔离复跑 + 与 HEAD 对照**（`git stash`）才是判据，单看一次读数不是。
+
+## D186 — 导出带得走、导入接不住的四处（2026-08-13）
+
+D134 那波把「六类表全部补上」写进了决策。这轮**逐字段**对了一遍导出 DTO 与
+导入回填，发现四处仍然只出不进：
+
+1. **转移历史整张表零读取** —— 导出侧按时间倒序序列化了 `TransferRecord`，
+   导入侧全仓 grep `snapshot.transfers` 零命中。单品详情页真在渲染
+   「Moved from X to Y」，换手机之后那一栏空了。
+2. **身体档案六个字段** —— `fineChest/fineWaist/fineHip/fineHeight` 与
+   `presentationSexRaw/presentationPhenotypeRaw`。落到默认值意味着头像的
+   性别/人种被**静默改回**女性/东亚，精调滑杆全部归 1。恢复一次备份，
+   一个人的样子就被悄悄换掉了。
+3. **搭配的场合与缺件标记** —— `occasionRaw` 在卡片背景与「N pieces · Work」
+   上都在用；`permanentlyMissing` 重置成 false 会让一个成员已被删的残缺 look
+   不带任何警示地混回收藏列表，日历的 needsAttention 也随之翻转。
+4. **「Nothing to import」的同时其实已经落库** —— 收据只看衣柜数与件数，
+   而人、身体档案、穿着历史、计划在 save 之前已无条件 insert。
+
+### 两处刻意不导，写进门的白名单
+
+`Outfit.notes` 与 `sourceRaw` 生产上**零读取点**（前者连写入点都没有），
+`localImageRelativePath` 由收据明说「照片不在数据文件里」，`id` 一律重新分配
+（只增不改的底线）。这些进白名单，不是遗漏——但白名单本身要写清理由，
+否则下一个人只会看到「有些字段不检查」。
+
+### 为什么门没红：夹具没造出那条数据
+
+`everyTableComesOver` 只断言四个计数，删掉一整张表照样绿；
+而 `richExport` 的夹具**从头到尾没插过 TransferRecord**。
+本轮第五次撞见同一个形状：**夹具没造出那条数据，断言就永远测不到它**。
+
+新的结构门改成对账式：DTO 里声明的每个属性名，必须在 `ImportService` 的
+回填里出现（白名单除外）。撞过一次——删掉 `profile.fineChest = dto.fineChest`
+即报 `["BodyProfileDTO.fineChest"]`。
+
+这道门管的是**将来**：DTO 长出新字段时，导入侧不跟上就红。
+D134 之所以会漏，正是因为当时没有这样一条对账——人对着两个列表看，看漏了。

@@ -43,12 +43,32 @@ public enum ImportService {
         /// 两个数都要有——只报导入的那个数，跳过时收据就成了沉默。
         public var bodyProfilesAdded: Int = 0
         public var bodyProfilesSkippedForConsent: Int = 0
+        /// D186：转移历史。此前整张表零读取——导得出、导不回。
+        public var transfersAdded: Int = 0
+        /// D186：主人。此前落了库但收据一个字不提，空快照时还会说「Nothing to import」。
+        public var personsAdded: Int = 0
 
         /// 用户读得懂的收据。**必须点名照片没跟过来**——
         /// JSON 里只有路径没有像素，不说清用户会以为图也回来了。
         public var summary: String {
-            guard wardrobesAdded > 0 || itemsAdded > 0 else {
+            // D186：判空要数**全部**落库的表。此前只看衣柜与件数，
+            // 而人、身体档案、穿着历史、计划在 save 之前就已无条件 insert——
+            // 东西进了库，收据却说什么都没导。
+            let landed = wardrobesAdded + itemsAdded + outfitsAdded + wearRecordsAdded
+                + plansAdded + locationsAdded + bodyProfilesAdded + transfersAdded
+                + personsAdded
+            guard landed > 0 else {
                 return "Nothing to import — that file had no closets or pieces."
+            }
+            guard wardrobesAdded > 0 || itemsAdded > 0 else {
+                var others: [String] = []
+                if personsAdded > 0 { others.append("\(personsAdded) profile(s)") }
+                if wearRecordsAdded > 0 { others.append("\(wearRecordsAdded) wear records") }
+                if plansAdded > 0 { others.append("\(plansAdded) plans") }
+                if transfersAdded > 0 { others.append("\(transfersAdded) move records") }
+                if bodyProfilesAdded > 0 { others.append("body measurements") }
+                let list = others.isEmpty ? "some records" : others.joined(separator: ", ")
+                return "That file had no closets or pieces — imported \(list) only."
             }
             let pieces = itemsAdded == 1 ? "1 piece" : "\(itemsAdded) pieces"
             let closets = wardrobesAdded == 1 ? "1 closet" : "\(wardrobesAdded) closets"
@@ -57,6 +77,7 @@ public enum ImportService {
             if wearRecordsAdded > 0 { extras.append("\(wearRecordsAdded) wear records") }
             if plansAdded > 0 { extras.append("\(plansAdded) plans") }
             if locationsAdded > 0 { extras.append("\(locationsAdded) storage spots") }
+            if transfersAdded > 0 { extras.append("\(transfersAdded) move records") }
             if bodyProfilesAdded > 0 { extras.append("body measurements") }
             let tail = extras.isEmpty ? "" : " Also brought over: \(extras.joined(separator: ", "))."
             // 跳过的必须说出口，还要说清怎么拿回来——沉默地丢掉围度
@@ -206,6 +227,12 @@ public enum ImportService {
             if let wid = dto.wardrobeID, let w = wardrobeMap[wid] { outfit.wardrobe = w }
             outfit.items = dto.itemIDs.compactMap { itemMap[$0] }
             outfit.isFavorite = dto.isFavorite
+            // D186：场合与缺件标记此前一并丢弃。`occasionRaw` 在卡片背景与
+            // 「N pieces · Work」上都在用；`permanentlyMissing` 重置成 false 会让
+            // 一个成员已被删的残缺 look 不带任何警示地混回收藏列表。
+            outfit.occasionRaw = dto.occasionRaw
+            outfit.missing = dto.missing
+            outfit.permanentlyMissing = dto.permanentlyMissing
             context.insert(outfit)
             newOutfits.append(outfit)
         }
@@ -232,6 +259,14 @@ public enum ImportService {
             profile.popularShapeOverrideRaw = dto.popularShapeOverrideRaw
             profile.shapeSourceRaw = dto.shapeSourceRaw
             profile.highHipInferred = dto.highHipInferred
+            // D186：展示底座与精调值此前一并丢弃——头像的性别/人种被静默改回
+            // 默认（女性/东亚），精调滑杆全部归 1。恢复备份不该悄悄换掉一个人的样子。
+            profile.fineChest = dto.fineChest
+            profile.fineWaist = dto.fineWaist
+            profile.fineHip = dto.fineHip
+            profile.fineHeight = dto.fineHeight
+            profile.presentationSexRaw = dto.presentationSexRaw
+            profile.presentationPhenotypeRaw = dto.presentationPhenotypeRaw
             context.insert(profile)
             newProfiles.append(profile)
         }
@@ -262,6 +297,29 @@ public enum ImportService {
             newPlans.append(plan)
         }
 
+        // 转移历史（D186）。此前整张表零读取——导得出、导不回，而详情页
+        // 真在渲染「Moved from X to Y」，换手机之后那一栏就空了。
+        //
+        // 三个 id 全是**软引用**，必须重映射到新 id：照抄原值等于指向一批
+        // 本机不存在的行（`wornItemIDs` 同一条纪律，D134 已踩过一次）。
+        // 单品映射不上就整条丢——一条不知道在说哪件衣服的移动记录没有意义；
+        // 而衣柜映射不上仍保留（`TransferHistory` 对查不到的柜有
+        // 「deleted closet」兜底，那正是它存在的理由）。
+        var newTransfers: [TransferRecord] = []
+        for dto in snapshot.transfers {
+            guard let date = iso.date(from: dto.date),
+                  let rawItemID = dto.itemID,
+                  let item = itemMap[rawItemID]
+            else { continue }
+            let record = TransferRecord(
+                itemID: item.id,
+                from: dto.fromWardrobeID.flatMap { wardrobeMap[$0]?.id },
+                to: dto.toWardrobeID.flatMap { wardrobeMap[$0]?.id },
+                date: date)
+            context.insert(record)
+            newTransfers.append(record)
+        }
+
         guard ModelSave.save(context, label: "importSnapshot") else {
             // 断关系再 rollback：不断的话幻影会被下一次无关 save 写进库（D112）
             for plan in newPlans { plan.outfit = nil }
@@ -269,7 +327,7 @@ public enum ImportService {
             for item in newItems { item.wardrobe = nil; item.location = nil }
             for loc in newLocations { loc.wardrobe = nil; loc.parent = nil }
             for w in newWardrobes { w.owner = nil }
-            _ = newRecords; _ = newProfiles; _ = newPersons
+            _ = newRecords; _ = newProfiles; _ = newPersons; _ = newTransfers
             context.rollback()
             AppLog.error("import save failed", .data)
             throw ImportError.saveFailed
@@ -285,7 +343,9 @@ public enum ImportService {
             locationsAdded: newLocations.count,
             imagePathsCleared: imagePathsCleared,
             bodyProfilesAdded: newProfiles.count,
-            bodyProfilesSkippedForConsent: bodyAllowed ? 0 : bodyDTOs.count)
+            bodyProfilesSkippedForConsent: bodyAllowed ? 0 : bodyDTOs.count,
+            transfersAdded: newTransfers.count,
+            personsAdded: newPersons.count)
     }
 
     /// 同名不覆盖：`Home` → `Home (imported)` → `Home (imported 2)`。
