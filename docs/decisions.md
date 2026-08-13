@@ -2382,3 +2382,23 @@ D152 之后回头验自己有没有制造新问题——界面不冻了，那两
 查下来 spinner 在 hero 与 CTA 两处早就写好了，而**同步路径下它从来渲染不出来**：
 `isRefreshing = true` → 两秒同步计算 → `= false`，全发生在一次调用里，
 SwiftUI 根本没机会观察到 true。挪到后台之后它才第一次有意义。契约钉成测试。
+
+---
+
+## D154 — 一个测试拨了全局开关，另一个测试正在读它（2026-08-13）
+
+`DebugSettingsTests.flagsRoundTrip` 在 **`DebugSettings.shared`** 上把
+`forceColdStart` / `disableAntiRepeat` 置为 true 再 reset。而生产代码
+（`CopilotViewModel.isColdStart`、`refresh`、`CopilotView`）读的就是 `.shared`——
+并行跑的推荐类用例在那几微秒窗口里会看到「强制冷启动」，于是 `refresh` 走早退分支、
+`suggestions` 当场为空，断言崩掉。
+
+窗口很短所以极少发作，而这正是**最贵的那种失败**：与代码改动无关、与调度有关、
+复现不了。D143（注册表按堆地址记名）是同一类，这是它的第二个化石。
+
+`DebugSettings.init(defaults:)` 本来就是 public——需要拨开关的测试**自己造一个实例**
+配独立的 UserDefaults suite 即可，全局一个字不动。
+
+门守的是精确的那条线：**没有任何测试把全局开关拨成 true**。拨 false 是防污染的基线
+（无害，保留）；拨 true 才会让并行用例走进它没预期的分支。判据只看真正操作单例的行，
+并识别 `let d = DebugSettings.shared` 这种别名——否则改个变量名就绕过去了。
