@@ -3918,3 +3918,60 @@ D182 的实体清单、D187 的级联表…），文档层同样躲不过。
 两头都修：我的测试用完就清（`defer clearForcedFailure`）；
 那条断言改成**增量判**（`<= before`）——它要守的是「死掉的 context 不留遗产」，
 增量足够，而且不受邻居影响。**全局断言在并行测试里就是一颗定时炸弹。**
+
+## D197 — 主屏 Widget：数据面做完，能力面卡在开发者后台（2026-08-13）
+
+核心机制是每日回访（D118 已经在推通知），而用户被叫醒之后**还得开 App**
+才知道今天穿什么。Widget 把那一眼放到主屏——正对 `MARKET.md` §8 要测的
+那个指标（每日推送 wear-as-is 率）。
+
+### 不搬库，只递一张纸条
+
+Widget 跑在**另一个进程**里，读不到 SwiftData store。把整个库搬进共享容器
+会连 D5 的身体维度局域一起搬——那是本仓最不该松的一条边界。
+改为 App 在 Today 落定时写一份**极小的快照**过去。
+
+边界写死并由测试守住：
+- **可以出去**：件名、look 标题、温度、天气来源——那正是 widget 要显示的，不给就没有 widget；
+- **绝不出去**：身体围度（D5）、照片、城市名。温度已经够画一行字，城市名多一分暴露面而不多一分用处。
+
+判据打在**编码后的 JSON 键**上，而不是扫源码——那才是真正落进容器的东西，
+且列举完备（没有「看不见的地方等于不存在」的假绿方向）。
+并配了一条**自测**：喂一个已知违规键，断言判据抓得到（防过滤逻辑写坏后整体空转）。
+
+### 过期的快照绝不冒充今天
+
+D188 修过「早安提醒把用户带到昨天那身」。Widget 是同一个病更隐蔽的发作面——
+**用户不点开就看不出来**。所以：快照带 `dayKey`，不是今天就画「点开看今天」；
+timeline 排到次日 00:01 自己刷新；空快照也要写（否则会一直显示上一份）。
+
+### 卡住的那一半：App Group 只能在后台开
+
+`xcodebuild` 实测：automatic 签名**也变不出** App Group——
+`iOS Team Provisioning Profile: *` 直接报 “doesn't support the
+group.com.pinglin.closet App Group”，连 Debug 都签不过。
+
+所以两个 entitlements 文件里那段**默认注释掉**，保持仓库 `xcodebuild` 绿；
+要粘贴的内容与后台四步写进了 `TESTFLIGHT.md`。未开启时
+`sharedDirectory()` 返回 nil，widget 诚实显示「Open Loomies to get today's look.」
+——不画旧数据、不假装有内容。**这一步之前不要把 Widget 发出去**：诚实但没用。
+
+### 过程中的两次自伤
+
+1. `project.yml` 里插了**第二个 `dependencies:` 键**，把 App 的四个 package
+   依赖整块覆盖掉——报的却是 `Unable to find module dependency: 'ClosetModel'`，
+   离根因很远。YAML 重复键不报错、后者胜，这是加 target 时最容易踩的一脚。
+2. 先加 entitlement 再验编译，把仓库留在了签不过的状态几分钟。
+   **顺序应该反过来**：先确认这条能力在本地能不能验，再决定要不要写进构建。
+
+### 性能门在满载机器上不可信
+
+四包回归时两条性能门红。按 D185 的判据查：一条隔离即绿；另一条隔离**反而更慢**
+（8584ms > 3939ms）——不像回归。查机器：load average 15-17，
+node 137% + grok 99% 是**别的进程**占满的。`git stash` 同负载对照下
+HEAD 与改动后都在门限两侧抖动，而这两波改的符号（`publishWidgetSnapshot` /
+`reportedFits`）**根本不在那条路上**（perf smoke 直接调 `RecommendationService.detailed`）。
+负载降到 11 之后两包即绿。
+
+记这一条是因为它给 D185 的纪律补了一个判据：**「隔离复跑更慢」本身就是负载的证据**——
+真回归不会因为少了并发而变慢。

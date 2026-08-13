@@ -102,3 +102,28 @@ xcrun altool --upload-app --type ios --file build/export/Loomies.ipa \
 - IPA 已上传成功：Delivery UUID `cd57d7c8-f970-4516-8f16-980fa0ddcb78`
 - TestFlight：https://appstoreconnect.apple.com/apps/6797632035/testflight/ios
 - 展示名后续 build 改为 Loomies（project.yml）
+
+## App Group（主屏 Widget 的前置，D197）
+
+Widget 与 App 是**两个进程**，靠 App Group 共享容器里的一份小快照通信
+（`TodayWidgetSnapshot`，只含件名/温度/来源——身体围度、照片、城市**绝不进去**）。
+
+**这一步只能在开发者后台做，代码做不了**，且未做之前连 Debug 都签不过
+（实测：automatic 签名也变不出 App Group，`iOS Team Provisioning Profile: *`
+会报 “doesn't support the group.com.pinglin.closet App Group”）。
+
+所以仓库里的两个 entitlements 文件**默认把它注释掉**——保持 `xcodebuild` 绿。
+打开顺序：
+
+1. 开发者后台 → Identifiers → **App Groups** 新建 `group.com.pinglin.closet`
+2. 新建 App ID `com.pinglin.closet.widget`，勾上 App Groups 并关联上一步那个组
+3. 给已有的 `com.pinglin.closet` 也勾上 App Groups 并关联
+4. 重新生成两张 App Store profile：
+   - App：`Closet App Store TF2`（重新生成以带上 App Groups）
+   - Widget：`Loomies Widget App Store`（`project.yml` 里已按这个名字写死）
+5. 把 `ClosetApp/ClosetApp.entitlements` 与 `LoomiesWidget/LoomiesWidget.entitlements`
+   里那两段注释取消（内容已写好，照贴即可）
+6. `cd app-shell && xcodegen generate` 后重新归档
+
+**没做完这一步之前不要把 Widget 发出去**：它会一直显示
+「Open Loomies to get today's look.」——诚实但没用。

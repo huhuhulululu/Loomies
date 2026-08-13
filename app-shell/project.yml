@@ -77,8 +77,41 @@ targets:
       - package: ClosetModel
       - package: ClosetUI
       - package: ClosetIntake
+      # D197：Widget extension 随 App 一起打包（embed）
+      - target: LoomiesWidgetExtension
     scheme:
       testTargets: []
       gatherCoverageData: false
       buildTargets:
         - ClosetApp
+
+  # D197：主屏 Widget（今天穿什么，不用开 App）。
+  # 只依赖 ClosetCore —— 纯 Foundation，不拖 SwiftData 进 extension 进程。
+  LoomiesWidgetExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LoomiesWidget
+        excludes:
+          - "**/.DS_Store"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pinglin.closet.widget
+        PRODUCT_NAME: LoomiesWidget
+        INFOPLIST_KEY_CFBundleDisplayName: Loomies
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        CODE_SIGN_ENTITLEMENTS: LoomiesWidget/LoomiesWidget.entitlements
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+      configs:
+        Release:
+          # ⚠️ 需要一个**独立**的 App Store profile（App 那张不含此 bundle id）。
+          # 未生成前 Release 归档会失败——见 TESTFLIGHT.md 的 App Group 一节。
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "iPhone Distribution: Ping Lin (28626PSX5Y)"
+          PROVISIONING_PROFILE_SPECIFIER: "Loomies Widget App Store"
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: ClosetCore

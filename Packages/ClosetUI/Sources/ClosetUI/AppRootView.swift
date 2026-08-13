@@ -332,6 +332,11 @@ public struct MeView: View {
                 Button("Delete everything", role: .destructive) {
                     do {
                         let receipt = try DataLifecycleService.deleteAllUserData(in: context)
+                        // D197：主屏 Widget 的快照在**App Group 共享容器**里，
+                        // 不在 App 沙盒内 ——「removes everything on this device」
+                        // 不能把它漏了。
+                        TodayWidgetSnapshotStore.clear(
+                            in: TodayWidgetSnapshotStore.sharedDirectory())
                         // D191：临时导出残渣与删库同一下扫掉——
                         //「removes everything on this device … and local photos」要说话算数。
                         // 正常关分享面板会删，但「面板开着时 App 被杀」会留下残渣。

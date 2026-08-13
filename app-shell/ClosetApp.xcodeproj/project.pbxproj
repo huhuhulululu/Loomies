@@ -8,13 +8,40 @@
 
 /* Begin PBXBuildFile section */
 		0757D48D49CF43721EBF2BC7 /* ClosetCore in Frameworks */ = {isa = PBXBuildFile; productRef = F4375A4BAB3860BC3F455E13 /* ClosetCore */; };
+		1DD6B6BD9F85D3AAEE819368 /* LoomiesWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		359D7567E6D89D03DAA95FEA /* LoomiesWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */; };
 		373133250AECC5B7FA11A19A /* ClosetModel in Frameworks */ = {isa = PBXBuildFile; productRef = E06703110E6F15B79E52FB95 /* ClosetModel */; };
 		59A0910EC266026FB31A80E2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */; };
 		84903C872BC58F6E02917424 /* ClosetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */; };
 		B739281490AEEFE7C05CD181 /* ClosetUI in Frameworks */ = {isa = PBXBuildFile; productRef = 086BA91D9A7B43D44EB82826 /* ClosetUI */; };
 		DE3673039A14C4D82378556A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 754D8304F540F1CB0B9D66CD /* Assets.xcassets */; };
 		EDC76A979CEF66B7BF3198F6 /* ClosetIntake in Frameworks */ = {isa = PBXBuildFile; productRef = AC6128AA78EDCFA86372BFB2 /* ClosetIntake */; };
+		F3EA1C7679280BA699AF3F1C /* ClosetCore in Frameworks */ = {isa = PBXBuildFile; productRef = DD3658153D289F6571771072 /* ClosetCore */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B381AFC1C099A3FB931FE23B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 35FAA58CC6386D719681F0E3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2199DBFC1F5DC5D6434A928B;
+			remoteInfo = LoomiesWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A53418CCC138659FB97C2095 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1DD6B6BD9F85D3AAEE819368 /* LoomiesWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -25,10 +52,21 @@
 		754D8304F540F1CB0B9D66CD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7A5F94F90DAD44C3E5FCF3B7 /* ClosetModel */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetModel; path = ../Packages/ClosetModel; sourceTree = SOURCE_ROOT; };
 		7D07F0B7CF9771838267AB09 /* ClosetApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClosetApp.entitlements; sourceTree = "<group>"; };
+		8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomiesWidget.swift; sourceTree = "<group>"; };
+		843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LoomiesWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1136C0662BF8C1ACC921E00 /* LoomiesWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LoomiesWidget.entitlements; sourceTree = "<group>"; };
 		B21FD56E119E85207266A542 /* ClosetUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetUI; path = ../Packages/ClosetUI; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		3B7BEBBD37A32E65AB94CC51 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3EA1C7679280BA699AF3F1C /* ClosetCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6963B4DD4E4472F44FB903C9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -54,10 +92,20 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		1F1BDB1FF227474F8BBEF953 /* LoomiesWidget */ = {
+			isa = PBXGroup;
+			children = (
+				B1136C0662BF8C1ACC921E00 /* LoomiesWidget.entitlements */,
+				8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */,
+			);
+			path = LoomiesWidget;
+			sourceTree = "<group>";
+		};
 		8DD4080E6063266A26CB5CE6 = {
 			isa = PBXGroup;
 			children = (
 				D4651A081FA5FE3164D142DC /* ClosetApp */,
+				1F1BDB1FF227474F8BBEF953 /* LoomiesWidget */,
 				15924F5D5B967DB5736EA5EE /* Packages */,
 				B478EFF969B01E1826B46C73 /* Products */,
 			);
@@ -67,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				5BF134BFEFE94AC9C2AE7087 /* ClosetApp.app */,
+				843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -85,6 +134,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2199DBFC1F5DC5D6434A928B /* LoomiesWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 54D6E6E7E75080B8E4A79AE4 /* Build configuration list for PBXNativeTarget "LoomiesWidgetExtension" */;
+			buildPhases = (
+				23337B861E21C5A02B6B0345 /* Sources */,
+				3B7BEBBD37A32E65AB94CC51 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LoomiesWidgetExtension;
+			packageProductDependencies = (
+				DD3658153D289F6571771072 /* ClosetCore */,
+			);
+			productName = LoomiesWidgetExtension;
+			productReference = 843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		514F3F2C0AE88CA10CFBD8AC /* ClosetApp */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CEE1CDF62838CDEFB2AD6DC1 /* Build configuration list for PBXNativeTarget "ClosetApp" */;
@@ -92,10 +160,12 @@
 				D308FF73C7A575CD1E4313E6 /* Sources */,
 				3D124AA38FE52F35FAF89764 /* Resources */,
 				6963B4DD4E4472F44FB903C9 /* Frameworks */,
+				A53418CCC138659FB97C2095 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				27973B3A538E98B32ECD9B70 /* PBXTargetDependency */,
 			);
 			name = ClosetApp;
 			packageProductDependencies = (
@@ -117,6 +187,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					2199DBFC1F5DC5D6434A928B = {
+						DevelopmentTeam = 28626PSX5Y;
+					};
 					514F3F2C0AE88CA10CFBD8AC = {
 						DevelopmentTeam = 28626PSX5Y;
 					};
@@ -143,6 +216,7 @@
 			projectRoot = "";
 			targets = (
 				514F3F2C0AE88CA10CFBD8AC /* ClosetApp */,
+				2199DBFC1F5DC5D6434A928B /* LoomiesWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -160,6 +234,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		23337B861E21C5A02B6B0345 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				359D7567E6D89D03DAA95FEA /* LoomiesWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D308FF73C7A575CD1E4313E6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -170,7 +252,36 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		27973B3A538E98B32ECD9B70 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2199DBFC1F5DC5D6434A928B /* LoomiesWidgetExtension */;
+			targetProxy = B381AFC1C099A3FB931FE23B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		1C45E30DF1BD7A2DBF343261 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LoomiesWidget/LoomiesWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Loomies;
+				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet.widget;
+				PRODUCT_NAME = LoomiesWidget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		2392F0FBEECC6C7DD25240A0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -297,6 +408,29 @@
 			};
 			name = Release;
 		};
+		CAC091740FC23C395A261463 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = LoomiesWidget/LoomiesWidget.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Distribution: Ping Lin (28626PSX5Y)";
+				CODE_SIGN_STYLE = Manual;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Loomies;
+				INFOPLIST_KEY_NSExtensionPointIdentifier = "com.apple.widgetkit-extension";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet.widget;
+				PRODUCT_NAME = LoomiesWidget;
+				PROVISIONING_PROFILE_SPECIFIER = "Loomies Widget App Store";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		CCE264D8378F9D6A92A12AB1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -377,6 +511,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		54D6E6E7E75080B8E4A79AE4 /* Build configuration list for PBXNativeTarget "LoomiesWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1C45E30DF1BD7A2DBF343261 /* Debug */,
+				CAC091740FC23C395A261463 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		CEE1CDF62838CDEFB2AD6DC1 /* Build configuration list for PBXNativeTarget "ClosetApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -415,6 +558,10 @@
 		AC6128AA78EDCFA86372BFB2 /* ClosetIntake */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ClosetIntake;
+		};
+		DD3658153D289F6571771072 /* ClosetCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ClosetCore;
 		};
 		E06703110E6F15B79E52FB95 /* ClosetModel */ = {
 			isa = XCSwiftPackageProductDependency;

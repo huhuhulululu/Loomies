@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- D197：与 ClosetApp.entitlements 同步开关。注册 App Group 之后取消注释：
+
+	<key>com.apple.security.application-groups</key>
+	<array><string>group.com.pinglin.closet</string></array>
+
+	     未开启时 `TodayWidgetSnapshotStore.sharedDirectory()` 返回 nil，
+	     Widget 会诚实显示「Open Loomies to get today's look.」——
+	     不画旧数据、不假装有内容。 -->
+</dict>
+</plist>

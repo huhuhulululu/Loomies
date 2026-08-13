@@ -370,11 +370,41 @@ public final class CopilotViewModel {
         let ids = Set(all
             .filter { $0.wardrobeSnapshotID == wardrobe.id && cal.isDateInToday($0.date) }
             .flatMap(\.wornItemIDs))
-        guard !ids.isEmpty else { todayWornNames = []; return }
+        guard !ids.isEmpty else {
+            todayWornNames = []
+            publishWidgetSnapshot()
+            return
+        }
         todayWornNames = (wardrobe.items ?? [])
             .filter { ids.contains($0.id.uuidString) }
             .map(\.name)
             .sorted()
+        publishWidgetSnapshot()
+    }
+
+    /// 把「今天穿什么」写进 App Group，主屏 Widget 读它（D197）。
+    ///
+    /// 已经打过卡就写**已定**那身；否则写当前选中的建议。
+    /// 都没有就写一份空的——**空快照也要写**，否则 widget 会一直显示昨天那份，
+    /// 而那正是 D188 修过的病在新表面上的复发（更隐蔽：用户不点开就看不出来）。
+    public func publishWidgetSnapshot(
+        directory: URL? = TodayWidgetSnapshotStore.sharedDirectory()
+    ) {
+        let settled = !todayWornNames.isEmpty
+        let pieces = settled
+            ? todayWornNames
+            : (selectedSuggestion?.outfit.itemIDs.compactMap { id in
+                (wardrobe.items ?? []).first { $0.id.uuidString == id }?.name
+              } ?? [])
+        let snapshot = TodayWidgetSnapshot(
+            dayKey: CalendarPlanService.dayKey(for: Date()),
+            lookTitle: settled ? nil : selectedSuggestion.map { _ in occasion.capitalized },
+            pieceNames: pieces,
+            // 温度未知就不写——widget 那边同样是三值语义（不填默认值）
+            daytimeTempF: hasResolvedWeather ? Int(daytimeTempF.rounded()) : nil,
+            weatherSourceLabel: hasResolvedWeather ? weatherSourceLabel : nil,
+            isSettled: settled)
+        TodayWidgetSnapshotStore.write(snapshot, to: directory)
     }
 
     /// 真的穿了这套（唯一的「采纳」信号，也是 §8.1 判定协议量的那件事）。
@@ -548,6 +578,8 @@ public final class CopilotViewModel {
             statusMessage = Self.lookCounter(
                 index: selectedSuggestionIndex, total: suggestions.count)
         }
+        // D197：建议换了，主屏那块也要跟着换（否则 widget 停在上一批）。
+        publishWidgetSnapshot()
         TelemetryGate.shared.track(.copilotRefresh, payload: [
             "mode": fullAuto ? "auto" : "anchored",
             "occasion": occasion,

@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- 本地模拟器空 entitlements；真机再加 iCloud/CloudKit / Push / App Attest -->
+	<!-- D197：主屏 Widget 要读 App 写的那份快照，需要 App Group。
+	     ⚠️ **必须先在开发者后台注册** `group.com.pinglin.closet`，
+	     否则连 Debug 都签不过（automatic 签名也变不出这一项，实测）。
+	     注册之后把下面两行取消注释，App 与 Widget 两侧同时打开：
+
+	<key>com.apple.security.application-groups</key>
+	<array><string>group.com.pinglin.closet</string></array>
+
+	     还要为 Widget 的 bundle id `com.pinglin.closet.widget` 生成一张
+	     独立的 App Store profile（App 那张不含它），并重新生成 App 那张
+	     以带上 App Groups capability。完整步骤见 TESTFLIGHT.md。 -->
+	<!-- 真机再加 iCloud/CloudKit / Push / App Attest -->
 </dict>
 </plist>
