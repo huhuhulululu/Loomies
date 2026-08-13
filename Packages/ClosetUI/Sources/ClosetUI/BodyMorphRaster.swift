@@ -263,6 +263,9 @@ final class BodyMorphImageCache {
         init(_ image: Image?) { self.image = image }
     }
 
+    /// D132：清空。此前没有任何主动释放路径（见 `ImageCaches`）。
+    func purge() { cache.removeAllObjects() }
+
     private let cache: NSCache<NSString, Box> = {
         let c = NSCache<NSString, Box>()
         c.totalCostLimit = 96 * 1024 * 1024

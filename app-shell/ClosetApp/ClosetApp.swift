@@ -67,11 +67,19 @@ struct ClosetApp: App {
         }
     }
 
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some Scene {
         WindowGroup {
             RootView()
         }
         .modelContainer(container)
+        // D132：切后台清图像缓存。六个缓存合计 440MB 上限，此前没有任何
+        // 主动释放路径——真装满，App 会在后台被系统 jetsam 掉，
+        // 用户回来看到的是冷启动，而他只是去接了个电话。
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { ImageCaches.purgeAll() }
+        }
     }
 }
 

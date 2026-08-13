@@ -981,6 +981,16 @@ final class BodyAvatarImageCache: @unchecked Sendable {
     private let lock = NSLock()
     /// Bundle probe 结果（含 miss）；key = 资源名。
     private var resourceURLs: [String: URL?] = [:]
+    /// D132：清空。此前**没有任何主动释放路径**——装满 128+64MB 就那么放着，
+    /// 只能等 NSCache 在内存压力下自主逐出。切后台时由 `ImageCaches.purgeAll` 统一调。
+    func purge() {
+        images.removeAllObjects()
+        platformImages.removeAllObjects()
+        lock.lock()
+        resourceURLs.removeAll()
+        lock.unlock()
+    }
+
     /// probe 表上限：key 域可被数据驱动（资产名来自调用方），miss 永久占条会变泄漏。
     /// 越界整表清空——probe 重跑廉价（Bundle.url），无需 LRU。
     private let maxResourceEntries = 512
