@@ -66,25 +66,37 @@ public enum DemoSeedService {
         let maxSuffix = existing.compactMap { Self.trailingNumber(in: $0.name) }.max() ?? 0
         let tag = existing.isEmpty ? "" : " \(maxSuffix + 1)"
 
-        // name, slot, occasions, hue?, warmth
-        let specs: [(String, String, [String], Double?, Warmth)] = [
+        // name, slot, occasions, hue?, warmth, 剪裁属性
+        //
+        // D153：**剪裁属性此前是空的**，于是 `BodyShapeStyling` 的 affinity 恒为 0——
+        // MARKET §2 认定的唯一纵深（合身/体型）在演示数据上一点差别都产生不出来，
+        // 而「先看效果」正是用户想看这 App 凭什么不一样的那条路。
+        //
+        // 界线：**这些样例是我们自己发明的，我们当然知道它们的剪裁**——
+        // 给「Midi skirt」标 A 字、给「Navy blazer」标结构感与垫肩，
+        // 是在描述自家 fixture，不是替用户猜他衣柜里那条裙子。
+        // 用户真实的件仍然只由他自己标，入库路径一个字不改。
+        let specs: [(String, String, [String], Double?, Warmth, [StyleAttribute])] = [
             // slot 必须与 BodyAvatar 叠衣槽一致：外套用 outerwear，才能与 tee 同穿
-            ("White tee\(tag)", "top", ["work", "casual"], 0, .light),
-            ("Navy blazer\(tag)", "outerwear", ["work"], 220, .medium),
-            ("Black trousers\(tag)", "bottom", ["work", "gala"], nil, .light),
-            ("Blue jeans\(tag)", "bottom", ["casual"], 210, .medium),
-            ("White sneakers\(tag)", "shoes", ["work", "casual"], nil, .light),
-            ("Black pumps\(tag)", "shoes", ["work", "date", "gala"], nil, .light),
-            ("Camel coat\(tag)", "outerwear", ["work", "casual"], 30, .warm),
-            ("Linen shirt\(tag)", "top", ["casual", "date"], 45, .light),
-            ("Midi skirt\(tag)", "bottom", ["work", "date"], 15, .light),
+            ("White tee\(tag)", "top", ["work", "casual"], 0, .light, [.boatNeck]),
+            ("Navy blazer\(tag)", "outerwear", ["work"], 220, .medium,
+             [.structuredTop, .paddedShoulder]),
+            ("Black trousers\(tag)", "bottom", ["work", "gala"], nil, .light,
+             [.highWaist, .wideLeg]),
+            ("Blue jeans\(tag)", "bottom", ["casual"], 210, .medium, [.straightNoWaist]),
+            ("White sneakers\(tag)", "shoes", ["work", "casual"], nil, .light, []),
+            ("Black pumps\(tag)", "shoes", ["work", "date", "gala"], nil, .light, []),
+            ("Camel coat\(tag)", "outerwear", ["work", "casual"], 30, .warm, [.belt, .draping]),
+            ("Linen shirt\(tag)", "top", ["casual", "date"], 45, .light, [.vNeck, .draping]),
+            ("Midi skirt\(tag)", "bottom", ["work", "date"], 15, .light, [.aLine, .highWaist]),
         ]
 
         var inserted: [Item] = []
-        for (name, slot, occasions, hue, warmth) in specs {
+        for (name, slot, occasions, hue, warmth, cut) in specs {
             let item = Item(name: name)
             item.slotRaw = slot
             item.occasionsRaw = occasions
+            item.attributesRaw = cut.map(\.rawValue).sorted()   // 排序：播种结果可复现
             item.warmthRaw = warmth.rawValue
             item.statusRaw = "available"
             item.colorIsNeutral = (hue == nil) || (hue == 0)

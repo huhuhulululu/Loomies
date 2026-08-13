@@ -102,6 +102,36 @@ struct RefreshOffMainTests {
         #expect(!vm.statusMessage.isEmpty, "早退分支没有就地给出空态文案")
     }
 
+    /// **加载指示必须真的看得见。**
+    ///
+    /// spinner 在 hero 与 CTA 两处早就写好了，而同步路径下它**从来渲染不出来**：
+    /// `isRefreshing = true` → 两秒同步计算 → `= false`，全发生在一次调用里，
+    /// SwiftUI 根本没机会观察到 true。界面冻着，转圈也转不起来。
+    ///
+    /// 挪到后台之后它才第一次有意义——所以这条契约要钉住：
+    /// 快照之后、落地之前，状态必须是「正在刷新」。
+    @Test func theSpinnerIsObservableWhileComputing() throws {
+        let ctx = try makeContext()
+        let w = try seed(ctx)
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 70)
+        vm.fullAuto = true
+
+        #expect(!vm.isRefreshing)
+        let req = try #require(vm.makeRefreshRequest())
+        #expect(vm.isRefreshing, "快照之后没有进入「正在刷新」—— 转圈永远不出现")
+        vm.applyRefresh(CopilotViewModel.computeRefresh(req), for: req)
+        #expect(!vm.isRefreshing, "算完了还挂着「正在刷新」—— CTA 会一直是禁用的")
+    }
+
+    /// 冷启动早退也要把状态收干净（那条路不派计算，但不能留着转圈）。
+    @Test func theShortcutLeavesNoSpinnerBehind() throws {
+        let ctx = try makeContext()
+        let w = try seed(ctx, count: 1)
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 70)
+        #expect(vm.makeRefreshRequest() == nil)
+        #expect(!vm.isRefreshing, "空态早退留下了一个永远转下去的圈")
+    }
+
     /// 接线门：Today 必须真的走异步路径——否则这一波等于没做。
     @Test func todayActuallyUsesTheAsyncPath() throws {
         let text = try String(
