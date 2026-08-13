@@ -139,21 +139,51 @@ public enum OutfitCompleter {
 
         var seen = Set<[String]>()
         var results: [ScoredOutfit] = []
+        // D151：**枚举时只留前 K。**
+        //
+        // 此前把每一套都物化进 `results`，最后才排序取 `maxSuggestions`——
+        // 而冷天 240 件衣柜要枚举 12×12×12×13 ≈ 2.2 万套，每套带成员数组、
+        // id 数组和一串理由字符串。实测该路径整整 **3 秒**，同步跑在主线程上：
+        // 用户在冬天打开 Today，整个界面冻结三秒，而这个 App 冬天最该有用。
+        //
+        // `ranksBefore` 是全序（分数 → 近期穿着 → itemIDs 字典序），
+        // 所以「边枚举边只留前 K」与「全物化再排序取前 K」**结果完全相同**。
+        let keep = max(1, maxSuggestions)
+        let wornIDs = outcome.recentlyWornIDs
         func consider(_ picks: [CandidateItem?]) {
             let items = anchors + picks.compactMap { $0 }
             // grammar 仍是最终裁判（拆枝只削去必废组合，不替代校验）
             guard OutfitGrammar.isValid(items) else { return }
             let outfit = Outfit(items: items)
             guard seen.insert(outfit.itemIDs).inserted else { return }
-            results.append(ScoredOutfit(outfit: outfit, score: OutfitScorer.score(outfit, context: scoring)))
+            let scored = ScoredOutfit(
+                outfit: outfit, score: OutfitScorer.score(outfit, context: scoring))
+            if results.count < keep {
+                results.append(scored)
+            } else if OutfitScorer.ranksBefore(
+                scored, results[keep - 1], recentlyWornIDs: wornIDs) {
+                results[keep - 1] = scored
+            } else {
+                return   // 连当前第 K 名都比不过 —— 直接丢
+            }
+            results.sort { OutfitScorer.ranksBefore($0, $1, recentlyWornIDs: wornIDs) }
         }
         if dressViaPool {
+            // D151：**每个槽位的候选只算一次。** 此前 `options(.bottom)` 写在
+            // 内层循环头上——Swift 每进一次内层循环就重新求值一遍，
+            // 而 `options` 要过滤全池 + `preRank`（那一步给每件打分）。
+            // 12 个上装 = 把整个下装池重新预排 12 遍。实测冷天 240 件衣柜
+            // 3013ms 里约一半是这个。提出来即可，结果一个字不变
+            //（`options` 对 `filtered`/`scoring` 是纯的，本次 assemble 内不变）。
+            let dressOpts = options(.dress)
+            let topOpts = options(.top)
+            let bottomOpts = options(.bottom)
             // 枝 A：连衣裙替代上下装
-            for d in options(.dress) { for sh in shoesOpts { for o in outerOpts {
+            for d in dressOpts { for sh in shoesOpts { for o in outerOpts {
                 consider([d, sh, o])
             }}}
             // 枝 B：上装 + 下装
-            for t in options(.top) { for b in options(.bottom) { for sh in shoesOpts { for o in outerOpts {
+            for t in topOpts { for b in bottomOpts { for sh in shoesOpts { for o in outerOpts {
                 consider([t, b, sh, o])
             }}}}
         } else {
@@ -172,8 +202,7 @@ public enum OutfitCompleter {
         // 「降权」要在用户真正看到的那一层生效才算数。
         // D131：比较口径收进 `OutfitScorer.ranksBefore`（含浮点容差）——
         // 散在调用点的两份写法迟早分叉，而分叉那天顺序会随调用点而变。
-        let wornIDs = outcome.recentlyWornIDs
-        results.sort { OutfitScorer.ranksBefore($0, $1, recentlyWornIDs: wornIDs) }
+        // `consider` 已维持前 K 有序（见上）——这里不再全量排序。
         return results
         }
 
