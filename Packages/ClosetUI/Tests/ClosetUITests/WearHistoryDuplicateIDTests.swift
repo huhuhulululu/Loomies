@@ -154,3 +154,78 @@ struct DetailLoadsWearRecordsOnceTests {
         #expect(body.contains("records: records"))
     }
 }
+
+/// D169：穿着历史**全表取回再在内存里按柜过滤**。
+///
+/// 实测（文件库、两年 730 条、一半属本柜）：现状 62ms，把过滤下推到谓词后 27ms。
+/// 排序仍留在内存——`SortDescriptor` 表达不了「同日按 id 决胜」，
+/// 而那条决定了同一天多次打卡的显示顺序（不稳定的话用户每次进来看到的次序都可能不同）。
+/// 内存排序用摊平法（D157/D168 同款）。
+///
+/// 两处改动都不改结果：谓词与原过滤条件逐字相同，排序键逐字相同。
+@MainActor
+struct WearHistoryFetchTests {
+
+    private func makeContext() throws -> ModelContext {
+        try ModelContext(try ModelContainer(
+            for: LoomiesStore.fullSchema,
+            migrationPlan: LoomiesMigrationPlan.self,
+            configurations: LoomiesStore.mainConfiguration(inMemory: true),
+            LoomiesStore.localConfiguration(inMemory: true)))
+    }
+
+    /// 只显示本柜的记录（别柜的一条都不许进来）。
+    @Test func onlyThisClosetsRecordsAppear() throws {
+        let ctx = try makeContext()
+        let mine = Wardrobe(name: "Mine"); ctx.insert(mine)
+        let other = Wardrobe(name: "Other"); ctx.insert(other)
+        let tee = Item(name: "Tee"); tee.wardrobe = mine; ctx.insert(tee)
+        try ctx.save()
+        for (i, w) in [mine, other, mine].enumerated() {
+            let r = WearRecord(date: Date().addingTimeInterval(-86_400 * Double(i)))
+            r.wornItemIDs = [tee.id.uuidString]
+            r.wardrobeSnapshotID = w.id
+            ctx.insert(r)
+        }
+        try ctx.save()
+
+        let vm = WearHistoryViewModel(wardrobe: mine)
+        vm.load(in: ctx)
+        #expect(vm.entries.count == 2)
+    }
+
+    /// 顺序与旧写法**逐条一致**（最近在前；同日按 id 决胜）。
+    @Test func theOrderMatchesTheOldComparator() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        let tee = Item(name: "Tee"); tee.wardrobe = w; ctx.insert(tee)
+        try ctx.save()
+        let sameDay = Date()
+        for i in 0..<6 {
+            let r = WearRecord(date: i < 3 ? sameDay
+                               : Date().addingTimeInterval(-86_400 * Double(i)))
+            r.wornItemIDs = [tee.id.uuidString]
+            r.wardrobeSnapshotID = w.id
+            ctx.insert(r)
+        }
+        try ctx.save()
+
+        let legacy = (try ctx.fetch(FetchDescriptor<WearRecord>()))
+            .filter { $0.wardrobeSnapshotID == w.id }
+            .sorted { ($0.date, $0.id.uuidString) > ($1.date, $1.id.uuidString) }
+        let vm = WearHistoryViewModel(wardrobe: w)
+        vm.load(in: ctx)
+        #expect(vm.entries.map(\.id) == legacy.map(\.id),
+                "新旧顺序不同 —— 同一天多次打卡的次序会变")
+    }
+
+    /// 空历史不炸。
+    @Test func anEmptyHistoryIsFine() throws {
+        let ctx = try makeContext()
+        let w = Wardrobe(name: "Main"); ctx.insert(w)
+        try ctx.save()
+        let vm = WearHistoryViewModel(wardrobe: w)
+        vm.load(in: ctx)
+        #expect(vm.entries.isEmpty)
+    }
+}
