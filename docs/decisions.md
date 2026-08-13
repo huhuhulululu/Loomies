@@ -2773,3 +2773,29 @@ schema 加字段时没有机器门提醒。这一轮先把那个缺口补上—�
 这是本 session 第五次犯「认词不认构造」（D147 注释里的词、D156 同款、D158 只认旧名、
 D164 只认键名）。有意思的是：**这次是门自己抓住了我**——写完就跑，误报当场暴露。
 纪律起作用的方式不止「撞它」一种，「写完立刻跑一次」也算。
+
+---
+
+## D167 — 写在关键约束里，却没人守（2026-08-13）
+
+`CLAUDE.md` 的关键约束里有两条架构规则：**「ClosetCore 保持纯 Swift（零 iOS SDK 依赖，
+Foundation only）」**与**「依赖方向只能 UI → Model → Core」**。查下来：
+
+**第一条没有门。** 实测当下 Core 只 import `Foundation`（45 处）与 `OSLog`（1 处）——
+性质今天成立，靠的是历任作者记得。而破坏它**编得过**：`import UIKit` 会因 macOS
+构建失败被动挡住，但 `import SwiftData` / `import SwiftUI` / `import CoreGraphics`
+在两个平台都编得过，于是引擎会在没人察觉的情况下与持久化/视图层绑死。
+
+而那正是这个包存在的理由——`RecommendationTypes` 的注释白纸黑字写着
+「RulesEngine 禁依赖 SwiftData」。**一条只写在注释里的规则，等于没有规则。**
+补 import 白名单门（Foundation / OSLog；加新的要先改白名单并写理由），
+撞 `import SwiftData` 验证：当场点名。
+
+**第二条不需要门。** 在 Core 里写 `import ClosetModel` 直接编译失败
+（`no such module 'ClosetModel'`——SwiftPM 的 target 依赖图挡的），比测试更早更硬。
+我先写了一道测试，撞的时候发现根本跑不到（构建就断了），于是**把它删掉**：
+
+> 已经被更强的机制守住的东西，不该再加一道弱的。
+
+多余的门有真实代价：它制造「这里有守卫」的错觉，掩盖真正的机制在哪；
+将来有人改动依赖图时，会去改那道无关的测试而不是去看 `Package.swift`。
