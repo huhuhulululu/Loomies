@@ -22,6 +22,14 @@ public enum DominantColor {
     /// 样本太少不下结论（抠图失败、或只剩零星像素）。
     public static let minimumSamples = 20
 
+    /// 离最近色板项**太远**就不认（D134）。
+    ///
+    /// 色板只有 16 项，而衣服颜色是连续的：荧光橙、松石绿、藕粉
+    /// 都会被硬吸到某个八竿子打不着的项上，然后以那个名字参与配色打分。
+    /// 归一化 RGB 空间里 0.35 的欧氏距离（平方 0.1225）约等于
+    /// 「肉眼一看就不是同一个颜色」。
+    public static let maximumSquaredDistance = 0.1225
+
     /// 对像素投票，返回票数最集中的色板项。
     ///
     /// 用**众数**而不是均值：红衣配蓝扣的均值是紫色，那个颜色一件衣服上根本不存在。
@@ -30,6 +38,10 @@ public enum DominantColor {
         var tally: [String: Int] = [:]
         for sample in samples {
             guard let entry = nearestEntry(to: sample) else { continue }
+            // 离色板太远的像素**不投票**——硬吸到最近项会让一件荧光橙
+            // 顶着「orange」的名字参与配色打分，而它们看起来毫无关系。
+            guard distance(sample, RGB(entry.red, entry.green, entry.blue))
+                <= maximumSquaredDistance else { continue }
             tally[entry.id, default: 0] += 1
         }
         guard let winner = tally

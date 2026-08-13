@@ -11,6 +11,28 @@ import Vision
 ///
 /// ⚠️ 主体在 `#if canImport(Vision)` 里——macOS 的 `swift test` 编不到
 /// （D92/D118 都栽过），改完必须 `xcodebuild` 验证。
+/// 一次性 resume 闸（D134）。
+///
+/// Vision 的错误路径会**既调完成回调、又让 `perform` 抛错**——
+/// 两条路都 resume 会让 `CheckedContinuation` trap 整个进程。
+/// 用户视角：拍完照 App 直接闪退。
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<[String], Never>?
+
+    init(_ continuation: CheckedContinuation<[String], Never>) {
+        self.continuation = continuation
+    }
+
+    func finish(_ value: [String]) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        pending?.resume(returning: value)
+    }
+}
+
 public struct VisionOCRService: OCRService {
 
     public init() {}
@@ -30,17 +52,21 @@ public struct VisionOCRService: OCRService {
     static func recognizeLines(in imageData: Data) async -> [String] {
         #if canImport(Vision)
         return await withCheckedContinuation { continuation in
+            // D134：**只允许 resume 一次**。Vision 出错时会**既调完成回调、
+            // 又让 `perform` 抛错**——两条路都 resume，`CheckedContinuation`
+            // 直接 trap 整个进程（用户看到的是拍完照 App 闪退）。
+            let once = ResumeOnce(continuation)
             let request = VNRecognizeTextRequest { request, error in
                 if let error {
                     AppLog.error("labelOCR failed: \(AppLog.errRef(error))", .intake)
-                    continuation.resume(returning: [])
+                    once.finish([])
                     return
                 }
                 let observations = request.results as? [VNRecognizedTextObservation] ?? []
                 // 每行只取最优候选：次优候选在洗标这种小字上噪声很大，
                 // 而错一个尺码比留空更糟。
                 let lines = observations.compactMap { $0.topCandidates(1).first?.string }
-                continuation.resume(returning: lines)
+                once.finish(lines)
             }
             request.recognitionLevel = .accurate
             // 洗标是印刷小字，语言矫正会把 "XL" 纠成单词——关掉。
@@ -50,7 +76,7 @@ public struct VisionOCRService: OCRService {
                 try VNImageRequestHandler(data: imageData, options: [:]).perform([request])
             } catch {
                 AppLog.error("labelOCR handler failed: \(AppLog.errRef(error))", .intake)
-                continuation.resume(returning: [])
+                once.finish([])
             }
         }
         #else

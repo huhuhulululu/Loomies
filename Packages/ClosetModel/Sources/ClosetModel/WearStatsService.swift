@@ -52,14 +52,19 @@ public enum WearStatsService {
     public static let neverWornSummary = "Not worn yet"
 
     /// 单件。
+    ///
+    /// D134：**按单品本身算，不按它现在在哪个柜算**。
+    /// 记录挂的是穿着那天的柜快照——把件转移到另一个柜之后，
+    /// 旧记录的快照 id 仍是原柜，按当前柜过滤就变成「没穿过」：
+    /// 用户刚把冬装挪进「换季箱」，一年的记录当场归零。
+    /// 单品 id 全局唯一，用它就够；跨柜聚合正是这里想要的。
     @MainActor
     public static func stats(for item: Item, in context: ModelContext) -> Stats {
-        guard let wardrobeID = item.wardrobe?.id else { return Stats(count: 0, lastWorn: nil) }
         let key = item.id.uuidString
         let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         var count = 0
         var last: Date?
-        for r in records where r.wardrobeSnapshotID == wardrobeID && r.wornItemIDs.contains(key) {
+        for r in records where r.wornItemIDs.contains(key) {
             count += 1
             if last == nil || r.date > last! { last = r.date }
         }
@@ -75,7 +80,8 @@ public enum WearStatsService {
         let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         var counts: [String: Int] = [:]
         var lasts: [String: Date] = [:]
-        for r in records where r.wardrobeSnapshotID == wardrobe.id {
+        // 同上：按单品 id 聚合，不按柜快照过滤——否则转移过的件全成「没穿过」
+        for r in records {
             for id in r.wornItemIDs {
                 counts[id, default: 0] += 1
                 if let existing = lasts[id] {

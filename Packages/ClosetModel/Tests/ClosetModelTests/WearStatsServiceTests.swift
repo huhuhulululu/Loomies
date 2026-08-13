@@ -92,19 +92,26 @@ struct WearStatsServiceTests {
         #expect(WearStatsService.stats(for: jeans, in: ctx).count == 1)
     }
 
-    /// **跨柜不串**：同一件只属于一个柜，别的柜的快照不该算进来
-    ///（与 `WearHistoryView` 的既有口径一致）。
-    @Test func anotherClosetsRecordsDoNotLeakIn() throws {
+    /// D134：**转移过的件不得归零**。
+    ///
+    /// 记录挂的是穿着那天的柜快照——按「当前柜」过滤的话，
+    /// 用户把冬装挪进「换季箱」的那一刻，一年的记录当场变成「没穿过」。
+    /// 单品 id 全局唯一，跨柜聚合正是这里想要的。
+    @Test func movingAPieceDoesNotEraseItsHistory() throws {
         let ctx = try makeContext()
         let home = Wardrobe(name: "Home"); ctx.insert(home)
-        let trip = Wardrobe(name: "Trip"); ctx.insert(trip)
-        let tee = Item(name: "Tee"); tee.wardrobe = home; ctx.insert(tee)
+        let box = Wardrobe(name: "Off-season"); ctx.insert(box)
+        let coat = Item(name: "Coat"); coat.wardrobe = home; ctx.insert(coat)
         try ctx.save()
-        wear(ctx, home, [tee], daysAgo: 1)
-        wear(ctx, trip, [tee], daysAgo: 2)   // 另一个柜的快照
+        wear(ctx, home, [coat], daysAgo: 30)
+        wear(ctx, home, [coat], daysAgo: 10)
         try ctx.save()
 
-        #expect(WearStatsService.stats(for: tee, in: ctx).count == 1)
+        coat.wardrobe = box            // 换季转移
+        try ctx.save()
+
+        #expect(WearStatsService.stats(for: coat, in: ctx).count == 2,
+                "转移之后一年的穿着记录归零了")
     }
 
     /// 摘要文案：单数/复数、以及「几天前」这种人话。

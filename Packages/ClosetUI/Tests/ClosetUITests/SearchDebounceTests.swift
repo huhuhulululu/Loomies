@@ -95,3 +95,43 @@ struct SearchDebounceTests {
                 "文本输入还在每个字母直接跑一遍全表扫描")
     }
 }
+
+/// D134：新加的筛必须进 `clear()`，否则「清除」清不干净——
+/// 用户点了清除仍卡在「没有匹配」，而屏幕上看不出还有哪个筛在生效。
+@MainActor
+struct SearchClearCompletenessTests {
+
+    /// 清除要把**每一个**筛项归零。
+    @Test func clearResetsEveryFacet() {
+        let vm = SearchViewModel()
+        vm.text = "navy"
+        vm.slotRaw = "top"
+        vm.occasion = "work"
+        vm.statusRaw = "available"
+        vm.colorPaletteID = "navy"
+        vm.clear()
+        #expect(!vm.isFiltering, "清除之后仍有筛项在生效")
+        #expect(vm.colorPaletteID == nil, "颜色筛没被清掉 —— 用户会卡在「没有匹配」")
+    }
+
+    /// 结构门：`isFiltering` 认得的每个筛项，`clear()` 都得清。
+    /// （下一个人加筛项时，漏改 `clear` 会红。）
+    @Test func clearCoversEverythingIsFilteringKnowsAbout() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/ClosetUI/SearchViewModel.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        func body(after marker: String) -> String {
+            guard let r = text.range(of: marker) else { return "" }
+            return String(text[r.upperBound...].prefix(400))
+        }
+        let filtering = body(after: "public var isFiltering: Bool {")
+        let clearing = body(after: "public func clear() {")
+        for facet in ["text", "slotRaw", "occasion", "statusRaw", "colorPaletteID"]
+        where filtering.contains(facet) {
+            #expect(clearing.contains(facet),
+                    Comment(rawValue: "`clear()` 漏了 \(facet)"))
+        }
+    }
+}

@@ -116,10 +116,17 @@ public enum DailyRitualScheduler {
         AppLog.notice("dailyRitual opened app", .app)
     }
 
-    /// 消费标记。归因只算**这一次**打开。
+    /// 消费标记。归因只算**这一次**打开——读完即清。
     public static func consumeOpenSource() -> String {
         defer { pendingNudgeOpen = false }
         return pendingNudgeOpen ? "nudge" : "organic"
+    }
+
+    /// 只看不清。给 UI 展示/调试用——**消费必须发生在发事件那一刻**（D134）：
+    /// 在 VM 建立时消费的话，暖启动路径（App 已在内存、点通知进来）
+    /// 根本没有新 VM 被建出来，标记永远等不到人读。
+    public static func peekOpenSource() -> String {
+        pendingNudgeOpen ? "nudge" : "organic"
     }
 
     /// 关掉：既清开关也清挂起的请求（只清一个会留下幽灵提醒）。

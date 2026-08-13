@@ -182,3 +182,29 @@ struct DominantColorWiringTests {
         return data as Data
     }
 }
+
+/// D134：`labelReadDisclosure` 此前**零调用点**——D123 之后品牌/尺码是
+/// 真从洗标读出来的、颜色是从像素猜的，而确认页一个字都没说。
+/// 用户分不清哪些字段值得信，就只能全部重新核对一遍，
+/// 那正好抵消了自动填充省下的时间。
+@MainActor
+struct DisclosureWiringTests {
+
+    @Test func theLabelDisclosureIsRendered() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("ClosetUI/Sources/ClosetUI/PhotoCaptureViews.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("labelReadDisclosure"),
+                "读出来的字段没有任何披露 —— 用户分不清哪些值得信")
+    }
+
+    /// 两条披露讲的是不同的事，不得互相替代。
+    @Test func theTwoDisclosuresSayDifferentThings() {
+        #expect(IntakeServiceFactory.prefillDisclosure
+                != IntakeServiceFactory.labelReadDisclosure)
+        #expect(IntakeServiceFactory.labelReadDisclosure
+            .localizedCaseInsensitiveContains("read"))
+    }
+}

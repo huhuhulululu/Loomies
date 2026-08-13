@@ -88,3 +88,30 @@ struct DominantColorTests {
         #expect(DominantColor.minimumSamples >= 20)
     }
 }
+
+/// D134：色板只有 16 项，而衣服颜色是连续的——**没有最大距离门**时，
+/// 荧光橙、松石绿、藕粉都会被硬吸到某个八竿子打不着的项上，
+/// 然后顶着那个名字参与配色打分。
+struct DominantColorDistanceGateTests {
+
+    /// 离色板太远 → 不给（宁缺勿错，同 OCR）。
+    @Test func anOffPaletteColourYieldsNothing() {
+        // 荧光青绿：色板里没有任何一项接近
+        let samples = Array(repeating: RGB(0.0, 1.0, 0.75), count: 60)
+        #expect(DominantColor.vote(samples: samples) == nil,
+                "离色板很远的颜色被硬吸到了某一项上")
+    }
+
+    /// 色板上的颜色照常认出来（门不能把正常情况也挡了）。
+    @Test func anOnPaletteColourStillResolves() {
+        let navy = GarmentColorPalette.entries.first { $0.id == "navy" }!
+        let samples = Array(repeating: RGB(navy.red, navy.green, navy.blue), count: 60)
+        #expect(DominantColor.vote(samples: samples)?.id == "navy")
+    }
+
+    /// 阈值是可解释的常数，且宽到能容下真实照片的光照偏差。
+    @Test func theDistanceGateIsStated() {
+        #expect(DominantColor.maximumSquaredDistance > 0.05)
+        #expect(DominantColor.maximumSquaredDistance < 0.3)
+    }
+}

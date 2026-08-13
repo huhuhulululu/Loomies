@@ -87,7 +87,6 @@ public final class CopilotViewModel {
     public init(
         wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double? = nil
     ) {
-        self.openSource = DailyRitualScheduler.consumeOpenSource()
         self.wardrobe = wardrobe
         self.occasion = occasion
         // 打分与 pill 需要一个具体值兜底；「知不知道」由 hasResolvedWeather 表达
@@ -310,7 +309,13 @@ public final class CopilotViewModel {
 
     /// 本次会话的来源（提醒 / 自发）。VM 建立时定一次，整段会话沿用。
     /// （`@Observable` 的宏不接受 `lazy`，所以在 init 里取。）
-    public let openSource: String
+    /// D134：来源在**发事件那一刻**取，不在 VM 建立时取。
+    ///
+    /// 此前是 `init` 里 `consumeOpenSource()`——而点通知进来时 App 多半
+    /// 已经在内存里（暖启动，VM 早就建好了），标记永远等不到人读；
+    /// 反过来，冷启动时任何一个临时 VM 都可能把它先消费掉。
+    /// 加通知的全部理由就是量「它到底有没有用」，量不到等于没加。
+    public var openSource: String { DailyRitualScheduler.peekOpenSource() }
 
     /// 回读今天的打卡（本柜、当天）。
     public func reloadToday(in context: ModelContext) {
@@ -345,7 +350,8 @@ public final class CopilotViewModel {
             "wear_as_is": String(wearAsIs),
             // D118：这一次是被早上那条提醒带进来的，还是用户自己打开的。
             // 没有这个分母就答不了「加通知到底有没有用」——而那是加它的全部理由。
-            "source": openSource,
+            // 读完即清：一次打开只归因一次
+            "source": DailyRitualScheduler.consumeOpenSource(),
         ])
         reloadToday(in: context)
         return result

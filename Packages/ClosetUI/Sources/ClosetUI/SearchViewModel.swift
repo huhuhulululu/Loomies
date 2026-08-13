@@ -153,6 +153,10 @@ public final class SearchViewModel {
         slotRaw = nil
         occasion = nil
         statusRaw = nil
+        // D134：D120 加了颜色筛却没加进这里——用户点了「清除」
+        // 仍卡在「没有匹配」，而屏幕上看不出还有哪个筛在生效。
+        colorPaletteID = nil
+        wearStats = [:]
         homeWardrobeID = nil
         hasOtherClosets = false
         scope = .thisCloset

@@ -476,7 +476,16 @@ public struct AddPieceSheet: View {
                         // 未接真识别时如实说明：这些是起点不是识别结果（D102）
                         if !IntakeServiceFactory.recognitionAvailable {
                             Text(IntakeServiceFactory.prefillDisclosure)
-                                .font(.caption2)
+                                .font(DS.Text.micro)
+                                .foregroundStyle(DS.muted)
+                        }
+                        // D134：品牌/尺码是**从洗标读出来的**（D123），颜色是从
+                        // 像素猜的（D124）——而此前一个字都没说。
+                        // 用户分不清哪些字段值得信，就只能全部重新核对一遍，
+                        // 那正好抵消了自动填充省下的时间。
+                        if draft.wrappedValue.brand != nil || draft.wrappedValue.size != nil {
+                            Text(IntakeServiceFactory.labelReadDisclosure)
+                                .font(DS.Text.micro)
                                 .foregroundStyle(DS.muted)
                         }
                         TextField("Name", text: draft.name)
