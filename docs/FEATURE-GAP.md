@@ -1,6 +1,14 @@
 # 功能缺口台账（相对 DESIGN §7 v1.0）
 
-> 2026-08-03 D29 后。与代码不一致时以代码为准。
+> **最近核实：2026-08-13（D195），逐条对着代码查过。** 与代码不一致时以代码为准。
+>
+> ⚠️ **这份台账是决策文档——过期比缺失更危险。** 本次核实前它至少三条已经与代码不符
+>（批量入库说「未做」而 D92 早已交付、跨柜检索说「UI 恒钉当前柜」而 Picker 就在
+> `AppRootView` 里、通知说「权限与真机」而 D118 的 `DailyRitualScheduler` 已接线）。
+> 照着它规划，就是 `.claude-state/requirements.md` 开头警告过的那句：
+>「不对账就照着它干活 = 照着虚构的缺口干活」。
+>
+> **改功能的那一波，顺手核实这张表。**
 
 ## 已闭合（本环境可验证）
 
@@ -9,7 +17,7 @@
 | 推荐引擎 + copilot 补全 + 四条正确性 | ClosetCore |
 | SwiftData 实体 + 转移/删除/不变量 | ClosetModel |
 | 打卡防重复 | CheckInService |
-| 检索（**柜内**；跨柜检索服务支持但 UI 恒钉当前柜，§2.3 承诺的全局检索未闭合）/ 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
+| 检索（**含跨柜**：`SearchScope.thisCloset/allClosets`，Picker 在 `AppRootView`；§2.3 全局检索**已闭合**，2026-08-13 核实）/ 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
 | 入库 seam + mock | ClosetIntake |
 | Onboarding / Today / Closet 网格 / 打卡 | ClosetUI |
 | **Today Avatar 首屏（方案 B）** | 大 BodyAvatar + 今日 look；Other looks 点选；非冷启动自动 full-auto |
@@ -42,13 +50,12 @@
 
 | 能力 | 说明 |
 |------|------|
-| PHPicker / 相机连拍 | 相册**单选** + 相机已接线（`AddPieceSheet`，`selectionLimit = 1`）；**批量多选/连拍队列未做**（§F1 承诺项）；真机验相机 |
+| 相机真机验证 | 相册**批量多选已交付**（D92 `BatchIntakeQueue`，`selectionLimit = BatchIntakeQueue.maxSelection = 30`，逐张确认 + 诚实汇总）；**仍缺的只有相机在真机上的实拍验证** |
 | Vision 抠图 / OCR 真推理 | **Vision 真机优先**（`IntakeServiceFactory`）；模拟器 mock |
-| 单品本地图 | `Item.localImageRelativePath` + `ItemImageStore`；网格/详情缩略图 |
 | WeatherKit | 协议已隔离；现主路径 Open-Meteo，真机可再实现 `WeatherProviding` |
-| CloudKit 私有库 | D5 双域已模板，Capability 待开 |
-| AI 打标 Worker + App Attest | 独立服务 |
-| 通知 / Widget | 权限与真机 |
+| CloudKit 私有库 | D5 双域已模板，两个 store 当前都是 `cloudKitDatabase: .none`；Capability 待开。**D170 已证「身体数据不同步靠分区而非没开同步」**，端到端仍需真机 + 云端容器 |
+| AI 打标 Worker + App Attest | 独立服务；`IntakeServiceFactory.recognitionAvailable = false`，未接前披露文案会说清「类型/场合是起点猜测，不是照片识别」 |
+| Widget | **未做**。通知已交付（D118 `DailyRitual` 策略 + `DailyRitualScheduler` 平台侧，Me 里可开关与设点），仍缺真机权限流验证 |
 | 叠衣槽位真图 | **Today/收藏已叠入库图**（表达层）；肩线精修仍后置 |
 
 ## v1.x（明确后置）
