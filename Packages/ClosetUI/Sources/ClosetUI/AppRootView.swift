@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import SwiftData
 import ClosetModel
 import ClosetCore
@@ -43,6 +44,8 @@ public struct MeView: View {
     @State private var seedMessage: String?
     @State private var diagText: String?
     @State private var dataMessage: String?
+    /// D122：导入文件选择器。
+    @State private var showImportPicker = false
     @State private var sharePayload: String?
     /// 导出包（zip）临时文件；分享面板关闭后清理
     @State private var shareFileURL: URL?
@@ -212,6 +215,12 @@ public struct MeView: View {
                     // 进行中禁用：几百张图的压缩要时间，重复点会起多个后台任务
                     .disabled(isBuildingExport)
                     .accessibilityHint(DataLifecycleService.exportButtonAccessibilityHint)
+                    // D122：此前只有出口没有入口——政策里写着「take everything
+                    // with you」，可搬出去之后没有任何地方能搬回来。
+                    Button("Import from a data file…") { showImportPicker = true }
+                        .accessibilityHint(
+                            "Adds a new closet from a Loomies data file. "
+                            + "Your current closets are not changed.")
                     Button("Delete all data…", role: .destructive) {
                         confirmDeleteAll = true
                     }
@@ -283,6 +292,13 @@ public struct MeView: View {
                 }
             }
             .navigationTitle("Me")
+            .fileImporter(
+                isPresented: $showImportPicker,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                handleImport(result)
+            }
             .confirmationDialog(
                 "Delete all data?",
                 isPresented: $confirmDeleteAll,
@@ -332,6 +348,33 @@ public struct MeView: View {
 
     /// 导出包：MainActor 读 SwiftData 出计划 → **后台**拷贝+压缩 → 分享面板。
     /// 压缩绝不放主线程（几百张图会冻结 UI 数秒到数分钟；exporter 已有同类判例）。
+    /// D122：导入。**只增不改**——建新柜，绝不动用户已有的东西。
+    /// 收据如实说明照片没跟过来（JSON 里只有路径没有像素）。
+    private func handleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            dataMessage = "Couldn't open that file — try again"
+            AppLog.error("import picker failed: \(AppLog.errRef(error))", .data)
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            // 安全作用域：文件来自 App 沙盒之外，不 start 会读不到
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                let receipt = try ImportService.importSnapshot(data, into: context)
+                dataMessage = receipt.summary
+                AppLog.notice("import ok items=\(receipt.itemsAdded)", .data)
+            } catch ImportService.ImportError.newerSchema(let found, let supported) {
+                dataMessage = "That file is from a newer version of Loomies "
+                    + "(format \(found), this app reads \(supported)). Update the app first."
+            } catch {
+                dataMessage = "Couldn't read that file — it doesn't look like a Loomies export"
+                AppLog.error("import failed: \(AppLog.errRef(error))", .data)
+            }
+        }
+    }
+
     /// 12 小时制标签（en-US 首发市场，§10.5）。
     private func hourLabel(_ h: Int) -> String {
         let suffix = h < 12 ? "AM" : "PM"

@@ -188,7 +188,10 @@ public enum ComplianceCopy {
                     body: "Me → Data → Export my data produces a JSON file plus, for each piece, "
                         + "the photo you added (kept at up to 2048 px) and the cut-out layer the app "
                         + "made from it — so you can take everything with you. Pieces added before "
-                        + "this feature shipped have the cut-out only. Me → Data → Delete all data "
+                        + "this feature shipped have the cut-out only. Me → Data → Import from a "
+                        + "data file adds a new closet from an exported JSON file without touching "
+                        + "the closets you already have (photos are not part of that file). "
+                        + "Me → Data → Delete all data "
                         + "erases closets, pieces, looks, wear history, plans, measurements, and "
                         + "local photos from this device. Uninstalling the app alone does not erase "
                         + "data that was synced elsewhere."),

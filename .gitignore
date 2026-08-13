@@ -1,6 +1,14 @@
 .claude-state/
 .DS_Store
-preview/
+# preview/ 是本地制品目录（状态页、临时预览），整体不入库——
+# 但 D111 生成的政策静态页是**从源文案派生的交付物**，
+# 防漂移门（PolicySiteTests）比对的就是「仓里 check-in 的那份」：
+# 不入库的话那条门在新 clone 上根本无从比对，等于没有。
+preview/*
+!preview/landing/
+preview/landing/*
+!preview/landing/privacy.html
+!preview/landing/terms.html
 
 # SwiftPM
 .build/
