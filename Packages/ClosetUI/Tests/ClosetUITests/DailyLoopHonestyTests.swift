@@ -224,3 +224,28 @@ struct NudgeAttributionTests {
         #expect(TelemetryEvent.copilotAccepted.allowedKeys.contains("source"))
     }
 }
+
+/// D137：可见与可听必须同源。天气取不到时明眼人看到「—°F」，
+/// 而视障用户此前听到的是「70 degrees」——同一屏两层互相矛盾，
+/// 且后者拿到的正是那个伪造值。
+@MainActor
+struct WeatherAccessibilityTests {
+
+    @Test func anUnresolvedTemperatureIsNeverSpoken() {
+        let phrase = CopilotViewModel.tempAccessibilityPhrase(resolved: false, temp: 70)
+        #expect(!phrase.contains(where: { $0.isNumber }),
+                Comment(rawValue: "念出了一个虚构的温度：\(phrase)"))
+    }
+
+    /// 取到时数字要与 pill 完全一致（四舍五入口径也要同源）。
+    @Test func theSpokenNumberMatchesThePill() {
+        for temp in [58.4, 69.6, 70.5, 85.0] {
+            let pill = CopilotViewModel.tempPillText(resolved: true, temp: temp)
+            let spoken = CopilotViewModel.tempAccessibilityPhrase(resolved: true, temp: temp)
+            let pillDigits = pill.filter(\.isNumber)
+            let spokenDigits = spoken.filter(\.isNumber)
+            #expect(pillDigits == spokenDigits,
+                    Comment(rawValue: "看到 \(pill)，听到 \(spoken)"))
+        }
+    }
+}

@@ -43,7 +43,8 @@ public struct MeView: View {
     @Environment(\.modelContext) private var context
     @State private var seedMessage: String?
     @State private var diagText: String?
-    @State private var dataMessage: String?
+    /// D137：带结果位——不再靠关键词猜「这句是不是失败」。
+    @State private var dataMessage: FailureCopy.Message?
     /// D122：导入文件选择器。
     @State private var showImportPicker = false
     @State private var sharePayload: String?
@@ -240,13 +241,11 @@ public struct MeView: View {
                         .font(.caption2)
                         .foregroundStyle(DS.muted)
                     if let dataMessage {
-                        // Export ready vs couldn't export/delete — fail orange (parity Demo seed).
-                        Text(dataMessage)
-                            .font(.caption)
-                            .foregroundStyle(
-                                CustomerFlashStyle.isFailure(dataMessage)
-                                    ? Color.orange : DS.muted)
-                            .accessibilityLabel(dataMessage)
+                        // 结果性由产生它的代码带出来（D137），不靠关键词嗅探
+                        Text(dataMessage.text)
+                            .font(DS.Text.meta)
+                            .foregroundStyle(dataMessage.isFailure ? Color.orange : DS.muted)
+                            .accessibilityLabel(dataMessage.text)
                     }
                 }
                 Section("About") {
@@ -329,10 +328,10 @@ public struct MeView: View {
                         // 手机却继续每天早上叫他去看一个空 App。
                         DailyRitualScheduler.disable()
                         dailyRitualOn = false
-                        dataMessage = receipt.summaryLine
+                        dataMessage = .success(receipt.summaryLine)
                         // RootView @Query 空柜 → 自动回 Onboarding。
                     } catch {
-                        dataMessage = DataLifecycleService.deleteAllFailedMessage
+                        dataMessage = .failure(.transient(DataLifecycleService.deleteAllFailedMessage))
                         AppLog.error("deleteAll failed: \(AppLog.errRef(error))", .data)
                     }
                 }
@@ -374,7 +373,7 @@ public struct MeView: View {
         case .failure(let error):
             // D128：选文件失败多半是权限/文件已不在了 —— 再点一次同一条路
             // 不会变，得先换个文件
-            dataMessage = FailureCopy.line(.needsUserAction(
+            dataMessage = .failure(.needsUserAction(
                 "Couldn't open that file", next: "Pick it again from Files"))
             AppLog.error("import picker failed: \(AppLog.errRef(error))", .data)
         case .success(let urls):
@@ -384,7 +383,7 @@ public struct MeView: View {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             guard url.pathExtension.lowercased() != "zip" else {
                 // Foundation 没有解压 API——与其失败，不如指一条真能走通的路
-                dataMessage = FailureCopy.line(.needsUserAction(
+                dataMessage = .failure(.needsUserAction(
                     "That's the full backup (a .zip)",
                     next: "Use Export data file, or uncompress the zip in Files and pick data.json"))
                 return
@@ -392,14 +391,16 @@ public struct MeView: View {
             do {
                 let data = try Data(contentsOf: url)
                 let receipt = try ImportService.importSnapshot(data, into: context)
-                dataMessage = receipt.summary
+                dataMessage = .success(receipt.summary)
                 AppLog.notice("import ok items=\(receipt.itemsAdded)", .data)
             } catch ImportService.ImportError.newerSchema(let found, let supported) {
-                dataMessage = "That file is from a newer version of Loomies "
-                    + "(format \(found), this app reads \(supported)). Update the app first."
+                dataMessage = .failure(.needsUserAction(
+                    "That file is from a newer version of Loomies "
+                    + "(format \(found), this app reads \(supported))",
+                    next: "Update the app first"))
             } catch {
                 // 重试也没用：这个文件不会因为再点一次就变成 Loomies 的导出
-                dataMessage = FailureCopy.line(.needsUserAction(
+                dataMessage = .failure(.needsUserAction(
                     "That file isn't a Loomies export",
                     next: "Choose the JSON you got from Me → Data → Export"))
                 AppLog.error("import failed: \(AppLog.errRef(error))", .data)
@@ -470,10 +471,10 @@ public struct MeView: View {
             let url = dir.appendingPathComponent("Loomies-data.json")
             try data.write(to: url, options: .atomic)
             shareFileURL = url
-            dataMessage = DataLifecycleService.exportReadyMessage(
-                includeBodyDimensions: includeBodyInExport)
+            dataMessage = .success(DataLifecycleService.exportReadyMessage(
+                includeBodyDimensions: includeBodyInExport))
         } catch {
-            dataMessage = DataLifecycleService.exportFailedMessage
+            dataMessage = .failure(.transient(DataLifecycleService.exportFailedMessage))
             AppLog.error("data-file export failed: \(AppLog.errRef(error))", .data)
         }
     }
@@ -481,7 +482,7 @@ public struct MeView: View {
     private func exportBundle() {
         guard !isBuildingExport else { return }
         isBuildingExport = true
-        dataMessage = ExportBundleService.bundleInProgressMessage
+        dataMessage = .success(ExportBundleService.bundleInProgressMessage)
         do {
             let plan = try ExportBundleService.plan(
                 in: context, includeBodyDimensions: includeBodyInExport)
@@ -508,23 +509,23 @@ public struct MeView: View {
                     #if os(iOS)
                     shareFileURL = out.url
                     // 文案按**实际**装进去的照片数说话（部分失败不得被完全静音）
-                    dataMessage = ExportBundleService.readyMessage(
-                        copied: out.copiedPhotos, planned: out.plannedPhotos)
+                    dataMessage = .success(ExportBundleService.readyMessage(
+                        copied: out.copiedPhotos, planned: out.plannedPhotos))
                     #else
                     // 非 iOS 没有分享面板接管载荷——不得声称「已就绪」
-                    dataMessage = ExportBundleService.bundleNoHandoffMessage
+                    dataMessage = .failure(.transient(ExportBundleService.bundleNoHandoffMessage))
                     #endif
                     AppLog.notice("export bundle ready body=\(includeBodyInExport)", .data)
                 case .failure(let error):
                     // 失败分支也要收拾自己建的目录
                     try? FileManager.default.removeItem(at: dir)
-                    dataMessage = ExportBundleService.bundleFailedMessage
+                    dataMessage = .failure(.transient(ExportBundleService.bundleFailedMessage))
                     AppLog.error("export bundle failed: \(AppLog.errRef(error))", .data)
                 }
             }
         } catch {
             isBuildingExport = false
-            dataMessage = ExportBundleService.bundleFailedMessage
+            dataMessage = .failure(.transient(ExportBundleService.bundleFailedMessage))
             AppLog.error("export plan failed: \(AppLog.errRef(error))", .data)
         }
     }
@@ -802,7 +803,7 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(on ? DS.accent : DS.surface)
-                .foregroundStyle(on ? Color.white : DS.ink)
+                .foregroundStyle(on ? DS.onAccent : DS.ink)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -819,7 +820,7 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(on ? DS.accent.opacity(0.9) : DS.surface)
-                .foregroundStyle(on ? Color.white : DS.ink)
+                .foregroundStyle(on ? DS.onAccent : DS.ink)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -1166,7 +1167,7 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(on ? DS.accent : DS.surface)
-                .foregroundStyle(on ? Color.white : DS.ink)
+                .foregroundStyle(on ? DS.onAccent : DS.ink)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -1185,7 +1186,7 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(on ? DS.accent.opacity(0.9) : DS.surface)
-                .foregroundStyle(on ? Color.white : DS.ink)
+                .foregroundStyle(on ? DS.onAccent : DS.ink)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -1207,7 +1208,7 @@ public struct ClosetGridView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(on ? DS.accent.opacity(0.85) : DS.surface)
-                .foregroundStyle(on ? Color.white : DS.ink)
+                .foregroundStyle(on ? DS.onAccent : DS.ink)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

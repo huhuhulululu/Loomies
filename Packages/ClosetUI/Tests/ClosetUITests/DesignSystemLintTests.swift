@@ -83,7 +83,12 @@ struct DesignSystemLintTests {
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-            for (i, line) in lines.enumerated() where line.contains("foregroundStyle(.white)") {
+            // D137：只认 `foregroundStyle(.white)` 字面量的话，
+            // `on ? Color.white : DS.ink` 这种三元式一条都看不见——
+            // D115 当时数出的「六处已压」正是漏掉了这五处。
+            for (i, line) in lines.enumerated()
+            where line.range(of: #"\bColor\.white\b|foregroundStyle\(\.white\)"#,
+                             options: .regularExpression) != nil {
                 let from = max(0, i - 3)
                 let window = lines[from...i].joined(separator: "\n")
                 if window.contains("DS.accent") {

@@ -21,6 +21,28 @@ public enum FailureCopy {
         case outOfSpace
     }
 
+    /// 带**结果位**的用户消息（D137）。
+    ///
+    /// `CustomerFlashStyle.isFailure` 是靠关键词嗅探（"couldn't"/"failed"…），
+    /// 而 D128/D129 把文案改成了不带那些词的说法
+    /// （「No body preview yet…」「That's the full backup (a .zip)」）——
+    /// 于是**失败被画成了成功的底色**。
+    /// 往关键词表里加词只会让下一条文案再掉进去：结果性必须由**产生它的代码**带出来。
+    public struct Message: Equatable, Sendable {
+        public let text: String
+        public let isFailure: Bool
+        public init(text: String, isFailure: Bool) {
+            self.text = text
+            self.isFailure = isFailure
+        }
+        public static func failure(_ kind: Kind) -> Message {
+            Message(text: line(kind), isFailure: true)
+        }
+        public static func success(_ text: String) -> Message {
+            Message(text: text, isFailure: false)
+        }
+    }
+
     public static func line(_ kind: Kind) -> String {
         switch kind {
         case .transient(let what):

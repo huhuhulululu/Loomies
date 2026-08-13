@@ -114,3 +114,56 @@ struct LabelTextParserTests {
         #expect(a.size == b.size)
     }
 }
+
+/// D137：品牌判定是「首个通过黑名单的短行」——而黑名单永远不完整。
+/// 实际后果：单品被命名为「Shell Top」「Do Not Wring Outerwear」
+/// 「RN12345 Top」「Navy Top」，品牌字段同值，而**那正是搜索匹配的字段**。
+struct LabelBrandFalsePositiveTests {
+
+    /// 部件名词不是品牌（洗标上「SHELL / LINING / BODY」是面料分区）。
+    @Test func garmentPartsAreNotBrands() {
+        for line in ["SHELL", "LINING", "BODY", "TRIM"] {
+            #expect(LabelTextParser.parse(lines: [line, "M"]).brand == nil,
+                    Comment(rawValue: "「\(line)」被当成了品牌"))
+        }
+    }
+
+    /// 护理动词短语不是品牌。
+    @Test func careVerbsAreNotBrands() {
+        for line in ["DO NOT WRING", "TURN INSIDE OUT", "NO CHLORINE", "REMOVE PROMPTLY"] {
+            #expect(LabelTextParser.parse(lines: [line, "M"]).brand == nil,
+                    Comment(rawValue: "「\(line)」被当成了品牌"))
+        }
+    }
+
+    /// 监管号不是品牌——**不带空格的 `RN12345` 此前从整词黑名单里逃逸**。
+    @Test func regulatoryNumbersAreNotBrands() {
+        for line in ["RN12345", "RN#12345", "CA54321", "WPL9876"] {
+            #expect(LabelTextParser.parse(lines: [line]).brand == nil,
+                    Comment(rawValue: "「\(line)」被当成了品牌"))
+        }
+    }
+
+    /// 整行是颜色名的不是品牌（洗标常印颜色）。
+    @Test func colourNamesAreNotBrands() {
+        for line in ["NAVY", "Black", "OLIVE"] {
+            #expect(LabelTextParser.parse(lines: [line, "M"]).brand == nil,
+                    Comment(rawValue: "「\(line)」被当成了品牌"))
+        }
+    }
+
+    /// **拿不准就不给**：有多个候选行时返回 nil——
+    /// 黑名单永远不完整，宁缺勿错才是这一层的判断标准。
+    @Test func ambiguousLabelsYieldNoBrand() {
+        let info = LabelTextParser.parse(lines: ["EVERLANE", "ATELIER", "SIZE M"])
+        #expect(info.brand == nil, Comment(rawValue: "两个候选却挑了一个：\(info.brand ?? "")"))
+        #expect(info.size == "M", "尺码不该受影响")
+    }
+
+    /// 只有一个候选时照常给（别把有用的能力一起关掉）。
+    @Test func aSingleCandidateStillResolves() {
+        #expect(LabelTextParser.parse(lines: [
+            "UNIQLO", "100% COTTON", "MADE IN CHINA", "SIZE M",
+        ]).brand == "Uniqlo")
+    }
+}

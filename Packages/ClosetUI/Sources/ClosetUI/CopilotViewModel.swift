@@ -307,6 +307,16 @@ public final class CopilotViewModel {
         resolved ? "\(Int(temp.rounded()))°F" : "—°F"
     }
 
+    /// 温度的 VoiceOver 读法（D137）。
+    ///
+    /// 此前无障碍标签直接读 `daytimeTempF`，绕过了 D116 的诚实闸：
+    /// 天气取不到时，明眼人看到「—°F」，视障用户听到「70 degrees」——
+    /// **同一屏两层互相矛盾**，而后者拿到的还是那个伪造值。
+    /// 可见与可听必须同源（DESIGN §10.4 无障碍硬约束）。
+    public static func tempAccessibilityPhrase(resolved: Bool, temp: Double) -> String {
+        resolved ? "\(Int(temp.rounded())) degrees Fahrenheit" : "Temperature unavailable"
+    }
+
     /// 本次会话的来源（提醒 / 自发）。VM 建立时定一次，整段会话沿用。
     /// （`@Observable` 的宏不接受 `lazy`，所以在 init 里取。）
     /// D134：来源在**发事件那一刻**取，不在 VM 建立时取。

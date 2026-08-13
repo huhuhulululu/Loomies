@@ -382,7 +382,8 @@ public struct CopilotView: View {
             .padding(.top, 4)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
-                "Weather \(Int(vm.daytimeTempF)) degrees Fahrenheit, \(vm.weatherSourceLabel)"
+                // D137：与 pill 同源——不得一边显示「—°F」一边念出伪造的 70
+                "Weather \(CopilotViewModel.tempAccessibilityPhrase(resolved: vm.hasResolvedWeather, temp: vm.daytimeTempF)), \(vm.weatherSourceLabel)"
                 + (vm.weatherDressCue.map { ", \($0)" } ?? ""))
 
             if vm.selectedSuggestion != nil {

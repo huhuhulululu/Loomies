@@ -29,7 +29,12 @@ public enum LabelTextParser {
         "made", "origin", "imported", "exclusive", "decoration", "fabric",
         "size", "taille", "talla", "keep", "away", "fire", "flame", "care",
         "professional", "hand", "machine", "cold", "warm", "hot", "low", "medium",
-        "rn", "ca", "style", "color", "colour",
+        "rn", "ca", "wpl", "style", "color", "colour",
+        // D137：部件名词（洗标上是面料分区，不是牌子）
+        "shell", "lining", "body", "trim", "filling", "padding",
+        // D137：护理动词短语
+        "wring", "turn", "inside", "remove", "promptly", "chlorine",
+        "bleach", "reshape", "flat", "line", "shade", "steam",
     ]
 
     /// 字母尺码。
@@ -98,7 +103,16 @@ public enum LabelTextParser {
 
     // MARK: - 品牌
 
+    /// 品牌。
+    ///
+    /// D137：此前是「首个通过黑名单的短行」——而**黑名单永远不完整**，
+    /// 于是「SHELL」「RN12345」「NAVY」都成了品牌，
+    /// 单品被命名为「Shell Top」「Navy Top」，而品牌正是搜索匹配的字段。
+    ///
+    /// 改成**唯一候选才给**：拿不准就不给，这才是「宁缺勿错」的正确形态——
+    /// 靠往黑名单里加词永远补不完，而每漏一个词就错一件衣服。
     static func brand(in lines: [String]) -> String? {
+        var candidates: [String] = []
         for line in lines {
             let words = line.split(separator: " ").map(String.init)
             // 品牌是独占一行的**短**词组；长句是说明文字
@@ -114,9 +128,22 @@ public enum LabelTextParser {
             if letterSizes.contains(line.uppercased()) { continue }
             // 至少要有两个字母（"◆◆" 之类过不了）
             guard line.filter(\.isLetter).count >= 2 else { continue }
-            return displayName(line)
+            // 监管号：`RN12345` 这种不带空格的会从整词黑名单里逃逸
+            let squashed = line.lowercased().filter { $0.isLetter || $0.isNumber }
+            if squashed.range(of: #"^(rn|ca|wpl)\d+$"#, options: .regularExpression) != nil {
+                continue
+            }
+            // 整行是颜色名的不是品牌（洗标常印颜色）——复用色板，不另起一张表
+            let bare = line.lowercased().trimmingCharacters(in: .whitespaces)
+            if GarmentColorPalette.entries.contains(where: { $0.id == bare || $0.title.lowercased() == bare }) {
+                continue
+            }
+            candidates.append(line)
         }
-        return nil
+        // 多个候选 = 拿不准。给错一个品牌比留空更糟：留空用户会填，
+        // 填错了他不会去核对，而搜索匹配的正是这个字段。
+        guard candidates.count == 1, let only = candidates.first else { return nil }
+        return displayName(only)
     }
 
     /// 洗标全大写，而列表里想看的是「Everlane」不是「EVERLANE」。
