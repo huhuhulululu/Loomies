@@ -62,8 +62,13 @@ public final class ItemDetailViewModel {
 
     /// 详情页出现时调用。历史是只读的，与表单字段互不影响。
     public func loadHistory(in context: ModelContext) {
-        laundryCaption = LaundryTracking.caption(item, in: context)
-        wearSummary = WearStatsService.stats(for: item, in: context).summary
+        // D156：**取一次表，两处共用。** 洗涤说明与穿着统计此前各自
+        // `fetch(FetchDescriptor<WearRecord>())` 取全表——实测单次约 72ms
+        //（文件库、两年每日打卡 730 条），这一屏白白花掉一倍。
+        //（`propertiesToFetch` 只取需要的两列试过：反而更慢，119ms vs 72ms。）
+        let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
+        laundryCaption = LaundryTracking.caption(item, records: records)
+        wearSummary = WearStatsService.stats(for: item, records: records).summary
         transferHistory = TransferHistory.forItem(item.id, in: context)
         closetNames = TransferHistory.closetNames(in: context)
     }

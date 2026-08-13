@@ -69,8 +69,18 @@ public enum WearStatsService {
     /// 单品 id 全局唯一，用它就够；跨柜聚合正是这里想要的。
     @MainActor
     public static func stats(for item: Item, in context: ModelContext) -> Stats {
+        stats(for: item, records: (try? context.fetch(FetchDescriptor<WearRecord>())) ?? [])
+    }
+
+    /// 按**已经取好的**记录算（D156）。
+    ///
+    /// 详情页此前把同一张表扫两遍——`LaundryTracking.caption` 一遍、这里一遍，
+    /// 而实测单次全表取用约 72ms（文件库、两年每日打卡 730 条）。
+    /// 取一次、两处共用，白花的那一遍就没了。
+    ///（`propertiesToFetch` 只取需要的两列试过：**反而更慢**，119ms vs 72ms。）
+    @MainActor
+    public static func stats(for item: Item, records: [WearRecord]) -> Stats {
         let key = item.id.uuidString
-        let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
         var count = 0
         var last: Date?
         for r in records where r.wornItemIDs.contains(key) {

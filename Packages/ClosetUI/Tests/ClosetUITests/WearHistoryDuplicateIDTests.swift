@@ -118,3 +118,35 @@ struct WearHistoryDuplicateIDTests {
             + "\(offenders) —— 用带决胜的 `Dictionary(_:uniquingKeysWith:)`"))
     }
 }
+
+/// D156：详情页只取一次穿着记录表。
+///
+/// 洗涤说明与穿着统计此前各自取全表——实测单次约 72ms（两年每日打卡 730 条），
+/// 打开一件衣服白花一倍。两条口径本来就来自同一张表，取一次即可。
+@MainActor
+struct DetailLoadsWearRecordsOnceTests {
+
+    @Test func loadHistoryFetchesTheTableOnce() throws {
+        let text = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Sources/ClosetUI/ItemDetailViewModel.swift"),
+            encoding: .utf8)
+        guard let r = text.range(of: "public func loadHistory(in context: ModelContext)") else {
+            Issue.record("找不到 loadHistory"); return
+        }
+        let body = String(text[r.lowerBound...].prefix(900))
+        // 只数**代码行**——解释「为什么只取一次」的注释里也会出现这个词。
+        // D147 的第一版就是这么误报的，同一个坑不该踩第二次：判据认构造，不认词。
+        let fetches = body.split(separator: "\n").filter { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t.contains("FetchDescriptor<WearRecord>")
+                && !t.hasPrefix("//") && !t.hasPrefix("///")
+        }.count
+        #expect(fetches == 1, Comment(rawValue:
+            "loadHistory 取了 \(fetches) 次穿着记录全表 —— 每次约 72ms"))
+        // 两处都必须吃那一次的结果，不许自己再去取
+        #expect(body.contains("records: records"))
+    }
+}

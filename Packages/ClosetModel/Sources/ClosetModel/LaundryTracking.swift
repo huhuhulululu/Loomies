@@ -18,7 +18,12 @@ public enum LaundryTracking {
     /// 上次洗完之后穿过几次；从没洗过则是入库以来的总次数。
     @MainActor
     public static func wearsSinceWash(_ item: Item, in context: ModelContext) -> Int {
-        let records = (try? context.fetch(FetchDescriptor<WearRecord>())) ?? []
+        wearsSinceWash(item, records: (try? context.fetch(FetchDescriptor<WearRecord>())) ?? [])
+    }
+
+    /// 按**已经取好的**记录算（D156）——详情页与穿着统计共用同一次取表。
+    @MainActor
+    public static func wearsSinceWash(_ item: Item, records: [WearRecord]) -> Int {
         let key = item.id.uuidString
         return records.filter { record in
             guard record.wornItemIDs.contains(key) else { return false }
@@ -31,7 +36,13 @@ public enum LaundryTracking {
     /// 从没洗过时**换一句话**说——不得谎称「距上次洗涤」。
     @MainActor
     public static func caption(_ item: Item, in context: ModelContext) -> String? {
-        let n = wearsSinceWash(item, in: context)
+        caption(item, records: (try? context.fetch(FetchDescriptor<WearRecord>())) ?? [])
+    }
+
+    /// 同上，按已取记录。
+    @MainActor
+    public static func caption(_ item: Item, records: [WearRecord]) -> String? {
+        let n = wearsSinceWash(item, records: records)
         guard n > 0 else { return nil }
         let times = n == 1 ? "once" : "\(n) times"
         return item.lastWashedAt == nil
