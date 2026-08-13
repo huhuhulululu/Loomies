@@ -132,6 +132,15 @@ public final class CopilotViewModel {
     /// 静默替换会让用户以为自己点漏了。
     public private(set) var anchorNote: String?
 
+    /// D131：锚定件与今天**不搭**时的如实提示（不是过滤）。
+    ///
+    /// 锚定的那件直接进结果、不过场合/温区门——这本身是对的：
+    /// 用户说「我今天就要穿这件」，产品不该反过来教育他（同 D126 的判断）。
+    /// 错的是**不吭声**：85°F 锚了件厚大衣，App 照常端出带大衣的搭配，
+    /// 一句「今天这个温度它偏厚」都没有——用户要么以为 App 觉得合适，
+    /// 要么以为温区过滤坏了。
+    public private(set) var anchorAdvisory: String?
+
     public func toggleAnchor(_ item: Item) {
         if anchorIDs.contains(item.id) {
             anchorIDs.remove(item.id)
@@ -156,6 +165,43 @@ public final class CopilotViewModel {
         // 换某件/重配 = tweak（只记模式，不记是哪件）
         TelemetryGate.shared.track(.copilotTweaked,
                                    payload: ["mode": fullAuto ? "auto" : "anchored"])
+    }
+
+    /// 锚定件与今天不搭时说的那句话。都合适 → nil（不造噪声）。
+    ///
+    /// 三值语义照旧：**未标温区/场合的件不算「不合适」**，温度未知时
+    /// 不对冷暖表态（D130 的纪律）。
+    static func advisory(
+        for anchors: [Item], occasion: String, daytimeTempF: Double?, coldBias: Int
+    ) -> String? {
+        let band = daytimeTempF.map {
+            WeatherFit.acceptableWarmth(daytimeTempF: $0, coldBias: coldBias)
+        }
+        let wanted = occasion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var offBand: [String] = []
+        var offOccasion: [String] = []
+        for item in anchors.sorted(by: { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }) {
+            let candidate = item.toCandidateItem()
+            if let band, let w = candidate.warmth, !band.contains(w) {
+                offBand.append(item.name)
+            }
+            if !wanted.isEmpty, !candidate.occasions.isEmpty {
+                let normalized = candidate.occasions.map {
+                    $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                }
+                if !normalized.contains(wanted) { offOccasion.append(item.name) }
+            }
+        }
+        var parts: [String] = []
+        if !offBand.isEmpty {
+            parts.append("\(ActivationProgress.listJoin(offBand)) sits outside today's range")
+        }
+        if !offOccasion.isEmpty {
+            parts.append("\(ActivationProgress.listJoin(offOccasion)) isn't tagged \(wanted)")
+        }
+        guard !parts.isEmpty else { return nil }
+        // 「仍然照你说的用」——这句不能省：否则读起来像在劝退
+        return parts.joined(separator: " · ") + " — keeping it in anyway."
     }
 
     /// 与新选的这件互斥的已锚定件。
@@ -334,6 +380,10 @@ public final class CopilotViewModel {
         if forceAnchor {
             anchors = (wardrobe.items ?? [])
                 .filter { anchorIDs.contains($0.id) && $0.statusRaw == "available" }
+            anchorAdvisory = Self.advisory(
+                for: anchors, occasion: occasion,
+                daytimeTempF: hasResolvedWeather ? daytimeTempF : nil,
+                coldBias: wardrobe.owner?.coldBias ?? 0)
             if isColdStart && anchors.isEmpty {
                 suggestions = []
                 selectedSuggestionIndex = 0

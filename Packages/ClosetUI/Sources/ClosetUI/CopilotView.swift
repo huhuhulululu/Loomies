@@ -727,6 +727,15 @@ public struct CopilotView: View {
                     .foregroundStyle(DS.muted)
                     .accessibilityLabel(note)
             }
+            // D131：锚定件与今天不搭时如实说一句——**不筛掉它**。
+            // 用户说「我今天就要穿这件」，产品不该反过来教育他；
+            // 但一声不吭会让他以为 App 觉得这样合适，或以为过滤坏了。
+            if let advisory = vm.anchorAdvisory {
+                Label(advisory, systemImage: "info.circle")
+                    .font(DS.Text.meta)
+                    .foregroundStyle(DS.muted)
+                    .accessibilityLabel(advisory)
+            }
             if vm.availableItems.isEmpty {
                 Text("Add from Closet, or load samples above.")
                     .font(.caption)

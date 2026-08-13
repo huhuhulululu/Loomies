@@ -137,16 +137,10 @@ public enum OutfitCompleter {
         // 而用户看到的是**搭配层**的顺序——同分时按字典序，
         // 于是降级后第一条推荐照样可能是刚穿过的那身。
         // 「降权」要在用户真正看到的那一层生效才算数。
+        // D131：比较口径收进 `OutfitScorer.ranksBefore`（含浮点容差）——
+        // 散在调用点的两份写法迟早分叉，而分叉那天顺序会随调用点而变。
         let wornIDs = outcome.recentlyWornIDs
-        func wornCount(_ s: ScoredOutfit) -> Int {
-            wornIDs.isEmpty ? 0 : s.outfit.itemIDs.count { wornIDs.contains($0) }
-        }
-        results.sort { a, b in
-            if a.score.value != b.score.value { return a.score.value > b.score.value }
-            let (wa, wb) = (wornCount(a), wornCount(b))
-            if wa != wb { return wa < wb }
-            return a.outfit.itemIDs.joined(separator: ",") < b.outfit.itemIDs.joined(separator: ",")
-        }
+        results.sort { OutfitScorer.ranksBefore($0, $1, recentlyWornIDs: wornIDs) }
         return results
         }
 
