@@ -98,9 +98,19 @@ public enum CalendarPlanService {
     /// 全部计划，新→旧（dayKey 字典序 = 时序；同日历史重复行按 id 决胜）。
     public static func allPlans(in context: ModelContext) -> [CalendarPlan] {
         let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        return all.sorted {
-            (resolvedDayKey($0), $0.id.uuidString) > (resolvedDayKey($1), $1.id.uuidString)
+        // D168：**先把参与比较的键摊成纯值再排**（D157 同款）。
+        // 直接排 SwiftData 模型时每次比较都走属性访问层——实测 400 条计划
+        // 111ms，摊平后 37ms，行为一个字不变（`CalendarOrderTests` 钉住）。
+        //
+        // 更快的两条路都**会改行为**，故不取：让存储层排序（30ms）表达不了
+        // `resolvedDayKey` 对旧数据的回退与同日的 id 决胜；再加分页（3ms）
+        // 是产品决定（日历显示多少条）。
+        var decorated: [(key: String, id: String, plan: CalendarPlan)] = []
+        for plan in all {
+            decorated.append((resolvedDayKey(plan), plan.id.uuidString, plan))
         }
+        decorated.sort { ($0.key, $0.id) > ($1.key, $1.id) }
+        return decorated.map(\.plan)
     }
 
     /// 某柜相关计划（outfit.wardrobe 匹配）。
