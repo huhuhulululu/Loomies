@@ -39,6 +39,10 @@ public enum ImportService {
         public let locationsAdded: Int
         /// 指向本机不存在的图片、被清掉的件数。
         public let imagePathsCleared: Int
+        /// D177：身体围度导入了几份 / 因未同意跳过了几份。
+        /// 两个数都要有——只报导入的那个数，跳过时收据就成了沉默。
+        public var bodyProfilesAdded: Int = 0
+        public var bodyProfilesSkippedForConsent: Int = 0
 
         /// 用户读得懂的收据。**必须点名照片没跟过来**——
         /// JSON 里只有路径没有像素，不说清用户会以为图也回来了。
@@ -53,8 +57,15 @@ public enum ImportService {
             if wearRecordsAdded > 0 { extras.append("\(wearRecordsAdded) wear records") }
             if plansAdded > 0 { extras.append("\(plansAdded) plans") }
             if locationsAdded > 0 { extras.append("\(locationsAdded) storage spots") }
+            if bodyProfilesAdded > 0 { extras.append("body measurements") }
             let tail = extras.isEmpty ? "" : " Also brought over: \(extras.joined(separator: ", "))."
-            return "Imported \(pieces) into \(closets).\(tail) "
+            // 跳过的必须说出口，还要说清怎么拿回来——沉默地丢掉围度
+            // 与沉默地存下围度一样不诚实。
+            let skipped = bodyProfilesSkippedForConsent > 0
+                ? " Body measurements were left out — turn on body measurements in Me → Body, "
+                    + "then import the file again."
+                : ""
+            return "Imported \(pieces) into \(closets).\(tail)\(skipped) "
                 + "Photos aren't part of the data file — add them again when you like."
         }
     }
@@ -62,7 +73,10 @@ public enum ImportService {
     /// 导入一个导出快照。抛错时**什么都不会留下**。
     @MainActor
     @discardableResult
-    public static func importSnapshot(_ data: Data, into context: ModelContext) throws -> Receipt {
+    public static func importSnapshot(
+        _ data: Data, into context: ModelContext,
+        consent: BodyDataConsent = .shared
+    ) throws -> Receipt {
         let snapshot: DataLifecycleService.ExportSnapshot
         do {
             let decoder = JSONDecoder()
@@ -196,8 +210,19 @@ public enum ImportService {
             newOutfits.append(outfit)
         }
 
-        // 身体档案（D5 本地域）：跟着主人走
-        for dto in snapshot.bodyProfiles ?? [] {
+        // 身体档案（D5 本地域）：跟着主人走，**但先过同意门**。
+        //
+        // D177：这段此前一个字都没读 `isGranted`——同意 off 的用户导入一份
+        // 带围度的文件，围度照样落库并被合身标记/体型头像消费，而 Me → Body
+        // 仍只显示那张「要不要用你的围度」的同意卡。判定必须在
+        // **任何 insert 之前**（BodyDataConsent 抬头那条铁律：insert 之后
+        // 再回头删会留下 pending 脏行，污染下一次无关 save）。
+        let bodyDTOs = snapshot.bodyProfiles ?? []
+        let bodyAllowed = consent.isGranted
+        if !bodyAllowed, !bodyDTOs.isEmpty {
+            AppLog.notice("import skipped \(bodyDTOs.count) body profile(s): consent off", .data)
+        }
+        for dto in bodyAllowed ? bodyDTOs : [] {
             guard let person = personMap[dto.personID] else { continue }
             let profile = PersonBodyProfile(personID: person.id)
             profile.bustInches = dto.bustInches
@@ -258,7 +283,9 @@ public enum ImportService {
             wearRecordsAdded: newRecords.count,
             plansAdded: newPlans.count,
             locationsAdded: newLocations.count,
-            imagePathsCleared: imagePathsCleared)
+            imagePathsCleared: imagePathsCleared,
+            bodyProfilesAdded: newProfiles.count,
+            bodyProfilesSkippedForConsent: bodyAllowed ? 0 : bodyDTOs.count)
     }
 
     /// 同名不覆盖：`Home` → `Home (imported)` → `Home (imported 2)`。

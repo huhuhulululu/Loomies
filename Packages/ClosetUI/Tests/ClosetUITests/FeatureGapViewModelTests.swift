@@ -651,12 +651,15 @@ struct CalendarScopeTests {
         return (ctx, a, b)
     }
 
+    /// D176：原来这里手工 `CalendarPlan(date:) + outfit = o + insert`，
+    /// **绕开了生产写入器**——于是「两柜同一天」这组用例只验证了读取侧的过滤，
+    /// 而写入侧当时正按 dayKey 全库匹配、在 B 柜排计划会改写 A 柜那条。
+    /// 走真正的 `CalendarPlanService.plan` 才守得住这条路。
     @discardableResult
     func plan(in w: Wardrobe, ctx: ModelContext, on date: Date = Date()) throws -> CalendarPlan {
         let o = Outfit(name: "Look \(w.name)"); o.wardrobe = w; ctx.insert(o)
-        let p = CalendarPlan(date: date); p.outfit = o; ctx.insert(p)
         try ctx.save()
-        return p
+        return try #require(CalendarPlanService.plan(outfit: o, on: date, in: ctx))
     }
 
     /// 本柜无计划时**不得**把别柜的计划混进来。

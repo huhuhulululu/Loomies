@@ -3048,3 +3048,79 @@ D174 的置信度里我自己标了两处不足：22 个 View 只抽查了 2 个
 
 判据太宽与太松是同一个病的两个方向：前者把正常工作挡下来（很快会被绕过或删掉），
 后者假绿。本 session 记的四种松散形态之外，这是第一次撞见「太紧」。
+
+## D176 — 在 B 柜排今天，A 柜今天就空了（2026-08-13）
+
+**第四轮核查（14-agent workflow）的第一条**，也是这轮唯一一条真丢数据的。
+
+`CalendarPlan` 是 schema 里唯一没有衣柜字段的实体——归属只能从
+`outfit.wardrobe` 派生。读取侧一直照此过滤（`plans(for:)`），
+**写入侧却是全库匹配**：
+
+```swift
+if let found = existing.first(where: { resolvedDayKey($0) == key }) {
+    plan.outfit = outfit          // ← 不管这条计划属于哪个柜
+```
+
+于是「一天一条计划」这条不变式被悄悄放大成了全 App 级别，而
+`DESIGN.md` §F5 写的是「日历计划：日期 × **衣柜** × 搭配」。
+用户在度假柜排好周六，回主柜一看——周六空了。两次操作都只播报 `Planned X.`。
+
+三条生产入口（Today 的 Plan、收藏列表、日历排期）全走这一个函数，
+而日历的排期表只列**本柜**收藏，所以「在 B 柜排 B 柜的搭配」正是最自然的操作。
+
+### 为什么一直没红：夹具替它挡了两层
+
+1. `FeatureGapViewModelTests` 里唯一覆盖「两柜同一天」的用例，用
+   `CalendarPlan(date:) + p.outfit = o + ctx.insert(p)` **手工插行**，
+   绕开了生产写入器——它测的是读取侧的过滤，不是写入侧的作用域。
+2. `CalendarPlanServiceTests.makeOutfit` **每次都新建一个衣柜**，
+   于是「同日覆盖」那两条用例其实一直在两个柜之间覆盖，
+   还把这个行为当成**期望**钉住了（`count == 1`）。
+
+第 2 条尤其值得记：夹具的便利写法（每次造一套干净数据）把作用域缺陷
+变成了断言。修的时候这两条会同时变红，很容易误以为是「改坏了」。
+
+### 处置
+
+写入侧匹配同日**同柜**；没有同柜的，再收养同日的**无主行**
+（搭配被删后 `unbindPlans` 置空的那条，不属于任何柜、任何日历里都不露面，
+不收养就只会越攒越多）。单柜行为逐字不变。
+
+读取侧 `plan(on:in:)` 改成必须带衣柜——同一天现在可以有多条计划，
+「取第一条」会随 fetch 次序返回别柜的那条。它在生产上零调用点
+（只有测试用它查询），但留着一个语义已经含糊的查询 API 就是给下一个人挖坑。
+
+## D177 — 导入把身体围度写进库，同意开关还是关着（2026-08-13）
+
+`BodyDataConsent` 的文件抬头写着：「门必须在**任何 context.insert 之前**判定」。
+`ImportService` 那段 `for dto in snapshot.bodyProfiles ?? []` 从头到尾没读过
+`isGranted`——同意 off 的用户导入一份带围度的文件，围度照样落库，
+落库之后 `FitMarkService` / `OwnerBodyDerivation` 照常消费它。
+
+用户侧：Me → Body 仍然只显示那张「要不要用你的围度」的同意卡
+（`isGranted == false`），而 App 已经在拿他的围度算合身标记与体型头像。
+同意卡上印着 “we won't store them without your say-so”——这条路上它是假的。
+
+收据也只字不提：summary 只拼 pieces/closets/looks/wear records/plans/spots，
+身体维度一个字没有。用户既不知道导进来了，也不会知道被跳过了。
+
+D86/D98/D101 三条决策反复收紧「围度与快选都要过门」，D134 只写了
+「身体档案也要带过来」——**没有任何决策说导入豁免同意门**。
+`ImportServiceTests` 全部用例都传 `bodyProfiles: nil`，这条路径零覆盖。
+
+### 处置：跳过，并且说出口
+
+未同意 → 跳过（不是先写后删——insert 之后再回头删会留 pending 脏行，
+污染下一次无关 save）。收据新增两个数：导入了几份 / 跳过了几份，
+跳过时明说「turn on body measurements in Me → Body, then import the file again」。
+
+**沉默地丢掉围度与沉默地存下围度一样不诚实**——所以两个方向都要说：
+导入了要进 “Also brought over”，跳过了要给下一步。
+
+### 结构门撞过
+
+`theBodyLoopSitsInsideTheConsentGate` 认**构造**（`consent.isGranted` 与
+`context.insert(profile)` 的相对行号），不认词。破坏方式是把判定挪到循环之后
+——门报 `(gate → 236) < (insert → 234)` 当场红。
+本仓已经六次栽在「认词不认构造」上，这道门从第一版就按构造写。

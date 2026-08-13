@@ -27,14 +27,25 @@ public enum CalendarPlanService {
         calendar: Calendar = .current
     ) -> CalendarPlan? {
         let key = dayKey(for: date, calendar: calendar)
-        // 同日已有计划则覆盖 outfit（按 dayKey 对齐，跨时区稳定）
+        // 同日**同柜**已有计划则覆盖 outfit（按 dayKey 对齐，跨时区稳定）。
+        //
+        // D176：作用域必须带上衣柜。`CalendarPlan` 没有衣柜字段，归属派生自
+        // `outfit.wardrobe`——读取侧（`plans(for:)`）一直照此过滤，写入侧却
+        // 全库匹配，于是在 B 柜排今天就把 A 柜今天的计划静默改写了。
+        // 不变式是「一天一条计划」**每柜**，不是全 App。
         let existing = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
+        let sameDay = existing.filter { resolvedDayKey($0) == key }
+        let targetWardrobeID = outfit.wardrobe?.id
+        // 无主行（搭配被删后 `unbindPlans` 置空的那条）不属于任何柜，也不在
+        // 任何日历里露面——同日重排时复用它，否则只会越攒越多。
+        let match = sameDay.first { $0.outfit?.wardrobe?.id == targetWardrobeID }
+            ?? sameDay.first { $0.outfit == nil }
         let plan: CalendarPlan
         let isNew: Bool
         let previousOutfit: Outfit?
         let previousAttention: Bool
         let previousDayKey: String
-        if let found = existing.first(where: { resolvedDayKey($0) == key }) {
+        if let found = match {
             plan = found
             previousOutfit = found.outfit
             previousAttention = found.needsAttention
@@ -86,13 +97,19 @@ public enum CalendarPlanService {
     //（比如日历页手动「刷新提醒」按钮）。那时再加回来，
     // 并且必须有人检查它的返回值——失败了不许静默。
 
-    /// 查询某日计划（按 dayKey 日历日对齐，跨时区稳定）。
+    /// 查询某柜某日的计划（按 dayKey 日历日对齐，跨时区稳定）。
+    ///
+    /// D176 起**必须带衣柜**：同一天可以有多条计划（每柜一条），
+    /// 不带作用域的「取第一条」会随 fetch 次序返回别柜的那条。
     public static func plan(
-        on date: Date, in context: ModelContext, calendar: Calendar = .current
+        on date: Date, for wardrobe: Wardrobe,
+        in context: ModelContext, calendar: Calendar = .current
     ) -> CalendarPlan? {
         let key = dayKey(for: date, calendar: calendar)
         let all = (try? context.fetch(FetchDescriptor<CalendarPlan>())) ?? []
-        return all.first { resolvedDayKey($0) == key }
+        return all.first {
+            resolvedDayKey($0) == key && $0.outfit?.wardrobe?.id == wardrobe.id
+        }
     }
 
     /// 全部计划，新→旧（dayKey 字典序 = 时序；同日历史重复行按 id 决胜）。

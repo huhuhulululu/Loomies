@@ -28,12 +28,22 @@ struct CalendarPlanServiceTests {
         #expect(plan!.outfit?.id == o.id)
         #expect(plan!.needsAttention == false)
 
-        let found = CalendarPlanService.plan(on: day, in: ctx)
+        let found = CalendarPlanService.plan(on: day, for: w, in: ctx)
         #expect(found?.id == plan!.id)
     }
 
     func makeOutfit(_ ctx: ModelContext, name: String = "look") throws -> Outfit {
         let w = Wardrobe(name: "W-\(name)"); ctx.insert(w)
+        let top = Item(name: "t-\(name)"); top.wardrobe = w; ctx.insert(top)
+        let o = Outfit(name: name); o.wardrobe = w; o.items = [top]; ctx.insert(o)
+        try ctx.save()
+        return o
+    }
+
+    /// 同柜再造一件搭配。D176 之前 `makeOutfit` 每次都新建一个衣柜，
+    /// 于是「同日覆盖」这组用例其实是在**两个柜**之间覆盖——
+    /// 写入侧的跨柜改写就是被这个夹具一路掩护到今天的。
+    func makeOutfit(_ ctx: ModelContext, in w: Wardrobe, name: String) throws -> Outfit {
         let top = Item(name: "t-\(name)"); top.wardrobe = w; ctx.insert(top)
         let o = Outfit(name: name); o.wardrobe = w; o.items = [top]; ctx.insert(o)
         try ctx.save()
@@ -59,7 +69,7 @@ struct CalendarPlanServiceTests {
         #expect(plan?.dayKey == "2026-03-20")
         // 洛杉矶 2026-03-20 12:00 查询 → 同一条计划（旧实现按 LA startOfDay 匹配不到）
         let queryAt = la.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 12))!
-        let found = CalendarPlanService.plan(on: queryAt, in: ctx, calendar: la)
+        let found = CalendarPlanService.plan(on: queryAt, for: o.wardrobe!, in: ctx, calendar: la)
         #expect(found?.id == plan?.id)
     }
 
@@ -67,7 +77,7 @@ struct CalendarPlanServiceTests {
     @Test func planDedupeSurvivesTimezoneChange() throws {
         let ctx = try makeContext()
         let o1 = try makeOutfit(ctx, name: "one")
-        let o2 = try makeOutfit(ctx, name: "two")
+        let o2 = try makeOutfit(ctx, in: o1.wardrobe!, name: "two")
         let tokyo = cal("Asia/Tokyo")
         let la = cal("America/Los_Angeles")
         let writeAt = tokyo.date(from: DateComponents(year: 2026, month: 3, day: 20, hour: 10))!
@@ -88,10 +98,10 @@ struct CalendarPlanServiceTests {
         ctx.insert(legacy)
         try ctx.save()
         #expect(legacy.dayKey.isEmpty)
-        let found = CalendarPlanService.plan(on: Date(), in: ctx)
+        let found = CalendarPlanService.plan(on: Date(), for: o.wardrobe!, in: ctx)
         #expect(found?.id == legacy.id)
         // 覆盖写会顺带补 dayKey
-        let o2 = try makeOutfit(ctx, name: "two")
+        let o2 = try makeOutfit(ctx, in: o.wardrobe!, name: "two")
         _ = CalendarPlanService.plan(outfit: o2, on: Date(), in: ctx)
         #expect(!legacy.dayKey.isEmpty)
         #expect((try ctx.fetch(FetchDescriptor<CalendarPlan>())).count == 1)

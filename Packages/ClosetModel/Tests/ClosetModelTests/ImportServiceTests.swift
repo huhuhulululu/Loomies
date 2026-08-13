@@ -240,7 +240,11 @@ struct ImportCompletenessTests {
     /// copilot 个性化与合身标记对它永久关闭。
     @Test func theImportedClosetHasAnOwner() throws {
         let ctx = try makeContext()
-        _ = try ImportService.importSnapshot(try richExport(), into: ctx)
+        // D177 起身体档案要过同意门；这条测的是「跟着主人走」，故显式授予。
+        let granted = BodyDataConsent(defaults: UserDefaults(
+            suiteName: "loomies.test.owner.\(UUID().uuidString)")!)
+        granted.setGranted(true)
+        _ = try ImportService.importSnapshot(try richExport(), into: ctx, consent: granted)
         let w = try #require(try ctx.fetch(FetchDescriptor<Wardrobe>()).first)
         #expect(w.owner != nil)
         let profiles = try ctx.fetch(FetchDescriptor<PersonBodyProfile>())
