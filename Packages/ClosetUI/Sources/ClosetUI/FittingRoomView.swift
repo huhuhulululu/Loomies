@@ -80,7 +80,9 @@ public struct FittingRoomView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(DS.muted)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    // D125：铺的是**整柜单品**——`HStack` 会把每一件都构建出来
+                    // （含缩略图解码），百件衣柜进这个屏就是百次构建。
+                    LazyHStack(spacing: 10) {
                         ForEach(items, id: \.id) { item in
                             itemChip(item)
                         }

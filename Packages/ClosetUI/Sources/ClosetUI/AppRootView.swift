@@ -931,9 +931,11 @@ public struct ClosetGridView: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .accessibilityLabel("Search name or brand")
+                // D125：连打不再每个字母跑一遍全表扫描（筛选 chip 仍然立刻生效——
+                // 那是一次明确动作，不是连续输入）。
                 .onChange(of: searchVM.text) { _, _ in
                     searchVM.homeWardrobeID = wardrobe.id
-                    searchVM.run(in: context)
+                    Task { await searchVM.runDebounced(in: context) }
                 }
             // 作用域切换（DESIGN §2.3 全局检索）；单柜用户不显示无用控件
             if allWardrobes.count > 1 {

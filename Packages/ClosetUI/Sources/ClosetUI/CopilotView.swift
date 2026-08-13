@@ -724,7 +724,9 @@ public struct CopilotView: View {
                     .foregroundStyle(DS.muted)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    // D125：同试衣间——铺整柜单品必须惰性，否则百件衣柜
+                    // 一进 Today 就构建百个 chip（每个都要解码缩略图）。
+                    LazyHStack(spacing: 10) {
                         ForEach(vm.availableItems, id: \.id) { item in
                             Button { vm.toggleAnchor(item) } label: {
                                 itemChip(item)
@@ -1112,10 +1114,10 @@ public struct CopilotView: View {
     }
 
     private func bootstrap() async {
-        // 历史导出扫尾（崩溃/未清理残留）；此刻不可能有在用的导出文件
-        AvatarCinematicExporter.sweepTemporaryExports()
-        // 图片目录 ↔ DB 对账：回收崩溃窗口孤儿文件、清死路径（UI 回到诚实无照片态）
-        ImageReconcileService.reconcile(in: context)
+        // D125：**先把该画的画出来**。目录对账与临时目录扫尾都要扫盘，
+        // 而它们此前挡在首屏之前——用户打开 App 看到的第一件事是等待，
+        // 而这两件事跟「今天穿什么」一点关系都没有。
+        // 让出一次主线程即可：SwiftUI 会先完成本帧再回来。
         vm.wornWithin7DaysIDs = CheckInViewModel.recentlyWornIDs(in: context)
         vm.reloadToday(in: context)   // D116：重开 App 也记得今天定过什么
         // D118：衣柜够用时（重新）排每日回访。放在这里而不是设置页，
@@ -1123,6 +1125,10 @@ public struct CopilotView: View {
         await DailyRitualScheduler.reschedule(
             availableItemCount: vm.availableItems.count)
         await vm.applyWeather(CompositeWeatherProvider.production)
+        // 首屏已经画完，现在再做扫盘的家务事。
+        await Task.yield()
+        AvatarCinematicExporter.sweepTemporaryExports()   // 历史导出残留回收
+        ImageReconcileService.reconcile(in: context)      // 图片目录 ↔ DB 对账
         // Prefer live @Query profile; fall back to context fetch for first paint.
         if let p = ownerProfile {
             _ = vm.applyBodyProfile(p)

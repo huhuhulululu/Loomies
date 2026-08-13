@@ -61,6 +61,15 @@ public final class SearchViewModel {
             || colorPaletteID != nil
     }
 
+    /// D120：「上次什么时候穿的」是判断「要不要再买一件」的另一半依据。
+    /// 批量取一次——每行各查一遍在百件规模上是 N 次全表扫描。
+    private func refreshWearStats(in context: ModelContext) {
+        wearStats = [:]
+        for wardrobe in Set(results.compactMap(\.wardrobe)) {
+            wearStats.merge(WearStatsService.stats(forItemsIn: wardrobe, in: context)) { a, _ in a }
+        }
+    }
+
     /// 结果计数的用户读法——「你已经有 4 件」。
     /// 只在**真的在筛**时出现：不筛时它等于在数整个衣柜，那句话没有意义。
     public var resultsHeadline: String? {
@@ -86,18 +95,51 @@ public final class SearchViewModel {
             : "Try another name, brand, type, colour, status, or occasion filter."
     }
 
+    /// D125：文本输入的防抖窗口（秒）。
+    ///
+    /// `run` 会 fetch 全部 `Item` → 逐件 Unicode 折叠 → 排序，D120 之后
+    /// 还要再取一遍整柜穿着统计——而它此前**每敲一个字母跑一次**：
+    /// 「navy」四个字母等于四遍全表。0.25 秒是「打字停顿」的常见量级：
+    /// 短到用户感觉不出延迟，长到能把一串连打并成一次。
+    public static let textDebounce: Double = 0.25
+
+    /// 在途代际号：慢的那次回来时若已被新输入取代，结果必须丢弃，
+    /// 否则用户会看到上一个搜索词的结果（与 `applyWeather` 同一条纪律）。
+    private var runGeneration = 0
+
+    /// 领一个代号。
+    @discardableResult
+    public func beginRun() -> Int {
+        runGeneration &+= 1
+        return runGeneration
+    }
+
+    /// 只有仍是当前代才落地。
+    public func applyIfCurrent(generation: Int, results: [Item], in context: ModelContext) {
+        guard generation == runGeneration else { return }
+        self.results = results
+        refreshWearStats(in: context)
+    }
+
+    /// 防抖跑一次。`sleep` 期间被新输入取代 → 直接放弃。
+    public func runDebounced(in context: ModelContext) async {
+        let generation = beginRun()
+        try? await Task.sleep(for: .seconds(Self.textDebounce))
+        guard generation == runGeneration else { return }
+        run(in: context)
+    }
+
     public func run(in context: ModelContext) {
+        // 同步跑一次也要**作废在途代号**：否则一次更早发出、更晚回来的
+        // 防抖任务仍会被当成「当前代」落地，把这次的结果盖掉。
+        // （测试 `aStaleRunDoesNotOverwriteANewerOne` 当场抓到过这一条。）
+        beginRun()
         results = SearchService.searchItems(
             .init(text: text, slotRaw: slotRaw, occasion: occasion,
                   statusRaw: statusRaw, wardrobeID: effectiveWardrobeID,
                   colorPaletteID: colorPaletteID),
             in: context)
-        // D120：「上次什么时候穿的」是判断「要不要再买一件」的另一半依据。
-        // 批量取一次——每行各查一遍在百件规模上是 N 次全表扫描。
-        wearStats = [:]
-        for wardrobe in Set(results.compactMap(\.wardrobe)) {
-            wearStats.merge(WearStatsService.stats(forItemsIn: wardrobe, in: context)) { a, _ in a }
-        }
+        refreshWearStats(in: context)
         // 遥测：只发「有没有输入文字」与结果条数——**绝不发搜索词本身**
         TelemetryGate.shared.track(.searchPerformed, payload: [
             "has_text": String(!TextNormalize.isBlank(text)),
