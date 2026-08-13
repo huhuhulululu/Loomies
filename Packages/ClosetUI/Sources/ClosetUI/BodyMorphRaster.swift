@@ -228,6 +228,26 @@ struct BodyMorphImageView: View {
     /// 上一次画出来的那张。**新图算好之前先顶着**——
     /// 不顶的话滑杆一动画面就闪白，比卡顿更糟（D155）。
     @State private var shown: Image?
+    /// 那张图属于**哪个身体**（D160）。
+    ///
+    /// `@State` 的存活取决于视图身份，而这个视图没有 `.id(assetName)`——
+    /// 换个 `assetName` 仍是同一个实例，上一张会**跨资产**顶下去：
+    /// 用户在 Me → Body 换肤色/性别时先看到上一个身体约 28ms。
+    /// 滑杆场景顶的是「同一个身体、略微不同的体型」（那是想要的平滑），
+    /// 换身体时顶的却是**另一个人**——两件事此前被同一个 `@State` 混在一起。
+    @State private var shownAsset: String?
+
+    /// 能不能拿上一张顶着：**只有同一个身体才行**。
+    /// 宁可空一帧，也不闪一下别人的身体（NudeBodyBaseSpec 的呈现准确性优先）。
+    static func mayHoldPreviousFrame(shownAsset: String?, currentAsset: String) -> Bool {
+        shownAsset == currentAsset
+    }
+
+    /// 上一帧的**唯一读取点**——守卫与读取写在同一处，
+    /// 别处不许直接碰 `shown`（`MorphOffMainTests` 守着这条）。
+    private func heldFrame(for asset: String) -> Image? {
+        Self.mayHoldPreviousFrame(shownAsset: shownAsset, currentAsset: asset) ? shown : nil
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -240,9 +260,9 @@ struct BodyMorphImageView: View {
                 shoulder: m.shoulder, height: 1)
             let cache = BodyMorphImageCache.shared
             let key = cache.cacheKey(named: assetName, morph: horizontalOnly, width: w)
-            // 命中直出；未命中先拿旧的顶着，后台算好再换
+            // 命中直出；未命中先拿旧的顶着——但只有**同一个身体**才顶（D160）
             let image = cache.cachedImage(
-                named: assetName, morph: horizontalOnly, width: w) ?? shown
+                named: assetName, morph: horizontalOnly, width: w) ?? heldFrame(for: assetName)
             Group {
                 if let image {
                     image
@@ -266,6 +286,7 @@ struct BodyMorphImageView: View {
                 else { return }
                 shown = cache.cachedImage(
                     named: assetName, morph: horizontalOnly, width: w)
+                shownAsset = assetName
             }
         }
     }

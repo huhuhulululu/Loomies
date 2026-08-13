@@ -80,13 +80,38 @@ struct MorphOffMainTests {
                 .deletingLastPathComponent()
                 .appendingPathComponent("Sources/ClosetUI/BodyMorphRaster.swift"),
             encoding: .utf8)
-        guard let viewPart = text.range(of: "struct BodyMorphImageView") else {
+        // D160：原来取「结构体开头往后 1800 字」——加两行注释就把要找的符号
+        // 挤出了窗口，门当场误红。窗口式判据本身就脆，改成按**结构边界**取：
+        // 视图从它的声明起，到下一个类型声明为止。
+        guard let start = text.range(of: "struct BodyMorphImageView") else {
             Issue.record("找不到视图"); return
         }
-        let body = String(text[viewPart.lowerBound...].prefix(1800))
+        let rest = text[start.lowerBound...]
+        let end = rest.range(of: "final class BodyMorphImageCache")?.lowerBound
+            ?? rest.endIndex
+        let body = String(rest[rest.startIndex..<end])
         #expect(body.contains("renderOffMain"),
                 "视图仍在 body 里同步 warp —— 滑杆每格照掉两帧")
         #expect(body.contains(".task(id:"),
                 "没有按键取消在途渲染 —— 快速拖动会积压一串过期的 warp")
+
+        // D160：**断言符号存在不等于断言行为。**
+        // 第一版只查 `shownAsset` / `mayHoldPreviousFrame` 出现过——
+        // 我把守卫删掉改成 `let held = shown`，符号仍在文件里，门照样绿。
+        // 真正要守的是：`shown` 的每一次**读取**都经过那道守卫。
+        var unguarded: [String] = []
+        for line in body.split(separator: "\n") {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
+            // 把 shownAsset 挖掉，剩下的 shown 才是我们要管的那个
+            let bare = t.replacingOccurrences(of: "shownAsset", with: "")
+            guard bare.contains("shown") else { continue }
+            if bare.contains("@State") { continue }            // 声明
+            if bare.contains("shown =") { continue }           // 写入
+            if bare.contains("mayHoldPreviousFrame") { continue }  // 经守卫读取
+            unguarded.append(t)
+        }
+        #expect(unguarded.isEmpty, Comment(rawValue:
+            "这些地方绕过守卫直接读上一帧，换身体时会顶着别人的：\(unguarded)"))
     }
 }
