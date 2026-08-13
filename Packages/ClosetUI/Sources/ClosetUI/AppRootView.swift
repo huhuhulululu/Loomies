@@ -353,7 +353,10 @@ public struct MeView: View {
     private func handleImport(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            dataMessage = "Couldn't open that file — try again"
+            // D128：选文件失败多半是权限/文件已不在了 —— 再点一次同一条路
+            // 不会变，得先换个文件
+            dataMessage = FailureCopy.line(.needsUserAction(
+                "Couldn't open that file", next: "Pick it again from Files"))
             AppLog.error("import picker failed: \(AppLog.errRef(error))", .data)
         case .success(let urls):
             guard let url = urls.first else { return }
@@ -369,7 +372,10 @@ public struct MeView: View {
                 dataMessage = "That file is from a newer version of Loomies "
                     + "(format \(found), this app reads \(supported)). Update the app first."
             } catch {
-                dataMessage = "Couldn't read that file — it doesn't look like a Loomies export"
+                // 重试也没用：这个文件不会因为再点一次就变成 Loomies 的导出
+                dataMessage = FailureCopy.line(.needsUserAction(
+                    "That file isn't a Loomies export",
+                    next: "Choose the JSON you got from Me → Data → Export"))
                 AppLog.error("import failed: \(AppLog.errRef(error))", .data)
             }
         }

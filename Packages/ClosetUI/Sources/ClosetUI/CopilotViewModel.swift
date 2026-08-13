@@ -376,7 +376,10 @@ public final class CopilotViewModel {
     private func emptyReason(anchors: [Item], wornCount: Int, available: Int) -> String {
         CopilotEmptyReason.text(
             available: available, wornCount: wornCount,
-            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed)
+            anchorCount: anchors.count, repeatGateRelaxed: repeatGateRelaxed,
+            // D128：把候选传进去，空态才说得出**缺的是哪个槽位**——
+            // 缺鞋时让用户「换个场合试试」是一条走不通的路。
+            candidates: availableItems.map { $0.toCandidateItem() })
     }
 }
 
@@ -387,13 +390,26 @@ public final class CopilotViewModel {
 /// 2. **用用户的语言**——「grammar filters」「toggle off in Debug」是开发者词汇，
 ///    却在 release 里直接显示给真实用户看。每条理由都要带一个能做的下一步。
 public enum CopilotEmptyReason {
+    /// D128：`candidates` 让空态能**点名缺的是哪个槽位**。
+    ///
+    /// 一个有 12 件上装、8 条下装、一双鞋都没有的衣柜今天拼不出任何一套——
+    /// 而用户此前看到的是「换个场合试试」。换场合当然没用：缺的是鞋。
+    /// 他会一个一个场合试过去，然后以为 App 坏了。
+    /// `OutfitGrammar` 早把这些算出来了，空态只要问一句。
     public static func text(
-        available: Int, wornCount: Int, anchorCount: Int, repeatGateRelaxed: Bool
+        available: Int, wornCount: Int, anchorCount: Int, repeatGateRelaxed: Bool,
+        candidates: [CandidateItem] = []
     ) -> String {
         if available == 0 {
             return "Nothing available in this closet yet — add a few pieces to get picks."
         }
-        if available < 3 {
+        // D128：**缺件优先**——它是最可行动的一条，而且旧的 `available < 3`
+        // 捷径在这里会说错话：对一个「有裙有鞋」的用户说
+        // 「去加上装和下装」，那两件他根本不需要。
+        if let missing = missingSlotSentence(candidates) { return missing }
+        // 只在**拿不到候选**时才用件数这个粗判据：有候选而语法说齐全，
+        // 说明缺的不是件（比如「有裙有鞋」就够了），此时再劝人加衣服是错的。
+        if candidates.isEmpty, available < 3 {
             return "Add a top, a bottom and shoes and you'll get a full look."
         }
         // 只有防重复**真的**在起作用时才归因于它
@@ -407,5 +423,21 @@ public enum CopilotEmptyReason {
         }
         return "Nothing here fits today's weather and occasion — "
             + "try another occasion, or add pieces for this one."
+    }
+
+    /// 缺件的那句话。槽位齐全 → nil（那时原因确实是天气/场合，
+    /// 说槽位就成了新的甩锅）。
+    static func missingSlotSentence(_ candidates: [CandidateItem]) -> String? {
+        guard !candidates.isEmpty else { return nil }
+        // 判据直接问 `OutfitGrammar`——不在这里另写一套「什么算齐全」，
+        // 两处规则分叉的那天，用户会被要求去补一件他并不需要的衣服。
+        let violations = OutfitGrammar.violations(candidates)
+        var missing: [String] = []
+        if violations.contains(.missingTop) { missing.append("a top") }
+        if violations.contains(.missingBottom) { missing.append("a bottom") }
+        if violations.contains(.missingShoes) { missing.append("shoes") }
+        guard !missing.isEmpty else { return nil }
+        let list = ActivationProgress.listJoin(missing)
+        return "This closet can't finish a look yet — it needs \(list)."
     }
 }

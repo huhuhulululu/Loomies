@@ -116,7 +116,8 @@ public enum ActivationProgress {
     }
 
     /// 「a, b and c」——三项以上不得串成 "a and b and c"。
-    static func listJoin(_ items: [String]) -> String {
+    /// `public`：D128 的空态缺件句复用同一份，不另造第二套连接规则。
+    public static func listJoin(_ items: [String]) -> String {
         guard items.count > 1 else { return items.first ?? "" }
         guard items.count > 2 else { return items.joined(separator: " and ") }
         return items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
