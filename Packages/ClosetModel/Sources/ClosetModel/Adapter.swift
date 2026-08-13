@@ -14,8 +14,12 @@ public extension Item {
         let color = colorHue.map { GarmentColor(hueDegrees: $0, isNeutral: colorIsNeutral) }
             ?? (colorIsNeutral ? GarmentColor(hueDegrees: 0, isNeutral: true) : nil)
         let attrs = Set(attributesRaw.compactMap { StyleAttribute(rawValue: $0) })
+        // D130：`subtype` 生产里没有写入方，于是「不许两件同型外套」的规则
+        // 永远不触发。按名字判型给它一个真实来源（同 `GarmentSlot.resolved` 的手法）；
+        // 已存的显式值优先——用户/导入给的比推断的可信。
+        let resolvedSubtype = subtype ?? GarmentSubtype.inferred(name: name)
         return CandidateItem(
-            id: id.uuidString, slot: slot, subtype: subtype,
+            id: id.uuidString, slot: slot, subtype: resolvedSubtype,
             occasions: Set(occasionsRaw), warmth: warmth,
             status: status, color: color, attributes: attrs)
     }

@@ -3,12 +3,19 @@ import Foundation
 /// 候选硬过滤上下文（当前衣柜 + 场合 + 日间温度 + 近 7 天已穿）。
 public struct FilterContext: Sendable {
     public let occasion: String
-    public let daytimeTempF: Double
+    /// 日间温度。**nil = 今天几度未知**（天气没取到）——此时温区门整条跳过。
+    ///
+    /// D130：此前它是非可选的，天气失败时上层塞一个 70 的默认值进来，
+    /// 于是零下的日子没网，App 会把大衣全筛掉、端出短袖——
+    /// 比不给建议糟得多，因为它看起来像个正常答案。
+    /// 三值语义在别处都遵守了（未知温区不过滤、未知场合不过滤），
+    /// 唯独「今天几度未知」这一格没有。
+    public let daytimeTempF: Double?
     public let wornWithin7DaysIDs: Set<String>
     /// 个人冷热偏置（D90）：平移可接受温区，不放宽它。
     public let coldBias: Int
 
-    public init(occasion: String, daytimeTempF: Double,
+    public init(occasion: String, daytimeTempF: Double?,
                 wornWithin7DaysIDs: Set<String> = [], coldBias: Int = 0) {
         self.occasion = occasion
         self.daytimeTempF = daytimeTempF
@@ -96,8 +103,10 @@ public enum CandidateFilter {
     }
 
     public static func filter(_ items: [CandidateItem], context: FilterContext) -> [CandidateItem] {
-        let band = WeatherFit.acceptableWarmth(
-            daytimeTempF: context.daytimeTempF, coldBias: context.coldBias)
+        // 温度未知 → 没有温区带 → 该门整条跳过（D130）
+        let band = context.daytimeTempF.map {
+            WeatherFit.acceptableWarmth(daytimeTempF: $0, coldBias: context.coldBias)
+        }
         // 场合在过滤边界归一化（trim + 小写）：写入端大小写不一致（intake 小写、编辑器仅 trim）。
         let wanted = context.occasion.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return items.filter { item in
@@ -112,8 +121,8 @@ public enum CandidateFilter {
                 }
                 if !normalized.contains(wanted) { return false }
             }
-            // gate #1: 天气/温区（三值：未知不过滤）
-            if let w = item.warmth, !band.contains(w) { return false }
+            // gate #1: 天气/温区（三值：**温度未知或温区未知**都不过滤）
+            if let band, let w = item.warmth, !band.contains(w) { return false }
             return true
         }
     }

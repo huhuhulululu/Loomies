@@ -15,11 +15,15 @@ public struct ScoringContext: Sendable {
     /// 0 = guessed-absent, 0.5 = visual pick, 0.85 = provisional, 1.0 = measured.
     public let bodyShapeWeight: Double
     public let colorSeason: PersonalColorSeason?
+    /// 日间温度。**nil = 未知**——不知道冷暖就不对「要不要外套」表态（D130）。
+    public let daytimeTempF: Double?
     public init(
         bodyShape: BodyShape? = nil,
         bodyShapeWeight: Double = 1.0,
-        colorSeason: PersonalColorSeason? = nil
+        colorSeason: PersonalColorSeason? = nil,
+        daytimeTempF: Double? = nil
     ) {
+        self.daytimeTempF = daytimeTempF
         self.bodyShape = bodyShape
         self.bodyShapeWeight = bodyShapeWeight
         self.colorSeason = (colorSeason == .unknown) ? nil : colorSeason
@@ -91,6 +95,18 @@ public enum OutfitScorer {
             } else if affinity < 0 {
                 value += delta
                 note("Cut fights your proportions — swap one piece", delta)
+            }
+        }
+        // D130：冷天偏好**带外套**的那身。
+        //
+        // 补全器在冷天会同时枚举「带外套」和「不带外套」，而打分对外套零加成——
+        // 于是 28°F 的早上第一条推荐有没有大衣，**由 UUID 序决定**。
+        // 加成给得小（0.12）：它是一条实用提示，不该压过配色与体型。
+        if let temp = context.daytimeTempF, temp < OutfitAssembler.coldThresholdF {
+            let hasOuter = outfit.items.contains { $0.slot == .outerwear }
+            if hasOuter {
+                value += 0.12
+                note("Layered for a cold day", 0.12)
             }
         }
         if let season = context.colorSeason {

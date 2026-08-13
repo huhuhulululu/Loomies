@@ -68,19 +68,31 @@ public final class CopilotViewModel {
     /// Today 的构造入口（D98）。默认场合的推导只此一处——
     /// 此前 View 里内联推导、测试里再实现一遍同样的表达式，
     /// 于是 View 若退回硬编码，测试照样绿（回归门守不住它要守的东西）。
+    /// D130：`daytimeTempF` 默认 **nil = 还不知道今天几度**。
+    /// 生产路径由 `applyWeather` 填上；在那之前不按任何温度筛衣服。
     @MainActor
-    public static func forToday(wardrobe: Wardrobe, daytimeTempF: Double = 70) -> CopilotViewModel {
+    public static func forToday(wardrobe: Wardrobe, daytimeTempF: Double? = nil) -> CopilotViewModel {
         CopilotViewModel(
             wardrobe: wardrobe,
             occasion: OccasionMix.effectiveOccasion(stated: wardrobe.owner?.primaryOccasionRaw),
             daytimeTempF: daytimeTempF)
     }
 
-    public init(wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double = 70) {
+    /// `daytimeTempF: nil` = **今天几度未知**（天气还没取到）。
+    ///
+    /// D130：显式传一个温度的调用方**就是在断言温度**（测试、预览），
+    /// 那时照常按它筛；生产走 `forToday` 不传，等 `applyWeather` 填。
+    /// 二者的区别不能靠事后推断——推断出来的「未知」会把断言过温度的
+    /// 调用方也一起当成未知。
+    public init(
+        wardrobe: Wardrobe, occasion: String = "work", daytimeTempF: Double? = nil
+    ) {
         self.openSource = DailyRitualScheduler.consumeOpenSource()
         self.wardrobe = wardrobe
         self.occasion = occasion
-        self.daytimeTempF = daytimeTempF
+        // 打分与 pill 需要一个具体值兜底；「知不知道」由 hasResolvedWeather 表达
+        self.daytimeTempF = daytimeTempF ?? 70
+        self.hasResolvedWeather = daytimeTempF != nil
     }
 
     /// Sync scorer bodyShape from Me → Body profile (FFIT or quick-pick).
@@ -243,7 +255,7 @@ public final class CopilotViewModel {
     ///
     /// `daytimeTempF` 有个 70 的默认值供打分用，但那不是「今天 70 度」——
     /// 没取到就印 70°F，用户会拿这个数决定要不要带外套。
-    public private(set) var hasResolvedWeather = false
+    public private(set) var hasResolvedWeather: Bool
 
     /// 温度 pill 文案（纯函数，可断言）。
     public static func tempPillText(resolved: Bool, temp: Double) -> String {
@@ -341,7 +353,10 @@ public final class CopilotViewModel {
         let result = AppLog.timed("copilot.refresh", .copilot) {
             RecommendationService.detailed(
                 for: wardrobe, anchors: anchors, occasion: occasion,
-                daytimeTempF: daytimeTempF,
+                // D130：天气没取到就**别按一个伪造的温度筛衣服**——
+                // 零下的日子没网，按 70°F 会把大衣全筛掉、端出短袖，
+                // 而那看起来像个正常答案（比不给建议糟得多）。
+                daytimeTempF: hasResolvedWeather ? daytimeTempF : nil,
                 wornWithin7DaysIDs: worn,
                 bodyShape: bodyShape,
                 bodyShapeWeight: bodyShapeWeight,

@@ -98,7 +98,9 @@ public enum OutfitCompleter {
         // （12 项池实际 13⁴×12 ≈ 34 万次迭代，非注释宣称的 2.2 万）。
         let dressViaPool = !hasDress && !hasTop && !hasBottom
         let shoesOpts  = opt(hasShoes, .shoes)
-        let addOuter   = context.daytimeTempF < OutfitAssembler.coldThresholdF && !hasOuter
+        // 温度未知时不主动补外套——不知道冷暖就不替用户决定（D130）
+        let addOuter = (context.daytimeTempF ?? .infinity) < OutfitAssembler.coldThresholdF
+            && !hasOuter
         // 冷天可加外套（也允许不加：+ [nil]）；暖天不补
         let outerOpts: [CandidateItem?] = addOuter ? (options(.outerwear).map { Optional($0) } + [nil]) : [nil]
 

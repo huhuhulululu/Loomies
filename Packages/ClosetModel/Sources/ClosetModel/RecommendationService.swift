@@ -10,7 +10,7 @@ public enum RecommendationService {
         for wardrobe: Wardrobe,
         anchors: [Item] = [],
         occasion: String,
-        daytimeTempF: Double,
+        daytimeTempF: Double?,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
         bodyShapeWeight: Double = 1.0,
@@ -31,7 +31,7 @@ public enum RecommendationService {
         for wardrobe: Wardrobe,
         anchors: [Item] = [],
         occasion: String,
-        daytimeTempF: Double,
+        daytimeTempF: Double?,
         wornWithin7DaysIDs: Set<String> = [],
         bodyShape: BodyShape? = nil,
         bodyShapeWeight: Double = 1.0,
@@ -57,7 +57,9 @@ public enum RecommendationService {
             scoring: ScoringContext(
                 bodyShape: bodyShape,
                 bodyShapeWeight: bodyShapeWeight,
-                colorSeason: colorSeason),
+                colorSeason: colorSeason,
+                // D130：冷天偏好带外套的那身；温度未知时不表态
+                daytimeTempF: daytimeTempF),
             maxSuggestions: maxSuggestions)
     }
 }

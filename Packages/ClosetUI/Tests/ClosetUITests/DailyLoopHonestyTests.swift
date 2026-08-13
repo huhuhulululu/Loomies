@@ -88,7 +88,9 @@ struct DailyLoopHonestyTests {
     @Test func aFreshViewModelHasNotResolvedWeather() throws {
         let ctx = try makeContext()
         let w = try seededWardrobe(ctx)
-        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 70)
+        // D130：不传温度 = 还不知道今天几度（显式传一个值的调用方
+        // 就是在断言温度，那种情况该照常按它筛）
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work")
         #expect(!vm.hasResolvedWeather, "还没取过天气就说取到了")
         #expect(CopilotViewModel.tempPillText(resolved: false, temp: 70) == "—°F",
                 "没取到却印了一个用户会拿来决定穿不穿外套的数字")
@@ -97,7 +99,7 @@ struct DailyLoopHonestyTests {
     @Test func aFailedFetchDoesNotCountAsResolved() async throws {
         let ctx = try makeContext()
         let w = try seededWardrobe(ctx)
-        let vm = CopilotViewModel(wardrobe: w, occasion: "work", daytimeTempF: 70)
+        let vm = CopilotViewModel(wardrobe: w, occasion: "work")
         await vm.applyWeather(AlwaysFailingWeather())
         #expect(!vm.hasResolvedWeather)
     }
