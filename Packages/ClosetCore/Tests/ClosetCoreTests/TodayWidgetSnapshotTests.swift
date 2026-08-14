@@ -194,4 +194,62 @@ struct TodayWidgetSnapshotTests {
     @Test func theNamesSurviveEitherRendering() {
         #expect(snapshot().pieces.map(\.name) == ["Navy Blazer", "White Tee", "Chinos"])
     }
+
+    // MARK: - 旧快照一次性迁移（read 时把 pieceNames 转成 pieces）
+
+    /// 旧结构：`pieceNames` 平行数组、没有 `pieces` 键，其余字段与今天一致。
+    /// D210 之前落库的快照长这样。
+    private static let legacyPayload = """
+        {
+          "dayKey": "2026-08-13",
+          "lookTitle": "Navy work look",
+          "pieceNames": ["Navy Blazer", "White Tee", "Chinos"],
+          "daytimeTempF": 72,
+          "weatherSourceLabel": "Open-Meteo",
+          "isSettled": true
+        }
+        """
+
+    private func writeRaw(_ json: String, into dir: URL) throws {
+        try Data(json.utf8).write(
+            to: dir.appendingPathComponent(TodayWidgetSnapshotStore.fileName))
+    }
+
+    /// D210 把 `pieceNames:[String]` 换成 `pieces:[Piece]`。存量快照缺 `pieces`
+    /// 键、解码直接失败——升级后**第一次**刷新 widget 就退成「Open Loomies…」，
+    /// 仿佛从没开过 App。那是一句能避免的谎（D210 之后的这次刷新是唯一的窗口）：
+    /// read 时认出旧结构，就地转成**无颜色**的 pieces。
+    @Test func aLegacySnapshotMigratesOnRead() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("widget-legacy-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeRaw(Self.legacyPayload, into: dir)
+
+        let migrated = try #require(TodayWidgetSnapshotStore.read(from: dir), Comment(rawValue:
+            "旧快照解不开被当成没有快照 —— 升级后第一次刷新退成「Open Loomies…」"))
+        #expect(migrated.dayKey == "2026-08-13")
+        #expect(migrated.lookTitle == "Navy work look")
+        #expect(migrated.pieces.map(\.name) == ["Navy Blazer", "White Tee", "Chinos"])
+        // 旧结构没有颜色 —— 一件都不许猜（认不出/没有都留白）
+        #expect(migrated.pieces.allSatisfy { $0.colorPaletteID == nil },
+                "旧快照没有颜色信息，迁移时不许凭空补一个")
+        #expect(migrated.daytimeTempF == 72)
+        #expect(migrated.weatherSourceLabel == "Open-Meteo")
+        #expect(migrated.isSettled)
+    }
+
+    /// 迁移只认「像旧快照」的东西。彻底的垃圾仍是 nil——多了一条旧解码路径，
+    /// 就不能因此凭空造一份空快照冒充有数据（D188/D197 同一条：宁可说没有）。
+    /// 这条撞的是新加的那条 fallback：旧结构缺 `dayKey`/`pieceNames`/`isSettled`
+    /// 就该继续失败，而不是被迁移路径「捡起来」。
+    @Test func totalGarbageStillDecodesToNil() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("widget-garbage-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try writeRaw(#"{"unrelated": 1, "pieceNames": "not-even-an-array"}"#, into: dir)
+        #expect(TodayWidgetSnapshotStore.read(from: dir) == nil,
+                "既不是新结构也不是旧结构 —— 不许迁移路径凭空造一份")
+    }
 }

@@ -178,7 +178,28 @@ public enum TodayWidgetSnapshotStore {
               let data = try? Data(
                 contentsOf: directory.appendingPathComponent(fileName))
         else { return nil }
-        return try? JSONDecoder().decode(TodayWidgetSnapshot.self, from: data)
+        return decode(data)
+    }
+
+    /// 先按当前结构解；解不开再试**旧结构**（`pieceNames` 平行数组）并就地迁移。
+    ///
+    /// D210 把 `pieceNames:[String]` 换成 `pieces:[Piece]`。存量快照缺 `pieces`
+    /// 键、当前解码会直接失败——升级后**第一次**刷新 widget 就退成「Open Loomies…」，
+    /// 仿佛从没开过 App（D188 那条「过期快照说谎」的近亲：这次是「有快照却装没有」）。
+    /// 认出旧结构、转成无颜色的 pieces，把这唯一一次能避免的谎堵掉。
+    ///
+    /// 两条路都失败才是 nil——**彻底的垃圾不迁移**，不因为多了条旧解码路径就凭空造快照。
+    /// 迁移只发生在**读**：写永远是新结构（`write` 直接编码 `TodayWidgetSnapshot`），
+    /// 一次读→写就把旧文件换成新的，平行数组不复活（C4）。
+    static func decode(_ data: Data) -> TodayWidgetSnapshot? {
+        let decoder = JSONDecoder()
+        if let current = try? decoder.decode(TodayWidgetSnapshot.self, from: data) {
+            return current
+        }
+        if let legacy = try? decoder.decode(LegacyTodayWidgetSnapshot.self, from: data) {
+            return legacy.migrated
+        }
+        return nil
     }
 
     /// 删掉（删库时要一起清——共享容器不在 App 沙盒里，
@@ -187,5 +208,34 @@ public enum TodayWidgetSnapshotStore {
         guard let directory else { return }
         try? FileManager.default.removeItem(
             at: directory.appendingPathComponent(fileName))
+    }
+}
+
+/// D210 之前的快照结构：件是**平行的字符串数组**，没有颜色。
+///
+/// **只用于读**——一次性把旧文件迁移到 `pieces`（`TodayWidgetSnapshotStore.decode`）。
+/// 绝不用于写：C4 冻死「新写永远是 `pieces:[Piece]`」，平行数组正是 D210 特意消灭的
+/// 那种「白衬衫旁边画黑点」的错位温床，不许在这里借尸还魂。
+///
+/// 非可选字段（`dayKey`/`pieceNames`/`isSettled`）是刻意的**存在性闸门**：
+/// 缺了它们解码就失败，于是彻底的垃圾落不进迁移路径（`decode` 会继续返回 nil）。
+private struct LegacyTodayWidgetSnapshot: Decodable {
+    let dayKey: String
+    let lookTitle: String?
+    let pieceNames: [String]
+    let daytimeTempF: Int?
+    let weatherSourceLabel: String?
+    let isSettled: Bool
+
+    /// 转成当前结构。旧数据没有颜色 → 每件 `colorPaletteID: nil`（**不猜**，
+    /// 认不出/没有都在画面上留白，与 `Piece.paletteEntry` 的口径一致）。
+    var migrated: TodayWidgetSnapshot {
+        TodayWidgetSnapshot(
+            dayKey: dayKey,
+            lookTitle: lookTitle,
+            pieces: pieceNames.map { .init(name: $0, colorPaletteID: nil) },
+            daytimeTempF: daytimeTempF,
+            weatherSourceLabel: weatherSourceLabel,
+            isSettled: isSettled)
     }
 }
