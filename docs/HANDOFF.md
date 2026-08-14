@@ -102,7 +102,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | # | 条目 | 阻塞点 |
 |---|---|---|
 | C1 | **App Group `group.com.pinglin.closet` 开发者后台注册**（entitlements 整段注释着；profile 名 "Loomies Widget App Store" 硬编码 project.yml）——未注册前 Widget 全线 inert | 开发者后台 |
-| C2 | **ReleaseFacts 三件真实世界事实**全 nil（`ReleaseReadiness` 阻断清单非空，提审前必填） | 用户填 |
+| C2 | **ReleaseFacts 三件真实世界事实**全 nil。三页已生成（privacy/terms/support）；缺的是**公网托管 + 填 URL + 邮箱** | 用户填 |
 | C3 | **ASC 网页端提交材料**：隐私营养标签 / 年龄分级 / 商店截图 / 审核备注 | ASC 网页 |
 | C4 | **遥测 sink 接入**（D10 口径：TelemetryDeck 类匿名聚合，无 IDFA）。不接则 MARKET §8 留存三条第 6 周算不出。接入判据：`hasSink` 翻真后全文不得再现「no analytics service」话术（门已在）；**核对 SDK 提供装机标识+时间戳**（D201） | 选型+账号 |
 | C5 | **出图资产 93 张**：eastAsian 锁脸转角 13 张（账本 `PhotorealInventoryQATests.knownPending`；落盘后删 `BodyAvatarLayout.swift` eastAsian 豁免）+ shape 正面 80 张（`shapeFrontLedger` 现 0/80；rectangle 16 张可后补）。prompt 手册：`BODY-AVATAR-IMAGE-PROMPTS.md` §10。**落盘必须同步更新账本断言，命名过白名单，严格 2:3** | 出图工具+人审 |
