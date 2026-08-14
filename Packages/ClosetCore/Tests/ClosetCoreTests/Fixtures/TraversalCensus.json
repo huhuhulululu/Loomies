@@ -1,0 +1,9 @@
+{
+  "counts" : {
+    "allPackageSources" : 139,
+    "closetModelTests" : 58,
+    "closetUISources" : 49,
+    "closetUITests" : 68,
+    "packageAndAppShellSources" : 144
+  }
+}

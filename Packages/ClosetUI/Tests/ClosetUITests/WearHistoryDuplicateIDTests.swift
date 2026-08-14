@@ -116,8 +116,11 @@ struct WearHistoryDuplicateIDTests {
             }
             if offends { offenders.append(url.lastPathComponent) }
         }
-        #expect(scannedFileCount >= 80, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.allPackageSources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方用 `Dictionary(uniqueKeysWithValues:)`，重复 key 会直接终止进程："
             + "\(offenders) —— 用带决胜的 `Dictionary(_:uniquingKeysWith:)`"))

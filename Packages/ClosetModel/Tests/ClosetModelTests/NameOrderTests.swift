@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftData
 @testable import ClosetModel
+import ClosetCore
 
 /// D148：**同一条排序规则在仓里手抄了 19 遍，而它每次比较都分配两个 UUID 字符串。**
 ///
@@ -114,8 +115,11 @@ struct NameOrderTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 80, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.allPackageSources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方还在手抄「按名字排序、同名按 id 决胜」：\(offenders) —— 用 sortedByName()"))
     }

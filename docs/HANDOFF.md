@@ -1,15 +1,15 @@
 # Loomies 交接指南（HANDOFF）
 
-> 2026-08-13 全仓盘点（6 路扫描，110 条 → 46 条）。2026-08-14 合入 fleet A1–A8（D215）。
-> 实测 Model 424 / Intake 82 / UI 624；Core 582 里 `AbandonSuperseded` 本机 load 下偶发超时（D211）。
-> TestFlight **build 43** 在 ASC。读这份文档的你：先读 §1-§4 再动手，§5 起是活。
+> 2026-08-13 全仓盘点（6 路扫描，110 条 → 46 条）。2026-08-14 合入 fleet A1–A8（D215）；A9 遍历账本（D216）。
+> 实测 Core 590 / Model 424 / Intake 82 / UI 624（本机 load 下 `AbandonSuperseded` 仍可能超时，D211）。
+> TestFlight **build 43** 在 ASC。读这份文档的你：先读 §1-§4 再动手，§5 起是活。用户动作见 §9。
 
 ## 给接手 agent 的开工指引（按此顺序）
 
 1. **先跑一遍 §1 的验证命令**——四包全绿 + xcodebuild 成功是你的基线，任何时候红了先回这里对照。
 2. **通读 §2 约束与 §3 坑表**——本仓 90% 的返工都栽在这两张表里的某一条。
-3. **选活**：A1–A8 已收口。本机只剩 A9（谨慎，默认不做）。其余是 B 真机 / C 外部 / P 产品三连。
-4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D215）；改行为前查 `docs/DOC-SYNC.md`；
+3. **选活**：A1–A9 已收口。其余是 B 真机 / C 外部 / P 产品三连（用户包在 §9）。
+4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D216）；改行为前查 `docs/DOC-SYNC.md`；
    涉及结构就同步 `docs/ARCHITECTURE.md`；HANDOFF 对应行标收口。
 5. **别碰的**：B/C/P 组是用户或真机的事，做不了别硬做；D 组动工前先过它标的前置门。
 6. **不确定就查 ADR**——每个「为什么这么怪」的问题几乎都有一条 D 编号写着理由。
@@ -17,9 +17,9 @@
 ## 0. 一句话状态
 
 本地 v1.0 功能闭环已完成；A 组本机可做项（CI / 液态导航 / 旧快照 / 胶囊 CTA /
-条码扫描 / 分层图标 / App Intent + Widget push 客户端）已合进 main（D215）。
+条码扫描 / 分层图标 / App Intent + Widget push 客户端 / 遍历账本）已合进 main（D215/D216）。
 剩余工作集中在**四类**：真机/云端才能验的、外部账号/法务/资产阻塞的、
-产品决策待裁的、明文延期 v1.x 的。**没有已知的未修 bug。**
+产品决策待裁的、明文延期 v1.x 的。**没有已知的未修 bug。** agent 做不了的见 §9，别硬做。
 
 ## 1. 30 秒上手
 
@@ -59,7 +59,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | 性能门本机不跑 | load 长期 17-38（外部进程），三道时间门 `➜ skipped` | 判性能红三步：隔离复跑 → `git worktree` 旧代码**同一时刻**对照 → 看 load。相对基准（比值）实测同样飘 | D211/D185 |
 | project.yml 重复 key | 第二个 `dependencies:` 静默覆盖前一个（YAML last-wins） | 改 project.yml 后全文检查重复 key | D197 |
 | 撞门三种解释 | 「注入了但门没红」= 门假绿 / 破坏没走到 / **观察通道错了** | 先验破坏落地、再验观察通道、最后判门 | D172/D209 |
-| 遍历门空转 | 遍历根错 → 「不存在」断言无声全绿 | 新遍历门必须 `scannedFileCount` 下界自检（贴实际值 60-70%，`> 0` 不够） | D208/D209 |
+| 遍历门空转 | 遍历根错 → 「不存在」断言无声全绿 | 宽扫走 `TraversalCensus`（下界跟账本）；窄门 `>= 3`；`> 0` 不够 | D208/D209/D216 |
 | labelOCR 与打标是两个能力位 | 合并成一个开关会让披露文案说错话（读的说读的、猜的说猜的） | `recognitionAvailable` 与 `labelOCRAvailable` 保持分立 | D102/D123 |
 
 ## 4. 防回归资产（碰它们前必读）
@@ -84,14 +84,14 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | A6 | ~~分层图标~~ `AppIcon.icon`；旧栅格回退未删 | — | §6.2 ✅ |
 | A7 | ~~「今日搭配」快捷卡~~ iOS 26 `AppIntent` | — | §6.6 ✅ |
 | A8 | ~~Widget push 客户端半~~ 挂钩已留；服务端仍属 C 组 | — | §6.6 ✅ |
-| A9 | 遍历门下界自动跟随（可选优化；D209 明文「另一个真相源它自己也会过期」，谨慎） | 小 | — |
+| A9 | ~~遍历门下界自动跟随~~ `TraversalCensus`：floor = recorded×0.6，涨了重录 | — | §6.7 ✅ |
 | A10 | ~~E 组文档债 5 条~~（本次盘点已清） | — | E 组 |
 
 ### B 组 · 需真机 / 用户配合执行
 
 | # | 条目 | 依赖 |
 |---|---|---|
-| B1 | `DEVICE-ACCEPTANCE.md` 整册 39 项（§0-§7 + §5b；**仅 2 项已验**）——相机入库 9 条 / 补图换图 3 / 跨时间 3 / 合身回流 3（**§4 期望文案已被 D200 改掉，先修清单再验**，见 E1）/ Widget 全节 / 24h 时刻 / 渲染手感 7 / 云端规模 | 真机 + App Group（C1） |
+| B1 | `DEVICE-ACCEPTANCE.md` 整册 39 项（§0-§7 + §5b；**仅 2 项已验**）——相机入库 9 条 / 补图换图 3 / 跨时间 3 / 合身回流 3（§4 已按 D200 改过）/ Widget 全节 / 24h 时刻 / 渲染手感 7 / 云端规模 | 真机 + App Group（C1） |
 | B2 | M1「单件入库端到端 <15s」真机计时 | 真机 |
 | B3 | M3 §11.4 性能预算：百件 p95≥58fps / 冷启≤2s / 内存≤400MB（Instruments） | 真机 |
 | B4 | CloudKit：M0 开发环境同步 → M3 双机竞态 → 隐私审计 CloudKit 部分（entitlements 连 iCloud capability 都未开；两域 `cloudKitDatabase` 均 `.none`） | 真机+云端容器+付费账号 |
@@ -106,7 +106,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | C3 | **ASC 网页端提交材料**：隐私营养标签 / 年龄分级 / 商店截图 / 审核备注 | ASC 网页 |
 | C4 | **遥测 sink 接入**（D10 口径：TelemetryDeck 类匿名聚合，无 IDFA）。不接则 MARKET §8 留存三条第 6 周算不出。接入判据：`hasSink` 翻真后全文不得再现「no analytics service」话术（门已在）；**核对 SDK 提供装机标识+时间戳**（D201） | 选型+账号 |
 | C5 | **出图资产 93 张**：eastAsian 锁脸转角 13 张（账本 `PhotorealInventoryQATests.knownPending`；落盘后删 `BodyAvatarLayout.swift` eastAsian 豁免）+ shape 正面 80 张（`shapeFrontLedger` 现 0/80；rectangle 16 张可后补）。prompt 手册：`BODY-AVATAR-IMAGE-PROMPTS.md` §10。**落盘必须同步更新账本断言，命名过白名单，严格 2:3** | 出图工具+人审 |
-| C6 | ≥100 张人工标注**抠图基准语料** + 评分器（M0 交付物；没有它 M1「抠图 ≥90%」永不可判） | 人工标注 |
+| C6 | ≥100 张人工标注**抠图基准语料** + 评分器（约定在 `docs/MATTING-CORPUS.md`；仓里没有图也没有 scorer，别造假绿） | 人工标注 |
 | C7 | 法务确认 ×3：身体数据隐私标签分类口径（Health? 5.1.3 解读）/ Embedding 模型训练数据链（FashionCLIP 停在待评估）/ 扩区逐国合规（现仅 US） | 法务 |
 | C8 | 落地页 `FORM_ENDPOINT` 占位未接后端 | 后端选型 |
 | C9 | 云端 AI Worker（无状态代理 + App Attest + 配额账本，DESIGN §4.1）完全未建——打标真推理（D 组 D1）的前置 | 云端基建 |
@@ -170,6 +170,11 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 ### 6.6 系统表面（A7/A8）✅ 客户端
 `TodayLookIntent` + `AppShortcuts`：只读 `TodayWidgetSnapshotStore`（无快照/过期用既有文案）。Widget 午夜 timeline 仍在；`WidgetPushSupport` 是休眠挂钩，**不声称服务端已接通**（C9）。
 
+### 6.7 遍历账本（A9）✅
+`TraversalCensus` + `Fixtures/TraversalCensus.json`。宽扫（原 `>= 80` / `>= 30`）下界 = `max(3, recorded×0.6)`；live 超过账本必须
+`LOOMIES_TRAVERSAL_RECORD=1 swift test --package-path Packages/ClosetCore --filter TraversalCensus`。
+窄门（`>= 3`）不动。撞门：账本 999、不存在的遍历根，都点名「遍历」（D216）。
+
 ---
 
 ## 7. 发布路径（现在离提审差什么，按序）
@@ -188,11 +193,208 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 |---|---|
 | `CLAUDE.md` | 每 session 自动加载：约束 + 撞门纪律 |
 | `docs/ARCHITECTURE.md` | 定位模块/检修；每次提交同步 |
-| `docs/decisions.md` | 215 条 ADR；改任何行为前查关联决策 |
+| `docs/decisions.md` | 216 条 ADR；改任何行为前查关联决策 |
 | `docs/DOC-SYNC.md` | **改文件前查 glob → 承诺**（DocSyncMapTests 守着） |
 | `docs/DESIGN.md` | 产品真相；⚠️ 标注 = 实现与设计的已知偏差 |
 | `docs/MVP-PLAN.md` | 里程碑退出门（✅/❌/⚠️ 标记约定见 D203） |
 | `docs/DEVICE-ACCEPTANCE.md` | 真机验收清单（B1） |
 | `docs/MARKET.md` §8 | 上线判定协议（预注册，禁改） |
 | `docs/BODY-AVATAR-IMAGE-PROMPTS.md` | 出图 prompt 手册（C5） |
+| `docs/MATTING-CORPUS.md` | 抠图语料约定（C6；没有图、没有评分器） |
 | `.claude-state/requirements.md` | 三轮审计对账台账（历史） |
+
+---
+
+## 9. 用户 30 分钟行动包（agent 做不了，别让它硬做）
+
+下面是**人**要做的。URL / 律师意见 / 出图 / push 都不要让 agent 编。
+
+### 9.1 C1 · App Group（约 10 分钟，开发者后台）
+
+未注册前 **不要** 取消 entitlements 注释——连 Debug 都签不过（D197 实测）。
+
+1. Identifiers → App Groups → 新建 `group.com.pinglin.closet`
+2. 新建 App ID `com.pinglin.closet.widget`，勾 App Groups，关联上一步
+3. 已有 `com.pinglin.closet` 同样勾上并关联
+4. 重发两张 App Store profile：App `Closet App Store TF2`；Widget `Loomies Widget App Store`（`project.yml` 按这个名字写死）
+5. **做完 1–4 之后**，取消这两处注释（内容已写好）：
+   - `app-shell/ClosetApp/ClosetApp.entitlements`
+   - `app-shell/LoomiesWidget/LoomiesWidget.entitlements`
+6. `cd app-shell && xcodegen generate` 再归档
+
+完整说明：`app-shell/TESTFLIGHT.md`「App Group」。没做完 Widget 会一直显示 “Open Loomies to get today's look.”
+
+### 9.2 C2 · ReleaseFacts 三件（先有托管再填）
+
+仓里不编造域名。填这三行，`ReleaseReadiness.currentBlockers` 才会放行：
+
+`Packages/ClosetCore/Sources/ClosetCore/PolicySite.swift` → `ReleaseFacts`
+
+| 字段 | 现在 | 填什么 |
+|---|---|---|
+| `privacyPolicyURL` | `nil` | 托管后的 `preview/landing/privacy.html`（必须 https 绝对地址） |
+| `supportURL` | `nil` | 商店页 Support URL（https） |
+| `supportContact` | `nil` | 人能回的邮箱或工单，诊断导出「发到某处」的某处 |
+
+托管：`ts-publish.sh` 或任何静态托管。`http://` / `TBD` 过不了 `isUsableHTTPSURL`。
+
+### 9.3 C3 · ASC 营养标签草稿（对照代码，不是法务意见）
+
+出网面只有 `NetworkSurfaceCatalog` 两行。身体数据在独立本地域（D5/D170），照片不出去。
+
+| ASC 项 | 草稿（提交前再对一遍代码） |
+|---|---|
+| 联系信息 | 城市名（打字搜城市 + 已存衣柜城市）→ Open-Meteo |
+| 用户内容 | 扫到的条码 → Open Product/Beauty/Food Facts（标识一件你拥有的商品） |
+| 健康与健身 | **不要勾**，除非律师在 9.5 改口。不接 HealthKit；围度只在本机 |
+| 照片或视频 | 只在本机 Vision 抠图 / OCR；**不上传** |
+| 使用数据 | 现在没 sink（C4）。接上之前不要申报「已采集」 |
+| 跟踪 | 无 IDFA、无设备指纹（D10） |
+| 年龄分级 | DESIGN 建议 12+，论证要自己写 |
+| 截图 | 真机；Today / 衣橱格 / 试衣间 / 入库。别用模拟器液态玻璃当终稿 |
+| 审核备注 | 身体数据仅本地；Widget 依赖 App Group（9.1）；条码会出网 |
+
+### 9.4 C5 · 出图账本（93 张，人审，锁脸）
+
+账本：`PhotorealInventoryQATests`。落盘后改断言，命名过白名单，严格 2:3。
+prompt：`docs/BODY-AVATAR-IMAGE-PROMPTS.md` §10。**不要用生成器凑一张假身体。**
+
+eastAsian 锁脸转角还缺 13 张（落盘后从 `knownPending` 删掉，并去掉 `BodyAvatarLayout` 的 eastAsian 豁免）：
+
+```
+photoreal_female_eastAsian_yaw045
+photoreal_female_eastAsian_yaw090
+photoreal_female_eastAsian_yaw135
+photoreal_female_eastAsian_yaw180
+photoreal_female_eastAsian_yaw225
+photoreal_female_eastAsian_yaw270
+photoreal_female_eastAsian_yaw315
+photoreal_male_eastAsian_yaw045
+photoreal_male_eastAsian_yaw090
+photoreal_male_eastAsian_yaw135
+photoreal_male_eastAsian_yaw225
+photoreal_male_eastAsian_yaw270
+photoreal_male_eastAsian_yaw315
+```
+
+shape 正面：`shapeFrontLedger` 现 **0/80**。名字 = `photoreal_{sex}_{phenotype}_{shape}_front`
+（与 `BodyAvatarAsset.allPhotorealShapeFrontNames` 同源；`rectangle` 16 张可后补）：
+
+```
+photoreal_female_eastAsian_hourglass_front
+photoreal_female_eastAsian_pear_front
+photoreal_female_eastAsian_apple_front
+photoreal_female_eastAsian_rectangle_front
+photoreal_female_eastAsian_invertedTriangle_front
+photoreal_female_southeastAsian_hourglass_front
+photoreal_female_southeastAsian_pear_front
+photoreal_female_southeastAsian_apple_front
+photoreal_female_southeastAsian_rectangle_front
+photoreal_female_southeastAsian_invertedTriangle_front
+photoreal_female_southAsian_hourglass_front
+photoreal_female_southAsian_pear_front
+photoreal_female_southAsian_apple_front
+photoreal_female_southAsian_rectangle_front
+photoreal_female_southAsian_invertedTriangle_front
+photoreal_female_european_hourglass_front
+photoreal_female_european_pear_front
+photoreal_female_european_apple_front
+photoreal_female_european_rectangle_front
+photoreal_female_european_invertedTriangle_front
+photoreal_female_african_hourglass_front
+photoreal_female_african_pear_front
+photoreal_female_african_apple_front
+photoreal_female_african_rectangle_front
+photoreal_female_african_invertedTriangle_front
+photoreal_female_latinx_hourglass_front
+photoreal_female_latinx_pear_front
+photoreal_female_latinx_apple_front
+photoreal_female_latinx_rectangle_front
+photoreal_female_latinx_invertedTriangle_front
+photoreal_female_middleEastern_hourglass_front
+photoreal_female_middleEastern_pear_front
+photoreal_female_middleEastern_apple_front
+photoreal_female_middleEastern_rectangle_front
+photoreal_female_middleEastern_invertedTriangle_front
+photoreal_female_indigenous_hourglass_front
+photoreal_female_indigenous_pear_front
+photoreal_female_indigenous_apple_front
+photoreal_female_indigenous_rectangle_front
+photoreal_female_indigenous_invertedTriangle_front
+photoreal_male_eastAsian_hourglass_front
+photoreal_male_eastAsian_pear_front
+photoreal_male_eastAsian_apple_front
+photoreal_male_eastAsian_rectangle_front
+photoreal_male_eastAsian_invertedTriangle_front
+photoreal_male_southeastAsian_hourglass_front
+photoreal_male_southeastAsian_pear_front
+photoreal_male_southeastAsian_apple_front
+photoreal_male_southeastAsian_rectangle_front
+photoreal_male_southeastAsian_invertedTriangle_front
+photoreal_male_southAsian_hourglass_front
+photoreal_male_southAsian_pear_front
+photoreal_male_southAsian_apple_front
+photoreal_male_southAsian_rectangle_front
+photoreal_male_southAsian_invertedTriangle_front
+photoreal_male_european_hourglass_front
+photoreal_male_european_pear_front
+photoreal_male_european_apple_front
+photoreal_male_european_rectangle_front
+photoreal_male_european_invertedTriangle_front
+photoreal_male_african_hourglass_front
+photoreal_male_african_pear_front
+photoreal_male_african_apple_front
+photoreal_male_african_rectangle_front
+photoreal_male_african_invertedTriangle_front
+photoreal_male_latinx_hourglass_front
+photoreal_male_latinx_pear_front
+photoreal_male_latinx_apple_front
+photoreal_male_latinx_rectangle_front
+photoreal_male_latinx_invertedTriangle_front
+photoreal_male_middleEastern_hourglass_front
+photoreal_male_middleEastern_pear_front
+photoreal_male_middleEastern_apple_front
+photoreal_male_middleEastern_rectangle_front
+photoreal_male_middleEastern_invertedTriangle_front
+photoreal_male_indigenous_hourglass_front
+photoreal_male_indigenous_pear_front
+photoreal_male_indigenous_apple_front
+photoreal_male_indigenous_rectangle_front
+photoreal_male_indigenous_invertedTriangle_front
+```
+
+### 9.5 C7 · 给律师的三问
+
+工程侧已按「宁可严」做了，但分类口径 freeze 前要书面意见：
+
+1. **身体围度算不算 App Store「健康与健身」？** 我们当尺码语境、不接 HealthKit、不进 CloudKit（防 5.1.3）。DESIGN §5 写「不按 Health 申报」。这个口径能不能提交？
+2. **FashionCLIP / Marqo-FashionSigLIP 训练数据链**（Farfetch 等）商用是否干净？权重 MIT/Apache，数据许可未声明。过不了就不要启动 Core ML 转换（D7）。
+3. **扩区**：现在只开 US。逐国开之前，GDPR / PIPL 等各要补什么？孩子档案已裁到 v2 + COPPA 同批（D2）。
+
+### 9.6 C11 · 建 GitHub repo（不要让 agent push）
+
+CI 已在 `.github/workflows/ci.yml`。仓库**没有 remote**。外发代码是你的决定。
+
+```bash
+# 在你确认可以公开/私有之后自己跑；agent 不跑 push
+gh repo create <你的login>/cloth --private --source=. --remote=origin
+git push -u origin main
+```
+
+首跑看 Actions「Show toolchain」：runner 必须有 Xcode 26，没有就按 `ci.yml` 头注释换镜像。
+
+### 9.7 P1–P3 · 决策简报（你裁，agent 不替你选）
+
+| # | 问题 | 现状锚点 |
+|---|---|---|
+| P1 | 体型两档「可辨差异 ≥5%」实测最大 3.6%。调大 preset（可能 uncanny）还是改标准？ | D202；`ShapeDistinctnessCriterionTests` 钉着现状；真机才看得出 |
+| P2 | `OutfitScorer.reportedTightPenalty = 0.2` / 件。只降权「紧」、不排除。量纲夹在配色 ±0.3 与 60-30-10 的 0.1 之间 | D200；要真实穿着数据回看 |
+| P3 | 买断 $9.99 / Plus $34.99 年是 D21 预注册值。R1 轻验证做不做 | D21 / MVP-PLAN P1；IAP 本身是 D 组 D2 |
+
+### 9.8 其余 C，agent 只指到门口
+
+- **C4 遥测 sink**：TelemetryDeck **类**（匿名聚合，无 IDFA）。不要让 agent 锁一家。接上后 `hasSink` 翻真，文案门会查「no analytics service」；sink 必须自己提供装机标识 + 时间戳（D201，App 故意不发）。
+- **C6 抠图语料**：约定在 `docs/MATTING-CORPUS.md`。≥100 张人工 mask + 打 `VisionMattingService` 的评分器。没有图就不要先写永远绿的 scorer。
+- **C8 / C9 / C10**：落地页后端、云端 AI Worker、USDZ 采购。没选型之前不要开工。
+- **B 组**：`docs/DEVICE-ACCEPTANCE.md` 整册。§4 文案已按 D200 改过。
+- **D 组**：明文延期。动工前先过那一行标的前置（D1 要 C9，D5 要 C7）。

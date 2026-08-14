@@ -301,8 +301,11 @@ struct SingleOutboundChokepointTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 80, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.packageAndAppShellSources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方绕开 `PublicAPITransport` 直接出网，运行时 host 对账看不见它们："
             + "\(offenders) —— 新出网面必须走通道，否则披露清单可能已经在说谎"))

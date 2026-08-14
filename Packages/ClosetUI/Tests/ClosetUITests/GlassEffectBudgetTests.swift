@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import ClosetCore
 
 /// C2 合同 + A2 Liquid Glass 预算门。
 ///
@@ -68,10 +69,11 @@ struct GlassEffectBudgetTests {
             if Self.hasGlassEffectContainer(in: text) { containerFound = true }
         }
 
-        // D208/D209：自证扫到过东西。当前 ClosetUI 源文件 ~47，取 ~64% 下界
-        //（与同目录 DesignSystemLintTests / SpacingGridLintTests 的 30 保持一套）。
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.closetUISources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
 
         #expect(totalGlass <= 2, Comment(rawValue:
             "自定义 glassEffect 超预算（\(totalGlass) > 2）：\(perFile)"))

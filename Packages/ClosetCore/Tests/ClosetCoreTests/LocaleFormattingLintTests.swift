@@ -64,9 +64,12 @@ struct LocaleFormattingLintTests {
                 }
             }
         }
-        // D208/D209：遍历型门必须自证扫到过东西
-        #expect(scannedFileCount >= 80, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        // D216：宽扫下界跟账本，不再手填 ≥80
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.allPackageSources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方手拼 12 小时制：\(offenders) —— "
             + "用户开了系统的「24-Hour Time」之后，只有这个 App 还在印 AM/PM。"

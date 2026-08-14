@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import ClosetUI
+import ClosetCore
 
 /// D132：**六个图像缓存合计 440MB 上限，谁也不知道彼此的存在，进后台没人清**。
 ///
@@ -39,8 +40,11 @@ struct MemoryBudgetTests {
             let hasPurge = text.contains("removeAllObjects()")
             if !hasPurge { offenders.append(url.lastPathComponent) }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.closetUISources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些缓存装满了就没有释放路径：\(offenders)"))
     }

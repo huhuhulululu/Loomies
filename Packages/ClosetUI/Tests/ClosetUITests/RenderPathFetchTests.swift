@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import ClosetUI
+import ClosetCore
 
 /// D112（性能审计）：**渲染路径里不得发数据库查询**。
 ///
@@ -41,8 +42,11 @@ struct RenderPathFetchTests {
                 violations.append("\(url.lastPathComponent):\(i + 1)")
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.closetUISources,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(violations.isEmpty, Comment(rawValue:
             "渲染路径里查身体档案要用 @Query（内存查找），不是 fetch：\(violations)"))
     }

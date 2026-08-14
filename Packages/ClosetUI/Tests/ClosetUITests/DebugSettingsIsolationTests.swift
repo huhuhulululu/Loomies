@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import ClosetUI
+import ClosetCore
 
 /// D154：**一个测试把全局调试开关拨成 true，另一个测试正在读它。**
 ///
@@ -60,8 +61,11 @@ struct DebugSettingsIsolationTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个测试文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.closetUITests,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些测试把全局调试开关拨成了 true，并行跑的推荐用例会读到："
             + "\(offenders) —— 改用 DebugSettings(defaults: UserDefaults(suiteName:))"))

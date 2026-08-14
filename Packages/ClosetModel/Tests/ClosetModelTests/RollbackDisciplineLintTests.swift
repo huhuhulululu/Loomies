@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 @testable import ClosetModel
+import ClosetCore
 
 /// D112 结构门：**改了关系又要 rollback 的失败分支，必须先还原/断开**。
 ///
@@ -107,8 +108,11 @@ struct TestIsolationLintTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个测试文件 —— 遍历坏了，这道门在空转"))
+        let census = try TraversalCensus.check(
+            live: scannedFileCount,
+            key: TraversalCensus.closetModelTests,
+            testFile: #filePath)
+        #expect(census == nil, Comment(rawValue: census ?? ""))
         #expect(violations.isEmpty, Comment(rawValue:
             "并发下会删掉其他用例的文件：\n" + violations.joined(separator: "\n")))
     }

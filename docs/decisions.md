@@ -4802,3 +4802,23 @@ D214 的门质量教训（断言调用点、注释不算代码）保留，判据
 
 **同时落地**：旧快照迁移、DataScanner、分层图标、胶囊 CTA、TodayLookIntent、
 Widget push 客户端挂钩。A9 仍按原文谨慎跳过。
+
+## D216 — 遍历门下界跟账本，不再手填常数（2026-08-14）
+
+**起因**：D209 自己写了「没做的」——`scannedFileCount >= 80` 在 137 个文件时贴得住，
+涨到 300 就形同虚设。naive 自动下调会把「扫描变窄」藏起来。HANDOFF A9 标谨慎。
+
+**做法**：`TraversalCensus`（ClosetCore，Foundation only）+
+`Fixtures/TraversalCensus.json`。只换宽扫（当时 `>= 80` / `>= 30` 那几道）。
+窄门（`>= 3`）不动。
+
+- 下界 = `max(3, recorded × 6 / 10)`
+- live > recorded → 红，逼人 `LOOMIES_TRAVERSAL_RECORD=1` 重录（下界只涨不降）
+- live < floor → 红（走错目录 / 少一层）
+- live 在 `[floor, recorded]` → 过（删几个文件仍过）
+
+**撞门**（D160/D172）：账本填 999、遍历根指向不存在的目录，两条都在
+`TraversalCensusTests` 里点名「遍历」。失败在 stdout（D209）。
+
+**没做的**：B/C/P 仍是用户或真机的事；没造 93 张身体图、没填 ReleaseFacts、
+没建 GitHub remote、没开 App Group entitlements。

@@ -25,6 +25,10 @@ struct DesignSystemLintTests {
             .appendingPathComponent("Sources/ClosetUI")
     }
 
+    private func assertTraversalCensus(_ scannedFileCount: Int) throws {
+        try assertClosetUISourcesCensus(scannedFileCount)
+    }
+
     /// 视图里不得再出现写死的 sRGB 常量（`DesignSystem.swift` 与
     /// 绘制真实图像的渲染器除外——那些是像素，不是主题）。
     @Test func viewsDoNotHardcodeColours() throws {
@@ -61,8 +65,7 @@ struct DesignSystemLintTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        try assertTraversalCensus(scannedFileCount)
         #expect(violations.isEmpty, Comment(rawValue:
             "颜色要走 DS 语义 token，两套配色才都成立：\n" + violations.joined(separator: "\n")))
     }
@@ -104,8 +107,7 @@ struct DesignSystemLintTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        try assertTraversalCensus(scannedFileCount)
         #expect(violations.isEmpty, Comment(rawValue:
             "白字压在 accent 上，深色下对比度不够：\(violations)"))
     }
@@ -125,8 +127,7 @@ struct DesignSystemLintTests {
                 violations.append("\(url.lastPathComponent):\(i + 1)")
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        try assertTraversalCensus(scannedFileCount)
         #expect(violations.isEmpty, Comment(rawValue: "强制了配色方案：\(violations)"))
     }
 }
@@ -280,8 +281,7 @@ struct SpacingGridLintTests {
                 }
             }
         }
-        #expect(scannedFileCount >= 30, Comment(rawValue:
-            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
+        try assertClosetUISourcesCensus(scannedFileCount)
         #expect(violations.isEmpty, Comment(rawValue:
             "间距落在 2pt 网格外——没有尺度，下一个人就会写 13 或 7：\n"
             + violations.joined(separator: "\n")))
@@ -297,4 +297,12 @@ struct SpacingGridLintTests {
         #expect(steps.allSatisfy { $0.truncatingRemainder(dividingBy: 4) == 0 },
                 "尺度自己就不在 4pt 步长上")
     }
+}
+
+private func assertClosetUISourcesCensus(_ scannedFileCount: Int) throws {
+    let census = try TraversalCensus.check(
+        live: scannedFileCount,
+        key: TraversalCensus.closetUISources,
+        testFile: #filePath)
+    #expect(census == nil, Comment(rawValue: census ?? ""))
 }
