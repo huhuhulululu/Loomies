@@ -4717,3 +4717,25 @@ FitFeedback 文案门。
 
 **没做的**：E 组之外的活一件都没动——盘点的产出是**指南**，不是抢跑；
 A 组（CI、Liquid Glass 等）留给接手的 agent 按 HANDOFF §6 详单执行。
+
+## D213 — CI workflow 备妥；发现仓库根本没有 remote（2026-08-13）
+
+按 HANDOFF A1 开工。第一步探现场就发现比「没有 CI」更根本的事实：**仓库没有 git remote**。
+盘点时 infra 路记了「CI 缺失」，但没人问「缺的是配置还是跑它的地方」。
+
+于是 A1 的真实形态是两半：
+- **agent 半（本波交付）**：`.github/workflows/ci.yml` —— 四包 swift test 用 matrix 并行
+  （fail-fast: false，一包红不掩别包）+ generic iOS 真编译（CODE_SIGNING_ALLOWED=NO；
+  xcodeproj 已入库，不依赖 runner 装 xcodegen）。每 job 先打印工具链与 load——
+  性能门恒 skip 的教训（D211）反过来说就是：CI 的价值一半在「它是安静机器」，
+  首跑要能看见这一点。
+- **用户半（进 HANDOFF C11）**：建 repo + push。外发整仓代码是用户决策，不代办。
+
+**验证的边界如实写**：YAML 过 safe_load；步骤命令逐条等价于本机跑了几个月的那套
+（swift test ×4 + xcodebuild，本波又抽演练了 Intake 82 绿）；**runner 镜像名与
+Xcode 26 可用性本地无从验证**——这条假设写在 ci.yml 头注释与 HANDOFF C11 里，
+首跑「Show toolchain」步骤就是为它准备的诊断口。
+
+没做的：project.yml ↔ xcodeproj 漂移检查（xcodegen generate + git diff --exit-code）
+可以作为第三个 job，但 xcodegen 跨版本生成不保证字节稳定，容易假红——留给
+真有 CI 环境后按实际 xcodegen 版本钉。

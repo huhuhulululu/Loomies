@@ -1,0 +1,64 @@
+# CI（HANDOFF A1，D213）
+#
+# 本机 load 长期 17-38（外部进程），三道时间敏感性能门
+# （PerfEnvironment.machineIsQuietEnough：load < 核数一半）在本机恒 skipped——
+# 性能守护实质悬空。CI runner 是安静机器，它们在这里才真正跑起来。
+#
+# ⚠️ 唯一无法本地验证的假设：runner 镜像名与其携带的 Xcode 版本。
+#    本仓需要 Xcode 26.x（iOS 26 SDK，swift-tools 6.0）。
+#    若 `macos-26` 不存在或缺 Xcode 26，换 `macos-latest` 并看
+#    「Show toolchain」一步打印的可用清单来选。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  package-tests:
+    name: swift test · ${{ matrix.package }}
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [ClosetCore, ClosetModel, ClosetUI, ClosetIntake]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          ls /Applications | grep -i xcode || true
+          sysctl -n hw.ncpu
+          uptime
+          xcodebuild -version
+
+      - name: Select newest Xcode 26
+        run: |
+          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      # swift-testing 的失败写在 stdout（D209）——不要只存 stderr
+      - name: swift test
+        run: swift test --package-path Packages/${{ matrix.package }}
+
+  ios-build:
+    name: xcodebuild (generic/platform=iOS)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode 26
+        run: |
+          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          xcodebuild -version
+
+      # #if os(iOS) 块只有这条真编译看得到（D92）；无签名跑 build。
+      # xcodeproj 已入库（真相源是 project.yml；两者漂移由本地 xcodegen 流程管）。
+      - name: Build for generic iOS
+        run: |
+          xcodebuild -project app-shell/ClosetApp.xcodeproj -scheme ClosetApp \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO build

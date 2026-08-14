@@ -65,7 +65,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 | # | 条目 | 规模 | 详单 |
 |---|---|---|---|
-| A1 | **CI 搭建**（GitHub Actions：四包 swift test + xcodebuild；性能门跑安静 runner） | 中 | §6.1 |
+| A1 | ~~CI 搭建~~ **workflow 文件已备**（D213，`.github/workflows/ci.yml`）——剩「建 GitHub repo + push」归用户（C11） | — | §6.1 |
 | A2 | Liquid Glass 手工项 ×5（glassEffect ≤2 处 / backgroundExtensionEffect / scrollEdgeEffectStyle / tabBarMinimizeBehavior / Tab(role:.search)） | 中 | §6.2 |
 | A3 | Widget 旧快照（pieceNames 版）解码迁移 | 小 | §6.3 |
 | A4 | 胶囊模板补拍接线（`missingSlots` 已算好，无人消费；DESIGN §206） | 中 | §6.4 |
@@ -100,6 +100,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | C8 | 落地页 `FORM_ENDPOINT` 占位未接后端 | 后端选型 |
 | C9 | 云端 AI Worker（无状态代理 + App Attest + 配额账本，DESIGN §4.1）完全未建——打标真推理（D 组 D1）的前置 | 云端基建 |
 | C10 | 真实人体 USDZ 网格许可/采购（`Mannequin3DView` 降级为探针中） | 采购 |
+| C11 | **建 GitHub repo + push**（CI workflow 已备好即刻生效；仓库无 remote，外发代码归用户决策）。push 后看 Actions 第一跑的「Show toolchain」确认 runner 有 Xcode 26，没有则按 ci.yml 头注释换镜像 | 用户 |
 
 ### 产品决策待裁（用户三连）
 
@@ -136,10 +137,9 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 ## 6. A 组详单
 
-### 6.1 CI（A1，最高优）
-无 `.github/workflows`。四包回归 + xcodebuild 全靠本机手跑，且本机 load 长期 17-38 → 三道性能门恒 skip（**性能守护实质悬空**，D211 明文）。
-**验收**：push 触发四包 `swift test` + `xcodebuild generic/platform=iOS`；性能门在 CI runner 上真跑（`PerfEnvironment.machineIsQuietEnough` 判 load < 核数半，CI 满足）。
-**坑**：macOS runner 需 Xcode 26 SDK（iOS 26.2）；`xcodegen generate` 先行；无签名跑 build 用 `CODE_SIGNING_ALLOWED=NO`。
+### 6.1 CI（A1 → **文件已备**，D213）
+`.github/workflows/ci.yml` 已写好：四包 `swift test`（matrix 并行）+ `xcodebuild generic/platform=iOS`（`CODE_SIGNING_ALLOWED=NO`；xcodeproj 已入库故不依赖 xcodegen）。性能门在安静 runner 上自动恢复真跑。
+**剩余（C11，用户侧）**：建 GitHub repo + push。**唯一未验证假设**＝runner 镜像名/Xcode 版本（本地无从验），首跑看「Show toolchain」步骤输出按头注释调整。
 
 ### 6.2 Liquid Glass 手工项（A2/A6）
 DESIGN §10.2 写「手工项集中在四处」，**SDK 26.2 已确认 API 全部存在**（D210 查过）。

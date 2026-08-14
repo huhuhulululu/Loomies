@@ -19,6 +19,12 @@
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
 
+### CI（D213；待 remote）
+
+`.github/workflows/ci.yml`：四包 `swift test`（matrix）+ `xcodebuild generic/platform=iOS`
+（无签名）。**仓库当前无 git remote**——push 到 GitHub 后即生效（HANDOFF C11）。
+动机：本机 load 长期 17-38，三道性能门恒 skipped（D211），CI 是它们唯一会真跑的地方。
+
 ### 第二个 target：主屏 Widget（D197 / D210）
 
 `app-shell/LoomiesWidget/` → target **`LoomiesWidgetExtension`**，**只依赖 ClosetCore**
