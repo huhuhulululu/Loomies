@@ -1,0 +1,137 @@
+# ============================================================================
+# CI — why this workflow exists (not just "run the tests")
+#
+#  1. iOS-only code that macOS `swift test` can NEVER compile.
+#     ClosetUI and ClosetIntake carry `#if os(iOS)` blocks (D92 counted 7 files).
+#     On a macOS host `os(iOS)` is false, so those blocks are skipped outright —
+#     a green `swift test` is a *false* green for them. Only a real `xcodebuild`
+#     against an iOS destination proves they compile. Hence the ios-build job is
+#     mandatory, not optional polish.
+#
+#  2. Performance gates that are effectively suspended on the dev machine.
+#     Packages/ClosetModel/Tests/ClosetModelTests/PerformanceSmokeTests.swift has
+#     three `@Test(.enabled(if: PerfEnvironment.machineIsQuietEnough))` gates. The
+#     predicate is `getloadavg()[0] < 0.5 * activeProcessorCount` (D211). The dev
+#     box sits at load 17-38, so all three skip locally and the perf guard never
+#     actually runs. A dedicated, otherwise-idle CI runner is the only place it
+#     can — see the ClosetModel matrix entry (serial) below.
+#
+# Runner / Xcode choice
+#     ClosetUI & ClosetIntake pin `swift-tools-version: 6.2` and
+#     `platforms: [.iOS(.v26), .macOS(.v26)]`; app-shell/project.yml deploys
+#     iOS 26.0. => the runner MUST provide Swift 6.2 + an iOS 26 SDK on macOS 26.
+#     The GitHub-hosted `macos-26` image (arm64-only) ships, as of 2026-08,
+#     Xcode 26.0.1 / 26.1.1 / 26.2 / 26.3 / 26.4.1 / 26.5 / 26.6 with the
+#     iphoneos26.* SDKs — so nothing needs to degrade today. We still pin a 26.x
+#     explicitly (prefer 26.2 for parity with local dev — scripts/run-all-tests.sh
+#     boots the iOS 26.2 simulator) and, per the acceptance's honest-degradation
+#     rule, FAIL LOUDLY if the image ever ships no Xcode 26.x at all rather than
+#     silently compile iOS 26 APIs against the wrong SDK and paint a fake green.
+#     NB: `macos-latest` is deliberately avoided — it still trails macOS 26.
+#
+# Deliberately NOT caching `.build`: it is rebuilt cold every run. D200 bit this
+#     repo with stale-SwiftPM-cache "Undefined symbols / segfault" after low-level
+#     struct changes; a cold build trades minutes for never shipping a stale green.
+#
+# Secrets: none. This workflow signs nothing (CODE_SIGNING_ALLOWED=NO) and pulls
+#     in no credentials — no TestFlight env file, no signing keychain, no
+#     provisioning material. Token is least-privilege (contents: read).
+# ============================================================================
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: swift test · ${{ matrix.package }}
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: ClosetCore
+            extra: ""
+          - package: ClosetModel
+            # D211: the three perf gates live in this package and self-skip unless
+            # the 1-min load average is < 0.5 * cores. Run serially so this
+            # otherwise-idle runner stays under that bar and the gates actually
+            # execute — instead of reporting a green that measured nothing.
+            extra: "--no-parallel"
+          - package: ClosetUI
+            extra: ""
+          - package: ClosetIntake
+            extra: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26 (Swift 6.2 + iOS 26 SDK; honest fail if absent)
+        run: |
+          set -euo pipefail
+          dev="/Applications/Xcode_26.2.app"
+          [ -d "$dev" ] || dev="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1 || true)"
+          if [ -z "$dev" ]; then
+            echo "::error::No Xcode 26.x on this runner (repo needs Swift 6.2 + an iOS 26 SDK). Refusing to fake a green build."
+            exit 1
+          fi
+          sudo xcode-select -s "$dev"
+          xcodebuild -version
+          swift --version
+
+      - name: swift test · ${{ matrix.package }}
+        run: swift test --package-path Packages/${{ matrix.package }} ${{ matrix.extra }}
+
+  ios-build:
+    # macOS `swift test` cannot compile the `#if os(iOS)` blocks (D92); this job
+    # is the only proof that the iOS app + widget extension actually build for a
+    # device. `generic/platform=iOS` needs no simulator runtime.
+    name: xcodebuild · generic/platform=iOS (unsigned)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26 (Swift 6.2 + iOS 26 SDK; honest fail if absent)
+        run: |
+          set -euo pipefail
+          dev="/Applications/Xcode_26.2.app"
+          [ -d "$dev" ] || dev="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1 || true)"
+          if [ -z "$dev" ]; then
+            echo "::error::No Xcode 26.x on this runner (repo needs Swift 6.2 + an iOS 26 SDK). Refusing to fake a green build."
+            exit 1
+          fi
+          sudo xcode-select -s "$dev"
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # project.yml is the source of truth for the Xcode project — regenerate it
+      # first so the checked-in tree never needs a committed .xcodeproj.
+      - name: xcodegen generate
+        working-directory: app-shell
+        run: xcodegen generate
+
+      # Unsigned compile-only build. CODE_SIGNING_ALLOWED=NO overrides the
+      # DEVELOPMENT_TEAM / Automatic signing in project.yml; -configuration Debug
+      # keeps us off the Release path's Manual signing + hardcoded provisioning
+      # profiles (which do not exist on a CI runner).
+      - name: xcodebuild (unsigned iOS compile)
+        run: |
+          xcodebuild \
+            -project app-shell/ClosetApp.xcodeproj \
+            -scheme ClosetApp \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
