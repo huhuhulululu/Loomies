@@ -1,14 +1,16 @@
 # Loomies 交接指南（HANDOFF）
 
-> 2026-08-13 全仓盘点（6 路并行扫描 + 主线合成，110 条原始发现去重为下列条目）。
-> **1700 tests 全绿**（Core 580 / Model 424 / UI 614 / Intake 82）+ iOS 真编译；TestFlight **build 43** 在 ASC。
-> 读这份文档的你（agent 或人）：先读 §1-§4 再动手，§5 起是活。
+> 2026-08-14 fleet 已推进 A1–A8（合在 `fleet-f260813-224912-ded7`，尚未进 main）。
+> 盘点原文：2026-08-13（6 路扫描，110 条 → 46 条）。**1700 tests**（Core 580 / Model 424 / UI 614 / Intake 82）。
+> TestFlight **build 43** 在 ASC。读这份文档的你：先读 §1-§4 再动手，§5 起是活。
 
 ## 0. 一句话状态
 
-本地 v1.0 功能闭环已完成，三轮对抗审计（24+46+64 agent）缺口清单全部清空；
+本地 v1.0 功能闭环已完成；A 组本机可做项（CI / 液态导航 / 旧快照 / 胶囊 CTA /
+条码扫描 / 分层图标 / App Intent + Widget push 客户端）已在 fleet 分支落地。
 剩余工作集中在**四类**：真机/云端才能验的、外部账号/法务/资产阻塞的、
 产品决策待裁的、明文延期 v1.x 的。**没有已知的未修 bug。**
+合进 main 需人点头（fleet Stage 2）。
 
 ## 1. 30 秒上手
 
@@ -55,7 +57,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 - **~28 道目录遍历型结构门**分布四包 Tests：隐私出网面（`ComplianceCopyTests`：运行时 host 对账 + 话术对账）、身体语言红线、分层（Core import 白名单）、回滚纪律（删除必先解绑）、DS token 四道、调试开关隔离、AM/PM 手拼（`LocaleFormattingLintTests`）、DOC-SYNC 表自守（`DocSyncMapTests`）、Widget 快照 JSON 键白名单等。**新建同类门必须：带自测（喂已知违规）、带遍历自证、写完撞一次真实破坏。**
 - **全仓唯一 golden**：`Fixtures/SchemaFingerprint-v1.txt`（schema 指纹，重录命令见 §2.3）。
-- **零调用点但刻意保留**的能力（各有书面复活条件，勿当死码删）：`mensChestInchesToAlpha`（等 Item 品类信号）、`Mannequin3DView`（能力探针，USDZ 未采购）、`OutfitCompleter.missingSlots` 的胶囊消费端（§206 延期）。
+- **零调用点但刻意保留**的能力（各有书面复活条件，勿当死码删）：`mensChestInchesToAlpha`（等 Item 品类信号）、`Mannequin3DView`（能力探针，USDZ 未采购）。`OutfitCompleter.missingSlots` 的胶囊消费端已接 `CapsuleGapCTA`（D213）。
 
 ---
 
@@ -65,14 +67,14 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 | # | 条目 | 规模 | 详单 |
 |---|---|---|---|
-| A1 | **CI 搭建**（GitHub Actions：四包 swift test + xcodebuild；性能门跑安静 runner） | 中 | §6.1 |
-| A2 | Liquid Glass 手工项 ×5（glassEffect ≤2 处 / backgroundExtensionEffect / scrollEdgeEffectStyle / tabBarMinimizeBehavior / Tab(role:.search)） | 中 | §6.2 |
-| A3 | Widget 旧快照（pieceNames 版）解码迁移 | 小 | §6.3 |
-| A4 | 胶囊模板补拍接线（`missingSlots` 已算好，无人消费；DESIGN §206） | 中 | §6.4 |
-| A5 | 条码相机扫描（DataScanner；现只能手输数字） | 中 | §6.5 |
-| A6 | Icon Composer 分层图标（六外观变体） | 小-中 | §6.2 |
-| A7 | App Intents SnippetIntent「今日搭配」快捷卡 | 中 | §6.6 |
-| A8 | WidgetKit 服务端 push 刷新（客户端半；服务端属 C 组） | 中 | §6.6 |
+| A1 | ~~**CI 搭建**~~（`.github/workflows/ci.yml`：四包 + iOS `xcodebuild`；ClosetModel `--no-parallel`） | 中 | §6.1 ✅ |
+| A2 | ~~Liquid Glass 手工项 ×5~~（hero 玻璃 + `Tab(role:.search)` + `tabBarMinimizeBehavior`；预算门守 ≤2） | 中 | §6.2 ✅ |
+| A3 | ~~Widget 旧快照（pieceNames 版）解码迁移~~（read 时转 `pieces`，write 仍只写新格式） | 小 | §6.3 ✅ |
+| A4 | ~~胶囊模板补拍接线~~（`CapsuleGapCTA` 消费 `missingSlots`，可跳过） | 中 | §6.4 ✅ |
+| A5 | ~~条码相机扫描~~（DataScanner；仍走 `normalizeBarcode` → `enrichFromPublicBarcode`） | 中 | §6.5 ✅ |
+| A6 | ~~Icon Composer 分层图标~~（`AppIcon.icon`；六外观变体；旧栅格回退未删） | 小-中 | §6.2 ✅ |
+| A7 | ~~App Intents「今日搭配」快捷卡~~（iOS 26 `AppIntent`，不用 27-only SnippetIntent） | 中 | §6.6 ✅ |
+| A8 | ~~WidgetKit push 客户端半~~（挂钩已留；服务端触发仍属 C 组） | 中 | §6.6 ✅ |
 | A9 | 遍历门下界自动跟随（可选优化；D209 明文「另一个真相源它自己也会过期」，谨慎） | 小 | — |
 | A10 | ~~E 组文档债 5 条~~（本次盘点已清） | — | E 组 |
 
@@ -136,33 +138,26 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 ## 6. A 组详单
 
-### 6.1 CI（A1，最高优）
-无 `.github/workflows`。四包回归 + xcodebuild 全靠本机手跑，且本机 load 长期 17-38 → 三道性能门恒 skip（**性能守护实质悬空**，D211 明文）。
-**验收**：push 触发四包 `swift test` + `xcodebuild generic/platform=iOS`；性能门在 CI runner 上真跑（`PerfEnvironment.machineIsQuietEnough` 判 load < 核数半，CI 满足）。
-**坑**：macOS runner 需 Xcode 26 SDK（iOS 26.2）；`xcodegen generate` 先行；无签名跑 build 用 `CODE_SIGNING_ALLOWED=NO`。
+### 6.1 CI（A1）✅
+`.github/workflows/ci.yml`：`macos-26` + 显式 Xcode 26.2；四包 `swift test`（ClosetModel `--no-parallel` 给性能门机会）；另一步 `xcodegen generate` + 无签名 iOS `xcodebuild`。本机 load 17-38 时性能门仍 skip——守护改寄在安静 runner 上，不在这台机器上自欺。
 
-### 6.2 Liquid Glass 手工项（A2/A6）
-DESIGN §10.2 写「手工项集中在四处」，**SDK 26.2 已确认 API 全部存在**（D210 查过）。
-- `glassEffect` 全 App ≤2 处、必须包 `GlassEffectContainer`；内容层禁玻璃；regular/clear 不混用
-- `backgroundExtensionEffect`：搭配详情 hero 图（Apple 点名 product page 场景）
-- `scrollEdgeEffectStyle`：自定义悬浮元素注册
-- `tabBarMinimizeBehavior(.onScrollDown)`：衣橱网格页
-- `Tab(role:.search)`：现在是老式 `.tabItem`（`AppRootView.swift:18-30`）
-**验收**：xcodebuild 过 + 视觉走 `DEVICE-ACCEPTANCE.md` §6 追加条目。**坑**：改 TabView 结构会碰 `WiringLintTests` 的 tab 对账门（D100 双向对账）。
+### 6.2 Liquid Glass + 分层图标（A2/A6）✅
+- Today hero：`backgroundExtensionEffect` + `scrollEdgeEffectStyle`；自定义 `glassEffect` 恰 2 处且在 `GlassEffectContainer`（`GlassEffectBudgetTests` 守）
+- 导航：`Tab(_:systemImage:)` ×4 + `Tab(role:.search)` → `SearchTabView`；`#if os(iOS) tabBarMinimizeBehavior(.onScrollDown)`
+- 图标：`app-shell/ClosetApp/AppIcon.icon`（骨色/陶土分层 SVG）；旧 `AppIcon.appiconset` 栅格回退未删
+**还要人看**：`DEVICE-ACCEPTANCE.md` §6 追加的视觉条。
 
-### 6.3 Widget 旧快照迁移（A3）
-`TodayWidgetSnapshot` 从 `pieceNames:[String]` 改成 `pieces:[Piece]`（D210），旧 JSON 解码失败按无快照降级（「Open Loomies…」，App 一开重写）。**一次刷新的降级，可接受**；真要迁移：读旧键失败时试老结构再转换。规模小，优先级低。
+### 6.3 Widget 旧快照迁移（A3）✅
+`TodayWidgetSnapshot.read`：新 JSON 走 `pieces`；无 `pieces` 时试 `pieceNames` 再转（色点全 nil）；垃圾输入仍 nil。encode **不**写回 `pieceNames`。
 
-### 6.4 胶囊模板补拍（A4）
-`OutfitCompleter.missingSlots` 已算好缺哪个槽位，无人消费（D98 显式延期，无收口 ADR）。DESIGN §206：冷启动时按缺口引导「先拍一件下装」。
-**验收**：冷启动空态出现槽位级引导且可跳过（copilot 原则）；`ActivationProgress` 联动。
+### 6.4 胶囊模板补拍（A4）✅
+`CapsuleGapCTA` 消费 `ActivationProgress.Milestone.missingSlots`，冷启动横幅里出可跳过的槽位级 CTA（点开既有 `AddPieceSheet`）。不取代「真实起步 / Load samples」。
 
-### 6.5 条码扫描（A5）
-`OpenProductFactsClient` 已接（手输数字通路全绿），相机 DataScanner 未做。
-**验收**：扫码填入同一 `normalizeBarcode` 通路；模拟器降级手输；真机验收补条目。
+### 6.5 条码扫描（A5）✅
+真机：`BarcodeScannerView`（VisionKit `DataScannerViewController`）扫到的字符串进同一条 `normalizeBarcode` → `enrichFromPublicBarcode`。模拟器/macOS：无扫码钮，手输保留；caption 按平台诚实。三个能力开关未合并。**还要人看**：`DEVICE-ACCEPTANCE.md` §1 扫码条。
 
-### 6.6 系统表面（A7/A8）
-SnippetIntent「今日搭配」交互卡（⚠️ DESIGN 注明 updates 页 June 2026 段属 iOS 27 SDK，min iOS 26 不可依赖——只用 26 可用面）；WidgetKit push 刷新客户端注册可做，服务端触发属 C9 同族基建。
+### 6.6 系统表面（A7/A8）✅ 客户端
+`TodayLookIntent` + `AppShortcuts`：只读 `TodayWidgetSnapshotStore`（无快照/过期用既有文案）。Widget 午夜 timeline 仍在；`WidgetPushSupport` 是休眠挂钩，**不声称服务端已接通**（C9）。
 
 ---
 
@@ -182,7 +177,7 @@ SnippetIntent「今日搭配」交互卡（⚠️ DESIGN 注明 updates 页 June
 |---|---|
 | `CLAUDE.md` | 每 session 自动加载：约束 + 撞门纪律 |
 | `docs/ARCHITECTURE.md` | 定位模块/检修；每次提交同步 |
-| `docs/decisions.md` | 211 条 ADR；改任何行为前查关联决策 |
+| `docs/decisions.md` | 213 条 ADR；改任何行为前查关联决策 |
 | `docs/DOC-SYNC.md` | **改文件前查 glob → 承诺**（DocSyncMapTests 守着） |
 | `docs/DESIGN.md` | 产品真相；⚠️ 标注 = 实现与设计的已知偏差 |
 | `docs/MVP-PLAN.md` | 里程碑退出门（✅/❌/⚠️ 标记约定见 D203） |

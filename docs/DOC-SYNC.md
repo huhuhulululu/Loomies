@@ -39,6 +39,12 @@ Packages/ClosetCore/Sources/ClosetCore/TelemetryEvents.swift | MARKET「遥测�
 Packages/ClosetCore/Sources/ClosetCore/ComplianceCopy.swift | MVP-PLAN「隐私一致性审计门」；MARKET「遥测裁决预注册协议」
 Packages/ClosetModel/Sources/ClosetModel/LoomiesSchema.swift | DESIGN「VersionedSchema」；MVP-PLAN「schema 过加法式单向门守卫测试」
 Packages/ClosetUI/Sources/ClosetUI/PhotoCaptureViews.swift | FEATURE-GAP「相机真机验证」；MVP-PLAN「抠图在 M0 基准语料上」
+Packages/ClosetUI/Sources/ClosetUI/BarcodeScannerView.swift | FEATURE-GAP「相机真机验证」；requirements「入库条码公开商品」
+Packages/ClosetUI/Sources/ClosetUI/AppRootView.swift | DESIGN「4 tab（搭配 / 衣橱 / 日历 / 我的）」
+Packages/ClosetUI/Sources/ClosetUI/SearchTabView.swift | DESIGN「4 tab（搭配 / 衣橱 / 日历 / 我的）」
+Packages/ClosetUI/Sources/ClosetUI/CopilotView.swift | DESIGN「可选胶囊模板引导补拍」；DESIGN「自定义 `glassEffect` 全 App ≤2 处」
+Packages/ClosetUI/Sources/ClosetUI/CapsuleGapCTA.swift | DESIGN「可选胶囊模板引导补拍」
+app-shell/ClosetApp/TodayLookIntent.swift | DESIGN「App Intents `SnippetIntent`」
 Packages/ClosetIntake/Sources/ClosetIntake/** | FEATURE-GAP「相机真机验证」；requirements「入库条码公开商品」
 Packages/ClosetCore/Sources/ClosetCore/PublicAPI/PublicSizeReference.swift | requirements「not brand-true」
 ```

@@ -4717,3 +4717,21 @@ FitFeedback 文案门。
 
 **没做的**：E 组之外的活一件都没动——盘点的产出是**指南**，不是抢跑；
 A 组（CI、Liquid Glass 等）留给接手的 agent 按 HANDOFF §6 详单执行。
+
+## D213 — HANDOFF A1–A8 本机项落地（fleet f260813-224912-ded7，2026-08-14）
+
+**任务**：按 D212 指南并行推进 A 组本机可做项。A9（遍历门下界自动跟随）按原文谨慎跳过。
+
+**方法**：orchestrator 自隔离进 fleet 集成分支，七路 ownership 不相交的 worktree 并行
+（T1 CI / T2 旧快照 / T3 DataScanner / T4 分层图标 / T5 液态导航 / T6 胶囊+hero 玻璃 /
+T7 Intent+Widget push 客户端），合约 C1–C4 预冻，Stage 1 串行合入 fleet。
+
+**落地**：
+- A1 `.github/workflows/ci.yml`（macos-26 / Xcode 26.2 / 四包 + 无签名 iOS build；ClosetModel 串行）
+- A3 `TodayWidgetSnapshot` 读旧 `pieceNames` 转 `pieces`，写仍只 encode 新格式
+- A5 `BarcodeScannerView` → 既有 `normalizeBarcode` / `enrichFromPublicBarcode`；三能力开关未合并
+- A6 `AppIcon.icon` 分层 SVG；旧栅格回退未删
+- A2/A4 `Tab(role:.search)` + `tabBarMinimizeBehavior`；`CapsuleGapCTA` 可跳过；hero 玻璃恰 2 处
+- A7/A8 `TodayLookIntent` + 休眠 `WidgetPushSupport`（不声称服务端已通）
+
+**没做的**：合进 main（Stage 2 等人）；A9；B 真机整册；C1 App Group；C9 服务端 push；P 产品三连。
