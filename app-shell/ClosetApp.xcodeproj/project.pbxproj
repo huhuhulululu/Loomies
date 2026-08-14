@@ -8,40 +8,19 @@
 
 /* Begin PBXBuildFile section */
 		0757D48D49CF43721EBF2BC7 /* ClosetCore in Frameworks */ = {isa = PBXBuildFile; productRef = F4375A4BAB3860BC3F455E13 /* ClosetCore */; };
-		1DD6B6BD9F85D3AAEE819368 /* LoomiesWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		162AEFD5FEC9A0446F9BF0F5 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8D6CBF072261B4DEC324C856 /* AppIcon.icon */; };
 		359D7567E6D89D03DAA95FEA /* LoomiesWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */; };
 		373133250AECC5B7FA11A19A /* ClosetModel in Frameworks */ = {isa = PBXBuildFile; productRef = E06703110E6F15B79E52FB95 /* ClosetModel */; };
 		59A0910EC266026FB31A80E2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */; };
 		84903C872BC58F6E02917424 /* ClosetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */; };
 		B739281490AEEFE7C05CD181 /* ClosetUI in Frameworks */ = {isa = PBXBuildFile; productRef = 086BA91D9A7B43D44EB82826 /* ClosetUI */; };
+		D3AD81CA16FBA7B25DFF5DEE /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F1091BFC47B2429553B94D4 /* AppShortcuts.swift */; };
 		DE3673039A14C4D82378556A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 754D8304F540F1CB0B9D66CD /* Assets.xcassets */; };
+		E8068DB0656DE9F60B121303 /* TodayLookIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7818AC22CE4065247478EE6C /* TodayLookIntent.swift */; };
 		EDC76A979CEF66B7BF3198F6 /* ClosetIntake in Frameworks */ = {isa = PBXBuildFile; productRef = AC6128AA78EDCFA86372BFB2 /* ClosetIntake */; };
 		F3EA1C7679280BA699AF3F1C /* ClosetCore in Frameworks */ = {isa = PBXBuildFile; productRef = DD3658153D289F6571771072 /* ClosetCore */; };
+		F86B406504B66F99A70EDCDC /* WidgetPushSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C6793184D1DB257B23E96EE /* WidgetPushSupport.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		B381AFC1C099A3FB931FE23B /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 35FAA58CC6386D719681F0E3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 2199DBFC1F5DC5D6434A928B;
-			remoteInfo = LoomiesWidgetExtension;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		A53418CCC138659FB97C2095 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				1DD6B6BD9F85D3AAEE819368 /* LoomiesWidgetExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -49,11 +28,15 @@
 		4F122F048969F3CEEBE8024B /* ClosetCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetCore; path = ../Packages/ClosetCore; sourceTree = SOURCE_ROOT; };
 		50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClosetApp.swift; sourceTree = "<group>"; };
 		5BF134BFEFE94AC9C2AE7087 /* ClosetApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ClosetApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F1091BFC47B2429553B94D4 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
+		6C6793184D1DB257B23E96EE /* WidgetPushSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPushSupport.swift; sourceTree = "<group>"; };
 		754D8304F540F1CB0B9D66CD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7818AC22CE4065247478EE6C /* TodayLookIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayLookIntent.swift; sourceTree = "<group>"; };
 		7A5F94F90DAD44C3E5FCF3B7 /* ClosetModel */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetModel; path = ../Packages/ClosetModel; sourceTree = SOURCE_ROOT; };
 		7D07F0B7CF9771838267AB09 /* ClosetApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ClosetApp.entitlements; sourceTree = "<group>"; };
 		8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomiesWidget.swift; sourceTree = "<group>"; };
 		843D68D21E76CD95C63B1C7C /* LoomiesWidgetExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LoomiesWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D6CBF072261B4DEC324C856 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		B1136C0662BF8C1ACC921E00 /* LoomiesWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LoomiesWidget.entitlements; sourceTree = "<group>"; };
 		B21FD56E119E85207266A542 /* ClosetUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ClosetUI; path = ../Packages/ClosetUI; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
@@ -97,6 +80,7 @@
 			children = (
 				B1136C0662BF8C1ACC921E00 /* LoomiesWidget.entitlements */,
 				8205170E6670DD1FA7F42A68 /* LoomiesWidget.swift */,
+				6C6793184D1DB257B23E96EE /* WidgetPushSupport.swift */,
 			);
 			path = LoomiesWidget;
 			sourceTree = "<group>";
@@ -123,10 +107,13 @@
 		D4651A081FA5FE3164D142DC /* ClosetApp */ = {
 			isa = PBXGroup;
 			children = (
+				8D6CBF072261B4DEC324C856 /* AppIcon.icon */,
+				5F1091BFC47B2429553B94D4 /* AppShortcuts.swift */,
 				754D8304F540F1CB0B9D66CD /* Assets.xcassets */,
 				7D07F0B7CF9771838267AB09 /* ClosetApp.entitlements */,
 				50E1BEF8793A3A77A4AEA5C9 /* ClosetApp.swift */,
 				03AB72077B20DA3C9B8E5226 /* PrivacyInfo.xcprivacy */,
+				7818AC22CE4065247478EE6C /* TodayLookIntent.swift */,
 			);
 			path = ClosetApp;
 			sourceTree = "<group>";
@@ -160,12 +147,10 @@
 				D308FF73C7A575CD1E4313E6 /* Sources */,
 				3D124AA38FE52F35FAF89764 /* Resources */,
 				6963B4DD4E4472F44FB903C9 /* Frameworks */,
-				A53418CCC138659FB97C2095 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				27973B3A538E98B32ECD9B70 /* PBXTargetDependency */,
 			);
 			name = ClosetApp;
 			packageProductDependencies = (
@@ -226,6 +211,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				162AEFD5FEC9A0446F9BF0F5 /* AppIcon.icon in Resources */,
 				DE3673039A14C4D82378556A /* Assets.xcassets in Resources */,
 				59A0910EC266026FB31A80E2 /* PrivacyInfo.xcprivacy in Resources */,
 			);
@@ -239,6 +225,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				359D7567E6D89D03DAA95FEA /* LoomiesWidget.swift in Sources */,
+				F86B406504B66F99A70EDCDC /* WidgetPushSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,19 +233,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D3AD81CA16FBA7B25DFF5DEE /* AppShortcuts.swift in Sources */,
 				84903C872BC58F6E02917424 /* ClosetApp.swift in Sources */,
+				E8068DB0656DE9F60B121303 /* TodayLookIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		27973B3A538E98B32ECD9B70 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 2199DBFC1F5DC5D6434A928B /* LoomiesWidgetExtension */;
-			targetProxy = B381AFC1C099A3FB931FE23B /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1C45E30DF1BD7A2DBF343261 /* Debug */ = {
@@ -382,7 +363,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 28626PSX5Y;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -466,7 +447,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 43;
+				CURRENT_PROJECT_VERSION = 44;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 28626PSX5Y;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
