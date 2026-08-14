@@ -47,11 +47,10 @@ struct TodayProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<TodayEntry>) -> Void) {
         let now = Date()
         // 下一次午夜刷新：跨天之后这块必须自己变成「点开看今天」，
-        // 不能等用户开 App 才发现它还停在昨天。
-        let nextMidnight = Calendar.current.nextDate(
-            after: now, matching: DateComponents(hour: 0, minute: 1),
-            matchingPolicy: .nextTime) ?? now.addingTimeInterval(3600)
-        completion(Timeline(entries: [load(for: now)], policy: .after(nextMidnight)))
+        // 不能等用户开 App 才发现它还停在昨天。这是**权威**刷新策略——
+        // push（A8）到位前唯一可靠的一条，算法收进 `WidgetRefreshPolicy`（单一真相）。
+        let nextReload = WidgetRefreshPolicy.nextReload(after: now)
+        completion(Timeline(entries: [load(for: now)], policy: .after(nextReload)))
     }
 }
 
@@ -161,5 +160,10 @@ struct LoomiesWidget: Widget {
         .configurationDisplayName(TodayWidgetCopy.displayName)
         .description(TodayWidgetCopy.description)
         .supportedFamilies([.systemSmall, .systemMedium])
+        // A8 客户端注册（iOS 26 push 刷新）。**现在是休眠的**，不代表 push 已能用：
+        // 需要 Push Notifications entitlement（未加、且本波禁改 entitlements）+ 服务端 C9（未做）。
+        // 在两者到位前，权威刷新是上面的 `.after(午夜)`；此行是接线预留，落地即生效。
+        // 细节与诚实边界见 `WidgetPushSupport.swift`。
+        .pushHandler(LoomiesWidgetPushHandler.self)
     }
 }
