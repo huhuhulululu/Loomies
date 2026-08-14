@@ -8,27 +8,44 @@ import ClosetIntake
 import UIKit
 #endif
 
-/// App 导航壳（DESIGN §10.2：底部 TabView ≤5 tab）。
-/// Today / Closet / Calendar / Me；入库经 Closet「+」sheet。
+/// App 导航壳（DESIGN §10.2：底部 TabView，4 内容 tab + 语义化搜索 tab）。
+/// Today / Closet / Calendar / Me + `Tab(role: .search)`；入库经 Closet「+」sheet（永不做 tab）。
+///
+/// D212（A2 液态导航）：从弃用的 `.tabItem { Label(` 迁到 iOS 26 的 `Tab(_:systemImage:)`，
+/// 搜索改成 `Tab(role: .search)`（系统自动置尾端分离），并对整个 TabView 开
+/// `tabBarMinimizeBehavior(.onScrollDown)`——衣柜网格照片浏览时 tab bar 随下滚收缩、
+/// 反向回弹，把内容最大化。`tabBarMinimizeBehavior` 仅 iOS 可用，用 `#if os(iOS)` 兜住
+/// macOS 的 `swift test` 编译（D92：macOS 编不到 `#if os(iOS)` 块，改后须 xcodebuild 真编）。
 public struct AppRootView: View {
     let wardrobe: Wardrobe
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
         TabView {
-            CopilotView(wardrobe: wardrobe)
-                // Today 的 VM 是 @State 初值——参数变了它不会重建，
-                // 切柜后会一直停在旧衣柜上（其余三个 tab 持 let wardrobe，天然跟随）。
-                // 用视图身份强制重建：换柜 = 换内容，重置瞬时状态正是想要的（D101）。
-                .id(wardrobe.id)
-                .tabItem { Label("Today", systemImage: "sparkles") }
-            ClosetGridView(wardrobe: wardrobe)
-                .tabItem { Label("Closet", systemImage: "square.grid.2x2") }
-            CalendarView(wardrobe: wardrobe)
-                .tabItem { Label("Calendar", systemImage: "calendar") }
-            MeView(wardrobe: wardrobe)
-                .tabItem { Label("Me", systemImage: "person") }
+            Tab("Today", systemImage: "sparkles") {
+                CopilotView(wardrobe: wardrobe)
+                    // Today 的 VM 是 @State 初值——参数变了它不会重建，
+                    // 切柜后会一直停在旧衣柜上（其余 tab 持 let wardrobe，天然跟随）。
+                    // 用视图身份强制重建：换柜 = 换内容，重置瞬时状态正是想要的（D101）。
+                    .id(wardrobe.id)
+            }
+            Tab("Closet", systemImage: "square.grid.2x2") {
+                ClosetGridView(wardrobe: wardrobe)
+            }
+            Tab("Calendar", systemImage: "calendar") {
+                CalendarView(wardrobe: wardrobe)
+            }
+            Tab("Me", systemImage: "person") {
+                MeView(wardrobe: wardrobe)
+            }
+            // 搜索是**跨柜目的地**，走语义化 role（系统置尾端分离），不是第五个内容 tab。
+            Tab(role: .search) {
+                SearchTabView(wardrobe: wardrobe)
+            }
         }
+        #if os(iOS)
+        .tabBarMinimizeBehavior(.onScrollDown)
+        #endif
         .tint(DS.accent)
     }
 }
@@ -631,15 +648,11 @@ public struct ClosetGridView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showIntake = false
-    @State private var showSearch = false
     @State private var showFittingRoom = false
     /// 批量转移（D94）：多选模式与已选 id
     @State private var isSelecting = false
     @State private var selectedIDs: Set<UUID> = []
     @State private var showBatchMove = false
-    @State private var searchVM = SearchViewModel()
-    /// 作用域切换器只在多柜时出现；跨柜结果行需按各自衣柜主人取 body profile
-    @Query(sort: \Wardrobe.name) private var allWardrobes: [Wardrobe]
     @State private var statusFilter: String = "all"
     /// nil = all types; chips use GarmentSlot + displaySlot name correction.
     @State private var slotFilter: String? = nil
@@ -652,12 +665,8 @@ public struct ClosetGridView: View {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     /// Owner body profile for FitMark (same person as wardrobe.owner).
-    /// 按单品所属衣柜的主人取身体档案（跨柜结果里各柜主人可能不同）。
-    private func bodyProfile(for item: Item) -> PersonBodyProfile? {
-        guard let pid = item.wardrobe?.owner?.id else { return ownerBodyProfile }
-        return bodyProfiles.first { $0.personID == pid }
-    }
-
+    /// 跨柜检索的合身标记（各柜主人不同）已随搜索迁到 `SearchTabView`；
+    /// 网格页只按本柜主人取一份。
     private var ownerBodyProfile: PersonBodyProfile? {
         guard let pid = wardrobe.owner?.id else { return nil }
         return bodyProfiles.first { $0.personID == pid }
@@ -680,39 +689,16 @@ public struct ClosetGridView: View {
 
     public var body: some View {
         NavigationStack {
-            Group {
-                if showSearch {
-                    searchResults
-                } else {
-                    VStack(spacing: 0) {
-                        statusFilterBar
-                        typeFilterBar
-                        grid
-                    }
-                }
+            // D212：in-toolbar 搜索已抽成独立 `Tab(role: .search)` / `SearchTabView`——
+            // 衣柜页只管网格 + 状态/类型筛选 + 入库 + 试衣间 + 批量转移。
+            VStack(spacing: 0) {
+                statusFilterBar
+                typeFilterBar
+                grid
             }
             .background(DS.bg.ignoresSafeArea())
             .navigationTitle(wardrobe.name.isEmpty ? "Closet" : wardrobe.name)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        showSearch.toggle()
-                        if showSearch {
-                            // Carry grid status/type facets into search so laundry/status filters stick.
-                            searchVM.homeWardrobeID = wardrobe.id
-                            searchVM.hasOtherClosets = allWardrobes.count > 1
-                            // 每次打开搜索回到本柜（安全默认：跨柜需显式选择）
-                            searchVM.scope = .thisCloset
-                            searchVM.statusRaw = statusFilter == "all" ? nil : statusFilter
-                            searchVM.slotRaw = slotFilter
-                            searchVM.run(in: context)
-                        }
-                    } label: {
-                        Image(systemName: showSearch ? "xmark" : "magnifyingglass")
-                    }
-                    .accessibilityLabel(
-                        ClosetGridEmptyCopy.searchToggleAccessibilityLabel(isSearchOpen: showSearch))
-                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showIntake = true } label: {
                         Image(systemName: "plus")
@@ -1000,8 +986,79 @@ public struct ClosetGridView: View {
         return FitMarkCopy.label(v)
     }
 
+}
+
+/// Export feedback decision: "ready" toast only when the JSON actually left the
+/// app (share-sheet handoff); otherwise an inline preview — parity with
+/// diagnostics (macOS has no share payload).
+enum DataExportFeedback {
+    /// iOS hands the JSON to the share sheet; other platforms have no handoff.
+    static var payloadHandoffAvailable: Bool {
+        #if os(iOS)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    static func message(
+        payloadHandedOff: Bool,
+        json: String,
+        includeBodyDimensions: Bool,
+        previewLimit: Int = 500
+    ) -> String {
+        if payloadHandedOff {
+            // Honest body-inclusion toast (not char count); matches toggle state.
+            return DataLifecycleService.exportReadyMessage(
+                includeBodyDimensions: includeBodyDimensions)
+        }
+        return String(json.prefix(previewLimit)) + (json.count > previewLimit ? "…" : "")
+    }
+}
+
+// MARK: - SearchTabView 视图主体（三块**刻意留在本文件**）
+//
+// D212：`SearchTabView` 的 struct/状态/大部分 chip 在 `SearchTabView.swift`；下面这三块
+// （`searchField` / `colorFilterBar` + `searchColorChip` / `resultsSection`）留在
+// `AppRootView.swift`，因为 `SearchByColourWiringTests`（OutfitFitMarkTests.swift，找
+// `searchColorChip` / `GarmentColorPalette.entries` / `searchVM.resultsHeadline` /
+// `searchVM.wearSummary(for: item)`）与 `SearchDebounceTests`（找 `runDebounced`）两道接线门
+// 按**文件名** grep `AppRootView.swift`，而这两个测试文件不在本任务（T5）的文件所有权内、
+// 不能改。把这三块留在这里，让门继续如实守着「检索页真的提供颜色筛 + 计数 + 上次穿着 +
+// 文本走防抖」（D206：改行为时同步替它说话的门；这里选择把代码留在门看得见的地方）。
+extension SearchTabView {
+    /// 名称/品牌文本框。连打走防抖（D125）——不再每个字母跑一遍全表扫描
+    /// （筛选 chip 仍立刻生效：那是一次明确动作，不是连续输入）。
+    var searchField: some View {
+        TextField("Search name or brand", text: $searchVM.text)
+            .textFieldStyle(.roundedBorder)
+            .padding(.horizontal)
+            .padding(.top, 12)
+            .accessibilityLabel("Search name or brand")
+            .onChange(of: searchVM.text) { _, _ in
+                searchVM.homeWardrobeID = wardrobe.id
+                Task { await searchVM.runDebounced(in: context) }
+            }
+    }
+
+    /// D120：颜色筛。站在店里那一刻，用户脑子里的检索词是**颜色 + 品类**，
+    /// 不是名字——只按名字/品牌搜答不了 DEMAND-VALIDATION #1 JTBD。
+    var colorFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                searchColorChip(nil, title: "Any colour")
+                ForEach(GarmentColorPalette.entries) { entry in
+                    searchColorChip(entry.id, title: entry.title)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+        .accessibilityLabel("Filter search by colour")
+    }
+
     /// 色板 chip（D120）。选中态与 `GarmentAttributeControls` 的 chip 同一套语义 token。
-    private func searchColorChip(_ id: String?, title: String) -> some View {
+    func searchColorChip(_ id: String?, title: String) -> some View {
         let isOn = searchVM.colorPaletteID == id
         return Button {
             searchVM.colorPaletteID = id
@@ -1030,249 +1087,49 @@ public struct ClosetGridView: View {
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
-    private var searchResults: some View {
-        VStack(spacing: 0) {
-            TextField("Search name or brand", text: $searchVM.text)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
-                .padding(.top, 12)
-                .accessibilityLabel("Search name or brand")
-                // D125：连打不再每个字母跑一遍全表扫描（筛选 chip 仍然立刻生效——
-                // 那是一次明确动作，不是连续输入）。
-                .onChange(of: searchVM.text) { _, _ in
-                    searchVM.homeWardrobeID = wardrobe.id
-                    Task { await searchVM.runDebounced(in: context) }
-                }
-            // 作用域切换（DESIGN §2.3 全局检索）；单柜用户不显示无用控件
-            if allWardrobes.count > 1 {
-                Picker("Scope", selection: $searchVM.scope) {
-                    ForEach(SearchScope.allCases, id: \.rawValue) { s in
-                        Text(s.displayTitle).tag(s)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .accessibilityLabel("Search scope")
-                .onChange(of: searchVM.scope) { _, _ in searchVM.run(in: context) }
-            }
-            // 槽位快捷过滤 — full GarmentSlot set (incl. accessory) + displayTitle, never raw dump.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    searchSlotChip(nil, title: "All types")
-                    ForEach(GarmentSlot.allCases, id: \.rawValue) { slot in
-                        searchSlotChip(slot.rawValue, title: slot.displayTitle)
-                    }
-                }
+    /// 结果段：「你已经有 N 件」计数 + 每行「上次什么时候穿的」——
+    /// 这两句就是本功能对「我是不是已经有类似的了」的全部回答（D120）。
+    @ViewBuilder
+    var resultsSection: some View {
+        // 「你已经有 4 件」——只在真的在筛时出现（不筛时它等于在数整个衣柜）。
+        if let headline = searchVM.resultsHeadline {
+            Text(headline)
+                .font(DS.Text.sectionTitle)
+                .foregroundStyle(DS.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-            }
-            .accessibilityLabel("Filter search by type")
-            // Status facets (same allowed set as grid) — SearchService already filters statusRaw.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    searchStatusChip(nil, title: "Any status")
-                    ForEach(
-                        Array(ItemStatusService.allowed).sorted(by: {
-                            ItemStatusService.displayName($0) < ItemStatusService.displayName($1)
-                        }),
-                        id: \.self
-                    ) { key in
-                        searchStatusChip(key, title: ItemStatusService.displayName(key))
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-            .accessibilityLabel("Filter search by status")
-            // Occasion facets — same work/casual/date/gala set as QuickAdd / Today occasion.
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    searchOccasionChip(nil, title: "Any occasion")
-                    ForEach(Self.searchOccasionKeys, id: \.self) { key in
-                        searchOccasionChip(key, title: key.capitalized)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-            .accessibilityLabel("Filter search by occasion")
-            // D120：颜色筛。站在店里那一刻，用户脑子里的检索词是**颜色 + 品类**，
-            // 不是名字——而这里此前只能按名字/品牌搜。
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    searchColorChip(nil, title: "Any colour")
-                    ForEach(GarmentColorPalette.entries) { entry in
-                        searchColorChip(entry.id, title: entry.title)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-            .accessibilityLabel("Filter search by colour")
-            // 「你已经有 4 件」——只在真的在筛时出现（不筛时它等于在数整个衣柜）
-            if let headline = searchVM.resultsHeadline {
-                Text(headline)
-                    .font(DS.Text.sectionTitle)
-                    .foregroundStyle(DS.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 6)
-                    .accessibilityAddTraits(.isHeader)
-            }
-            if searchVM.results.isEmpty {
-                searchEmptyState
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(searchVM.results, id: \.id) { item in
-                    let meta = ClosetItemRowCopy.metaLine(
-                        for: item, includesCloset: searchVM.isCrossCloset)
-                    NavigationLink {
-                        // 跨柜结果：合身标记须用该单品所属衣柜主人的身体档案，不能用当前柜主人
-                        ItemDetailView(item: item, bodyProfile: bodyProfile(for: item))
-                    } label: {
-                        HStack(spacing: 12) {
-                            ItemThumbnailView(item: item, height: 48)
-                                .frame(width: 48)
-                            VStack(alignment: .leading) {
-                                Text(item.name).font(DS.Text.rowTitle)
-                                Text(meta)
-                                    .font(.caption).foregroundStyle(DS.muted)
-                                // 「上次什么时候穿的」是判断「要不要再买一件」的另一半依据
-                                Text(searchVM.wearSummary(for: item))
-                                    .font(.caption2).foregroundStyle(DS.muted)
-                            }
+                .padding(.bottom, 6)
+                .accessibilityAddTraits(.isHeader)
+        }
+        if searchVM.results.isEmpty {
+            searchEmptyState
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List(searchVM.results, id: \.id) { item in
+                let meta = ClosetItemRowCopy.metaLine(
+                    for: item, includesCloset: searchVM.isCrossCloset)
+                NavigationLink {
+                    // 跨柜结果：合身标记须用该单品所属衣柜主人的身体档案，不能用当前柜主人。
+                    ItemDetailView(item: item, bodyProfile: bodyProfile(for: item))
+                } label: {
+                    HStack(spacing: 12) {
+                        ItemThumbnailView(item: item, height: 48)
+                            .frame(width: 48)
+                        VStack(alignment: .leading) {
+                            Text(item.name).font(DS.Text.rowTitle)
+                            Text(meta)
+                                .font(.caption).foregroundStyle(DS.muted)
+                            // 「上次什么时候穿的」是判断「要不要再买一件」的另一半依据。
+                            Text(searchVM.wearSummary(for: item))
+                                .font(.caption2).foregroundStyle(DS.muted)
                         }
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(
-                            "\(item.name). \(meta). \(searchVM.wearSummary(for: item))")
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        "\(item.name). \(meta). \(searchVM.wearSummary(for: item))")
                 }
-                .listStyle(.plain)
             }
+            .listStyle(.plain)
         }
-    }
-
-    private var searchEmptyState: some View {
-        let title = searchVM.emptyStateTitle
-        let description = searchVM.emptyStateDescription
-        return ContentUnavailableView {
-            // A11Y: .combine only on the text column — the action
-            // buttons stay separate, activatable VoiceOver targets
-            // (same fix class as the empty-grid state above).
-            VStack(spacing: 8) {
-                Label(
-                    title,
-                    systemImage: searchVM.isFiltering ? "magnifyingglass" : "square.grid.2x2")
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title). \(description)")
-        } actions: {
-            if searchVM.isFiltering {
-                Button("Clear search") {
-                    searchVM.clearFiltersKeepingScope()
-                    searchVM.run(in: context)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(DS.accent)
-                .accessibilityHint("Clears name and filters, keeps this closet")
-            } else {
-                Button("Add piece") { showIntake = true }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DS.accent)
-            }
-        }
-    }
-
-    private func searchSlotChip(_ slot: String?, title: String) -> some View {
-        let on = searchVM.slotRaw == slot
-        return Button {
-            searchVM.slotRaw = slot
-            searchVM.homeWardrobeID = wardrobe.id
-            searchVM.run(in: context)
-        } label: {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(on ? DS.accent : DS.surface)
-                .foregroundStyle(on ? DS.onAccent : DS.ink)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
-
-    private func searchStatusChip(_ status: String?, title: String) -> some View {
-        let on = searchVM.statusRaw == status
-        return Button {
-            searchVM.statusRaw = status
-            searchVM.homeWardrobeID = wardrobe.id
-            searchVM.run(in: context)
-        } label: {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(on ? DS.accent.opacity(0.9) : DS.surface)
-                .foregroundStyle(on ? DS.onAccent : DS.ink)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
-
-    /// Matches QuickAdd / Today occasion picker keys (SearchService contains match).
-    private static let searchOccasionKeys = ["work", "casual", "date", "gala"]
-
-    private func searchOccasionChip(_ occasion: String?, title: String) -> some View {
-        let on = searchVM.occasion == occasion
-        return Button {
-            searchVM.occasion = occasion
-            searchVM.homeWardrobeID = wardrobe.id
-            searchVM.run(in: context)
-        } label: {
-            Text(title)
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(on ? DS.accent.opacity(0.85) : DS.surface)
-                .foregroundStyle(on ? DS.onAccent : DS.ink)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
-}
-
-/// Export feedback decision: "ready" toast only when the JSON actually left the
-/// app (share-sheet handoff); otherwise an inline preview — parity with
-/// diagnostics (macOS has no share payload).
-enum DataExportFeedback {
-    /// iOS hands the JSON to the share sheet; other platforms have no handoff.
-    static var payloadHandoffAvailable: Bool {
-        #if os(iOS)
-        return true
-        #else
-        return false
-        #endif
-    }
-
-    static func message(
-        payloadHandedOff: Bool,
-        json: String,
-        includeBodyDimensions: Bool,
-        previewLimit: Int = 500
-    ) -> String {
-        if payloadHandedOff {
-            // Honest body-inclusion toast (not char count); matches toggle state.
-            return DataLifecycleService.exportReadyMessage(
-                includeBodyDimensions: includeBodyDimensions)
-        }
-        return String(json.prefix(previewLimit)) + (json.count > previewLimit ? "…" : "")
     }
 }
