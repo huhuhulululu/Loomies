@@ -187,6 +187,8 @@ struct DocSyncMapTests {
             "DEMAND-VALIDATION.md",  // 需求调研，不对代码作断言
             "BODY-AVATAR-IMAGE-PROMPTS.md", "BODY-AVATAR-USER-FLOW.md",
         ]
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var outside: [String] = []
         for name in (try? fm.contentsOfDirectory(atPath: docs.path))?.sorted() ?? []
         where name.hasSuffix(".md") && !exempt.contains(name) {
@@ -196,9 +198,12 @@ struct DocSyncMapTests {
                 text.contains($0)
             }
             guard makesClaims else { continue }
+            scannedFileCount += 1
             let stem = name.replacingOccurrences(of: ".md", with: "")
             if !promises.contains(stem) { outside.append(name) }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 份作断言的文档 —— 遍历坏了，这道门在空转"))
         #expect(outside.isEmpty, Comment(rawValue:
             "这些文档对代码作了断言，却不在 DOC-SYNC 里：\(outside) —— "
             + "改代码的人不会知道该去看它们"))

@@ -278,6 +278,8 @@ struct SingleOutboundChokepointTests {
         /// 通道自身：它就是那条唯一允许直接出网的路。
         let exempt = ["PublicAPITransport.swift"]
 
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var offenders: [String] = []
         let fm = FileManager.default
         for root in [repoRoot.appendingPathComponent("Packages"),
@@ -289,6 +291,7 @@ struct SingleOutboundChokepointTests {
                 guard path.contains("/Sources/") || path.contains("/app-shell/") else { continue }
                 guard !exempt.contains(url.lastPathComponent) else { continue }
                 guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+                scannedFileCount += 1
                 for line in text.split(separator: "\n") {
                     let t = line.trimmingCharacters(in: .whitespaces)
                     guard !t.hasPrefix("//"), !t.hasPrefix("///"), !t.hasPrefix("*") else { continue }
@@ -298,6 +301,8 @@ struct SingleOutboundChokepointTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 80, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方绕开 `PublicAPITransport` 直接出网，运行时 host 对账看不见它们："
             + "\(offenders) —— 新出网面必须走通道，否则披露清单可能已经在说谎"))

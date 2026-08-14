@@ -25,6 +25,8 @@ struct RenderPathFetchTests {
 
     /// 取身体档案一律走 `@Query`，不得在计算属性里 fetch。
     @Test func bodyProfileLookupsNeverFetchInTheRenderPath() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
@@ -33,11 +35,14 @@ struct RenderPathFetchTests {
             // 那是正当用法，本门只管 View。
             guard !url.lastPathComponent.hasSuffix("ViewModel.swift") else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
             where line.contains("FetchDescriptor<PersonBodyProfile>") {
                 violations.append("\(url.lastPathComponent):\(i + 1)")
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "渲染路径里查身体档案要用 @Query（内存查找），不是 fetch：\(violations)"))
     }

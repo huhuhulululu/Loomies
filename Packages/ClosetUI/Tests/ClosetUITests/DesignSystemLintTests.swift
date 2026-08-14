@@ -37,12 +37,15 @@ struct DesignSystemLintTests {
             "AvatarCinematicExporter.swift",
             "Mannequin3DView.swift",    // 3D 材质，是渲染不是主题
         ]
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard !renderers.contains(url.lastPathComponent) else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 let line = String(raw)
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -58,6 +61,8 @@ struct DesignSystemLintTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "颜色要走 DS 语义 token，两套配色才都成立：\n" + violations.joined(separator: "\n")))
     }
@@ -77,11 +82,14 @@ struct DesignSystemLintTests {
     /// 压在强调色上的字必须用 `DS.onAccent`——深色下强调色提亮后，
     /// 写死 `.white` 会掉到 3:1 以下（`PaletteTests.textOnAccentMeetsAA` 守数值）。
     @Test func textOnAccentUsesTheToken() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             // D137：只认 `foregroundStyle(.white)` 字面量的话，
             // `on ? Color.white : DS.ink` 这种三元式一条都看不见——
@@ -96,22 +104,29 @@ struct DesignSystemLintTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "白字压在 accent 上，深色下对比度不够：\(violations)"))
     }
 
     /// 不得强制配色方案——那等于替用户决定，且会让上面这套白做。
     @Test func nothingForcesAColorScheme() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated()
             where String(raw).contains("preferredColorScheme(") {
                 violations.append("\(url.lastPathComponent):\(i + 1)")
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue: "强制了配色方案：\(violations)"))
     }
 }
@@ -236,6 +251,8 @@ struct SpacingGridLintTests {
 
     /// 间距/内距一律落在 2pt 网格上。
     @Test func spacingStaysOnTheGrid() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let patterns = [
             #"\.padding\((?:\.\w+,\s*)?(\d+)\)"#,
@@ -245,6 +262,7 @@ struct SpacingGridLintTests {
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             for (i, line) in lines.enumerated() {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -262,6 +280,8 @@ struct SpacingGridLintTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "间距落在 2pt 网格外——没有尺度，下一个人就会写 13 或 7：\n"
             + violations.joined(separator: "\n")))

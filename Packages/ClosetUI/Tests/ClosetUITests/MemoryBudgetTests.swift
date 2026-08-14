@@ -26,16 +26,21 @@ struct MemoryBudgetTests {
     /// 每个声明了 `totalCostLimit` 的缓存都必须能被清空——
     /// 装满了没有释放路径，等于把内存交给运气。
     @Test func everyCacheCanBePurged() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var offenders: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
-            guard let text = try? String(contentsOf: url, encoding: .utf8),
-                  text.contains("totalCostLimit") else { continue }
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
+            guard text.contains("totalCostLimit") else { continue }
             // 同一个文件里要么自己有清空口，要么被统一清理器点名
             let hasPurge = text.contains("removeAllObjects()")
             if !hasPurge { offenders.append(url.lastPathComponent) }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些缓存装满了就没有释放路径：\(offenders)"))
     }

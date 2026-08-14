@@ -88,11 +88,14 @@ struct TestIsolationLintTests {
     }
 
     @Test func noTestScansOrWipesTheProductionImageRoot() throws {
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: testsDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (i, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 let s = String(line)
                 // reconcile 不带 directory: → 扫生产根
@@ -104,6 +107,8 @@ struct TestIsolationLintTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个测试文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "并发下会删掉其他用例的文件：\n" + violations.joined(separator: "\n")))
     }

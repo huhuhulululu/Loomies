@@ -36,13 +36,16 @@ struct DebugSettingsIsolationTests {
     /// 走进它没预期的分支。
     @Test func noTestFlipsAGlobalFlagOn() throws {
         let testsDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var offenders: [String] = []
         let fm = FileManager.default
         guard let walker = fm.enumerator(at: testsDir, includingPropertiesForKeys: nil)
-        else { return }
+        else { Issue.record("遍历器建不起来 —— 静默 return 等于这道门根本没跑"); return }
         for case let url as URL in walker where url.pathExtension == "swift" {
             guard url.lastPathComponent != "DebugSettingsIsolationTests.swift" else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             // 只看真正操作全局单例的行：`DebugSettings.shared` 或
             // `let d = DebugSettings.shared` 之后对 d 的赋值都算
             let aliasesShared = text.contains("= DebugSettings.shared")
@@ -57,6 +60,8 @@ struct DebugSettingsIsolationTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 30, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个测试文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些测试把全局调试开关拨成了 true，并行跑的推荐用例会读到："
             + "\(offenders) —— 改用 DebugSettings(defaults: UserDefaults(suiteName:))"))

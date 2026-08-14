@@ -95,13 +95,16 @@ struct NameOrderTests {
         let packages = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
+        // D209：遍历型门必须自证「扫到过东西」——判据见 D208。
+        var scannedFileCount = 0
         var offenders: [String] = []
         let fm = FileManager.default
         guard let walker = fm.enumerator(at: packages, includingPropertiesForKeys: nil)
-        else { return }
+        else { Issue.record("遍历器建不起来 —— 静默 return 等于这道门根本没跑"); return }
         for case let url as URL in walker where url.pathExtension == "swift" {
             guard url.path.contains("/Sources/") else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for line in text.split(separator: "\n") {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
@@ -111,6 +114,8 @@ struct NameOrderTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 80, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个源文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方还在手抄「按名字排序、同名按 id 决胜」：\(offenders) —— 用 sortedByName()"))
     }
