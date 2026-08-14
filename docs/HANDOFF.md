@@ -1,7 +1,7 @@
 # Loomies 交接指南（HANDOFF）
 
 > 2026-08-14 fleet 已推进 A1–A8（合在 `fleet-f260813-224912-ded7`，尚未进 main）。
-> 盘点原文：2026-08-13（6 路扫描，110 条 → 46 条）。**1700 tests**（Core 580 / Model 424 / UI 614 / Intake 82）。
+> 盘点原文：2026-08-13（6 路扫描，110 条 → 46 条）。合入后实测 **Model 424 / Intake 82 / UI 624**；Core 582 里 `AbandonSuperseded` 在本机 load 下偶发超时（D211，隔离可绿）。
 > TestFlight **build 43** 在 ASC。读这份文档的你：先读 §1-§4 再动手，§5 起是活。
 
 ## 0. 一句话状态
