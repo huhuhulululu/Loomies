@@ -75,8 +75,10 @@
       期望：详情页的 **Fit mark 变成 Tight**，且下面出现
       「You've said this felt tight 2 times. Going with that over the measurements.」
 - [ ] 只打卡**一次**说紧 → 期望：标记**不变**（一次不算数）。
-- [ ] 打卡面底部 → 期望：出现「Say it twice and it becomes this piece's fit mark…
-      It doesn't change which looks get suggested.」——**这句话必须与实际一致**。
+- [ ] 打卡面底部 → 期望：出现「Say it twice and it becomes this piece's fit mark,
+      ahead of the measurements. Pieces you keep calling tight also get shown later — never hidden.」
+      ——**这句话必须与实际一致**（D200 改过：紧会降权排序，旧句「不影响推荐」已不真）。
+- [ ] 两次说紧之后回 Today 刷新 → 期望：带那件的搭配**排后但仍会出现**（降权不是排除，D200）。
 
 ## 5. Widget（D197，需先完成第 0 节）
 

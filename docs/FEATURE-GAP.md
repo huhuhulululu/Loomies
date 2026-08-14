@@ -55,7 +55,7 @@
 | WeatherKit | 协议已隔离；现主路径 Open-Meteo，真机可再实现 `WeatherProviding` |
 | CloudKit 私有库 | D5 双域已模板，两个 store 当前都是 `cloudKitDatabase: .none`；Capability 待开。**D170 已证「身体数据不同步靠分区而非没开同步」**，端到端仍需真机 + 云端容器 |
 | AI 打标 Worker + App Attest | 独立服务；`IntakeServiceFactory.recognitionAvailable = false`，未接前披露文案会说清「类型/场合是起点猜测，不是照片识别」 |
-| Widget | **未做**。通知已交付（D118 `DailyRitual` 策略 + `DailyRitualScheduler` 平台侧，Me 里可开关与设点），仍缺真机权限流验证 |
+| Widget | **已交付**（D197 快照+target；D210 配色色点+单色渲染诚实降级）。仍缺：App Group 开发者后台注册（未注册前 inert）+ 真机验收 §5（HANDOFF C1/B1）。通知早于它交付（D118），缺真机权限流验证 |
 | 叠衣槽位真图 | **Today/收藏已叠入库图**（表达层）；肩线精修仍后置 |
 
 ## v1.x（明确后置）
