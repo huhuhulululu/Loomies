@@ -259,6 +259,8 @@ public struct AddPieceSheet: View {
     @State private var mode: Mode = .choose
     @State private var showLibrary = false
     @State private var showCamera = false
+    /// 相机条码扫描（A5）：仅在真机 DataScanner 可用时才呈现，模拟器/mac 恒关。
+    @State private var showBarcodeScanner = false
     @State private var intakeVM = IntakeServiceFactory.makeViewModel()
     /// 手填草稿：落库唯一真相是 `QuickAddDraft.commit`（未选 = 未知，不替用户假设）。
     @State private var draft = QuickAddDraft()
@@ -355,6 +357,14 @@ public struct AddPieceSheet: View {
                 CameraCapturePicker { data in
                     showCamera = false
                     handleCapture(data)
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showBarcodeScanner) {
+                // 扫到即回调原始串；归一 + 查询在 handleScannedBarcode（契约 C3）。
+                BarcodeScannerView { scanned in
+                    showBarcodeScanner = false
+                    handleScannedBarcode(scanned)
                 }
                 .ignoresSafeArea()
             }
@@ -539,12 +549,23 @@ public struct AddPieceSheet: View {
                                 .foregroundStyle(DS.muted)
                         }
                         TextField("Barcode (UPC/EAN)", text: barcodeBinding(draft))
+                        #if os(iOS)
+                        // 相机扫描只在真机 DataScanner 可用时给出；文本框永远在。
+                        if barcodeScannerAvailable {
+                            Button {
+                                showBarcodeScanner = true
+                            } label: {
+                                Label("Scan barcode", systemImage: "barcode.viewfinder")
+                            }
+                        }
+                        #endif
                         Button("Lookup product (Open Facts)") {
                             let code = draft.wrappedValue.barcode ?? ""
                             Task { await intakeVM.enrichFromPublicBarcode(code) }
                         }
                         .disabled((draft.wrappedValue.barcode ?? "").filter(\.isNumber).count < 8)
-                        Text(IntakeServiceFactory.barcodeEntryCaption)
+                        Text(IntakeServiceFactory.barcodeEntryCaption(
+                            scannerAvailable: barcodeScannerAvailable))
                             .font(.caption2)
                             .foregroundStyle(DS.muted)
                     }
@@ -717,6 +738,29 @@ public struct AddPieceSheet: View {
             // No local `message` mirror: it only renders in choose/manual modes,
             // and the intake empty state already reads intakeVM.lastError.
         }
+    }
+
+    /// 相机条码扫描此刻是否可用（真机 DataScanner 支持且相机可用）。
+    /// 模拟器 / mac / 旧机恒 false：既不给出 Scan 按钮，文案也如实降级手输。
+    private var barcodeScannerAvailable: Bool {
+        #if os(iOS)
+        return BarcodeScannerView.isAvailable
+        #else
+        return false
+        #endif
+    }
+
+    /// 契约 C3：扫到的原始串 → `normalizeBarcode` → 写进草稿（miss 也留着，
+    /// 用户看得见扫到了什么）→ 走**与手输同一条** enrich 通路，不新开 lookup。
+    private func handleScannedBarcode(_ raw: String) {
+        let code = OpenProductFactsClient.normalizeBarcode(raw)
+        guard !code.isEmpty else {
+            // 归一后无数字（例如扫到非商品码）：交给 enrich 报同一句诚实错。
+            Task { await intakeVM.enrichFromPublicBarcode(raw) }
+            return
+        }
+        intakeVM.draft?.barcode = code
+        Task { await intakeVM.enrichFromPublicBarcode(code) }
     }
 
     private func brandBinding(_ draft: Binding<IntakeDraft>) -> Binding<String> {

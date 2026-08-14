@@ -14,9 +14,25 @@ public enum IntakeServiceFactory {
     public static let photoProcessingCaption =
         "Cutting out the piece and reading the label… type and occasion stay starter guesses."
 
-    /// Barcode field: digits only for now (no DataScanner). Apparel Open*Facts hit rate is thin.
-    public static let barcodeEntryCaption =
-        "Type or paste UPC/EAN digits from the hang tag. Camera scan is not available yet."
+    /// Barcode field caption — honest per platform. 手输通路**始终在**；相机
+    /// 扫描（VisionKit `DataScannerViewController`）只在真机可用时加成，模拟器/
+    /// mac/旧机降级为手输。此前文案恒说「相机扫描尚不可用」，一旦真机接上
+    /// DataScanner 就成了 capability lie（能扫却说不能）。
+    ///
+    /// `scannerAvailable` 由 UI 层解析后传入：本类型保持 Foundation-only（零
+    /// iOS SDK），`DataScanner` 的支持/可用性判定住在 ClosetUI（D92：iOS-only
+    /// 代码进不了 macOS 的 `swift test` 二进制，判定放这里会永远编不到）。
+    ///
+    /// D102/D123：这只回答「能不能用相机扫条码」，与 `recognitionAvailable`
+    /// （AI 打标）、`labelOCRAvailable`（洗标 OCR）是**三个独立开关**，不合并。
+    public static func barcodeEntryCaption(scannerAvailable: Bool) -> String {
+        if scannerAvailable {
+            return "Scan the barcode with your camera, or type or paste the "
+                + "UPC/EAN digits from the hang tag."
+        }
+        return "Type or paste the UPC/EAN digits from the hang tag. "
+            + "Camera scan is not available here (Simulator or older device)."
+    }
 
     @MainActor
     public static func makeViewModel() -> IntakeViewModel {
