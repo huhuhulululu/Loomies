@@ -8,7 +8,8 @@
 | App Icon 1024 | ✅ |
 | PrivacyInfo.xcprivacy | ✅ |
 | 出口合规 `ITSAppUsesNonExemptEncryption=NO` | ✅ |
-| 版本 `0.1.0` (build **37**) | ✅ |
+| 版本 `0.1.0` (build **44**) | ✅ |
+| Build 44 | ✅ Delivery `548ce9d0-aca0-4020-b9ca-e44fdc65cec1`（D215–D217：A1–A9 + Support 页；**未 embed Widget**——本机无 `Loomies Widget App Store` profile，C1 完成前按本手册不发出去） |
 | Build 37 | ✅ Delivery `26e18067-729c-4e75-acf4-abb5d2dc8f48`（D101–D105：第二轮审计 HIGH 清空 + 日间天气/打分权重/导出/派生档 + 转移史不崩 + 遥测文案跟 hasSink） |
 | Build 36 | ✅ D100（4 tab 定案 + F2 死码族 + 臀宽合身） |
 | Build 28 | ✅ Delivery `09d8ffe1-2731-4ba7-a8ca-68638271e5e6`（ModelSave 诚实链 + 空态/VO 扫尾 + 天气源/fail-orange + Storage 列表 + cloth-done 完善） |

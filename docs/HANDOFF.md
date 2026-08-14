@@ -2,7 +2,7 @@
 
 > 2026-08-13 全仓盘点（6 路扫描，110 条 → 46 条）。2026-08-14 合入 fleet A1–A8（D215）；A9 遍历账本（D216）。
 > 实测 Core 590 / Model 424 / Intake 82 / UI 624（本机 load 下 `AbandonSuperseded` 仍可能超时，D211）。
-> TestFlight **build 43** 在 ASC。读这份文档的你：先读 §1-§4 再动手，§5 起是活。用户动作见 §9。
+> TestFlight **build 44** 在 ASC（无 Widget：C1 profile 未装）。读这份文档的你：先读 §1-§4 再动手，§5 起是活。用户动作见 §9。
 
 ## 给接手 agent 的开工指引（按此顺序）
 
@@ -30,7 +30,7 @@ for p in ClosetCore ClosetModel ClosetUI ClosetIntake; do swift test --package-p
 # app-shell / 任何 #if os(iOS) 改动后必须真编译（swift test 编不到那些块，D92）
 xcodebuild -project app-shell/ClosetApp.xcodeproj -scheme ClosetApp -destination 'generic/platform=iOS' build
 
-# TestFlight 上传（仅用户说「发」时；当前 build 43，version 见 project.yml）
+# TestFlight 上传（仅用户说「发」时；当前 build 44，version 见 project.yml）
 cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 ```
 

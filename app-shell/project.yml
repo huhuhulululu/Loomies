@@ -18,7 +18,7 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
     DEVELOPMENT_TEAM: 28626PSX5Y
     CODE_SIGN_STYLE: Automatic
-    CURRENT_PROJECT_VERSION: "43"
+    CURRENT_PROJECT_VERSION: "44"
     MARKETING_VERSION: "0.1.0"
 
 packages:
@@ -77,8 +77,10 @@ targets:
       - package: ClosetModel
       - package: ClosetUI
       - package: ClosetIntake
-      # D197：Widget extension 随 App 一起打包（embed）
-      - target: LoomiesWidgetExtension
+      # D197：Widget 随 App embed。C1 完成前不要打进 IPA——
+      # 本机没有「Loomies Widget App Store」profile（build 43 也是 embed 之前上去的）。
+      # TESTFLIGHT.md：没注册 App Group 不要把 Widget 发出去。
+      # - target: LoomiesWidgetExtension
     scheme:
       testTargets: []
       gatherCoverageData: false

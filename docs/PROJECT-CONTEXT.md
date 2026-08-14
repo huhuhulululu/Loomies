@@ -12,7 +12,7 @@ Swift / SwiftUI / SwiftData | SwiftPM 4 包 + app-shell（XcodeGen）| min iOS 2
 
 - **1700 tests 全绿**（Core 580 / Model 424 / UI 614 / Intake 82）+ `xcodebuild` iOS 真编译
 - **本地 v1.0 功能闭环 + 三轮完整性审计缺口清单全部清空**（第一轮 D100 / 第二轮 46-agent / 第三轮 64-agent，对账见 `.claude-state/requirements.md`）
-- TestFlight **build 43** 在 ASC；CloudKit 默认 off
+- TestFlight **build 44** 在 ASC（无 Widget，待 C1）；CloudKit 默认 off
 - 主屏 Widget（D197/D210）：今日搭配 + 配色色点，App Group 通道（**后台注册未做，见 HANDOFF**）
 - 决策文档五份逐份核实过账（D195-D207），`DOC-SYNC.md` + `DocSyncMapTests` 守着不再过期
 - 结构门体系 ~30 道 lint 门 + 空转自检（D208/D209）；三道性能门带机器负载判据（D211）
