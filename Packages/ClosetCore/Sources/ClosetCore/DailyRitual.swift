@@ -103,12 +103,25 @@ public enum DailyRitual {
 
     public static let inviteDeclineLabel = "Not now"
 
-    /// 12 小时制标签（en-US 首发市场，§10.5）。
+    /// 时刻标签，**跟随用户的 locale**（§10.5：用 `Locale` 实现而非硬编码）。
     /// 邀请卡与设置页读**同一处**——两份格式化迟早会写出两个时间。
-    public static func hourLabel(_ h: Int) -> String {
-        let suffix = h < 12 ? "AM" : "PM"
-        let display = h % 12 == 0 ? 12 : h % 12
-        return "\(display):00 \(suffix)"
+    ///
+    /// D211：旧实现是 `let suffix = h < 12 ? "AM" : "PM"`，注释拿「en-US 首发市场」
+    /// 替自己辩护。但 **24 小时制不是别国的事，是同一批美国用户的系统偏好**——
+    /// 打开 iOS 的「24-Hour Time」之后，系统时间、通知中心、锁屏全是 `07:00`，
+    /// 只有这个 App 还在印 `7:00 AM`。
+    ///
+    /// 还有一处逐字差异：系统格式化在 AM/PM 前用的是**窄不换行空格**（`\u{202f}`），
+    /// 手拼的普通空格连在 en-US 下都与系统排版不一致。
+    public static func hourLabel(_ h: Int, locale: Locale = .current) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = locale
+        let hour = max(0, min(23, h))
+        // 日期部分不参与显示，取一个固定日子即可（DST 边界不影响「几点整」这个标签）
+        guard let date = calendar.date(
+            from: DateComponents(year: 2026, month: 1, day: 1, hour: hour, minute: 0))
+        else { return "\(hour):00" }
+        return date.formatted(.dateTime.hour().minute().locale(locale))
     }
 
     /// 接受按钮直接写出时刻——用户按下去之前就该知道几点会响。

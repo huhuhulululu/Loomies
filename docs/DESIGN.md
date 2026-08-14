@@ -585,4 +585,10 @@ CloudKit 同步的 SwiftData **只支持加法式轻量迁移**（不能删字�
 ### 10.5 en-US 本地化格式
 
 - MM/DD 日期、12h AM/PM、°F 温度、英制身体维度控件（5'6" / in / lb，可切公制）——用 `MeasurementFormatter` / `Locale` 实现而非硬编码
+  - ⚠️ **实现现状（D211 逐条核实）**：**时刻**已改为跟随 `Locale`（用户开系统「24-Hour Time」
+    就印 `19:00`，`LocaleFormattingLintTests` 守着不许再手拼 AM/PM）；
+    **日期**（`Aug 11`）刻意钉在 `en_US`——月份名跟的是**界面语言**不是用户偏好，
+    与英文文案（"3 days ago"）配套才一致；
+    **温度与身体维度的公制切换未做**（引擎温区表与 `OuterwearCue` 阈值全按华氏，
+    切公制要换算数值而非换个符号）→ **延期至 v1.x**，`MeasurementFormatter` 零使用。
 - 尺码展示：品牌 + US 标称码（0-20 / XS-XL / Petite / Plus 副线）+ 实测维度为合身真相——与 §2.2 尺码双层分离一致（vanity sizing 脱钩策略的 UI 表达）

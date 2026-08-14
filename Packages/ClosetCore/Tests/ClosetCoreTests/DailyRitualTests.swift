@@ -269,12 +269,44 @@ struct DailyRitualInviteTests {
         #expect(DailyRitual.inviteFootnote.localizedCaseInsensitiveContains("me"))
     }
 
-    /// 时刻标签是 12 小时制（en-US 首发，§10.5），且只有一处实现——
-    /// 邀请卡上写的时间必须与设置页选的那个逐字一致。
+    /// 时刻标签跟随 **locale**（§10.5：用 `Locale` 实现而非硬编码），
+    /// 且只有一处实现——邀请卡上写的时间必须与设置页选的那个逐字一致。
+    ///
+    /// 注意断言里的 `\u{202f}`：系统格式化在 AM/PM 前用的是**窄不换行空格**，
+    /// 不是普通空格。旧实现手拼 `"\(h):00 AM"` 用的是普通空格——
+    /// 于是这个 App 印出来的时间与系统其它地方**逐字不同**。
     @Test func theHourReadsAsAmericansReadIt() {
-        #expect(DailyRitual.hourLabel(7) == "7:00 AM")
-        #expect(DailyRitual.hourLabel(11) == "11:00 AM")
-        #expect(DailyRitual.hourLabel(5) == "5:00 AM")
+        let l = Locale(identifier: "en_US")
+        #expect(DailyRitual.hourLabel(7, locale: l) == "7:00\u{202f}AM")
+        #expect(DailyRitual.hourLabel(11, locale: l) == "11:00\u{202f}AM")
+        #expect(DailyRitual.hourLabel(5, locale: l) == "5:00\u{202f}AM")
+        #expect(DailyRitual.hourLabel(0, locale: l) == "12:00\u{202f}AM", "午夜是 12 AM 不是 0 AM")
+        #expect(DailyRitual.hourLabel(12, locale: l) == "12:00\u{202f}PM", "正午是 12 PM")
+    }
+
+    /// **用户把 iPhone 设成 24 小时制时，不许还印 AM/PM。**
+    ///
+    /// 这是 §10.5「用 `MeasurementFormatter` / `Locale` 实现而非硬编码」点名的那类事。
+    /// 旧实现写着 `let suffix = h < 12 ? "AM" : "PM"`，注释还拿「en-US 首发市场」
+    /// 替自己辩护——可 24 小时制不是别的国家的事，**是同一批美国用户的系统偏好**
+    ///（系统时间、通知中心、锁屏全都是 07:00，只有这个 App 印 7:00 AM）。
+    @Test func aTwentyFourHourDeviceGetsNoAmPm() {
+        for id in ["en_GB", "de_DE", "fr_FR"] {
+            let label = DailyRitual.hourLabel(19, locale: Locale(identifier: id))
+            #expect(!label.localizedCaseInsensitiveContains("AM"), Comment(rawValue:
+                "\(id) 是 24 小时制，却印出了 \(label)"))
+            #expect(!label.localizedCaseInsensitiveContains("PM"), Comment(rawValue:
+                "\(id) 是 24 小时制，却印出了 \(label)"))
+            #expect(label.contains("19"), Comment(rawValue:
+                "\(id) 下 19 点该读作 19:xx，实际是 \(label)"))
+        }
+    }
+
+    /// 默认参数走 `Locale.current` —— 不传 locale 的调用方（生产上全是）
+    /// 才会跟着用户的系统设置走。写死一个 `en_US` 默认值等于这条改了个寂寞。
+    @Test func theDefaultFollowsTheUsersOwnLocale() {
+        #expect(DailyRitual.hourLabel(7) == DailyRitual.hourLabel(7, locale: .current),
+                "默认参数没走 Locale.current —— 用户的 24 小时制设置不会生效")
     }
 }
 
@@ -301,7 +333,10 @@ struct NextNudgeLineTests {
             now: at(5, 30), calendar: cal)
         #expect(line?.localizedCaseInsensitiveContains("today") == true,
                 Comment(rawValue: line ?? "nil"))
-        #expect(line?.contains("7:00 AM") == true, Comment(rawValue: line ?? "nil"))
+        // 期望值取自 `hourLabel` 本身，不再手抄字面量：
+        // 系统格式化用的是窄不换行空格（`\u{202f}`），手抄的普通空格肉眼看不出差别，
+        // 而这行断言此前就是这么错的（D211 改实现时当场红出来）。
+        #expect(line?.contains(DailyRitual.hourLabel(7)) == true, Comment(rawValue: line ?? "nil"))
     }
 
     /// 过了点 → 明天（**不补发今天**，与排程口径一致）。
