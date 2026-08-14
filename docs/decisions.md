@@ -4592,7 +4592,7 @@ WidgetKit 那侧只留一行语义映射；a11y 读法也一并下沉（app-shel
 
 - 撞新边界门：往 `Piece` 里塞 `imagePath` → 当场点名
   「每件出去的字段变了：["name", "imagePath", "colorPaletteID"]」
-- 四包 **1690 全绿**（Core 575 / Model 423 / UI 614 / Intake 82）+ iOS 真编译通过
+- 四包 **1694 全绿**（Core 575 / Model 423 / UI 614 / Intake 82）+ iOS 真编译通过
 - **一次未复现的红**：整包跑 ClosetModel 有一次失败，隔离复跑 3 次全绿。
   失败那次耗时 **70s vs 正常 18s**，而这个包唯一的时间敏感断言是
   `PerformanceSmokeTests` 的 3000ms/1000ms 两道门。**我没抓到具体是哪条**——
