@@ -4779,3 +4779,26 @@ Xcode 26 可用性本地无从验证**——这条假设写在 ci.yml 头注释�
 
 **没做的**：Icon Composer 分层图标（HANDOFF A6，需要设计资产工具链）；
 `glassEffect` 的真机视觉调优机会留给拿到真机的人。
+
+## D215 — fleet A1–A8 合进 main；D214 三项「不适用」被实测推翻（2026-08-14）
+
+**起因**：D212 指南的 A 组由并行 fleet 在隔离分支落地，同时 main 上另一路做了 D213 CI
+与 D214 tab 裁决。两边在 `ci.yml` / `AppRootView` / `TabSkeletonTests` / HANDOFF 冲突。
+
+**合入取舍**：
+- CI：保留 D213 的「无 remote → C11」与 Show toolchain；采用 fleet 的 Xcode 26 硬失败、
+  ClosetModel `--no-parallel`、`xcodegen generate`（project.yml 是真相源）。
+- 导航：保留 D214 的 `minimizesTabBarOnScroll()` helper（调用点可单独钉住，避免
+  「实现还在、没人用」假绿）。搜索改回 `Tab(role: .search)`。
+
+**为什么推翻 D214 的三项否决**：
+1. 「拆 search tab 会丢 facet 继承」——`SearchTabView` 把槽位/状态/场合/色板/作用域
+   一起带走了，默认仍回本柜。前提不成立。搜索是跨柜**目的地**，不是动作。
+2. 「`backgroundExtensionEffect` / `scrollEdgeEffectStyle` 无适用位」——D214 看的是
+   详情 Form。适用位在 Today hero（`CopilotView`），正是 Apple 点名的 product-page 场景。
+3. `glassEffect` 0 处合规但不等于没有自然位置；hero 铬上恰 2 处，`GlassEffectBudgetTests` 守预算。
+
+D214 的门质量教训（断言调用点、注释不算代码）保留，判据改成「必须有 search role」。
+
+**同时落地**：旧快照迁移、DataScanner、分层图标、胶囊 CTA、TodayLookIntent、
+Widget push 客户端挂钩。A9 仍按原文谨慎跳过。

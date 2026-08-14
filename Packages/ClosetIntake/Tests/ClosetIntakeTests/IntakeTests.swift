@@ -408,7 +408,9 @@ struct IntakeTests {
         #expect(IntakeServiceFactory.makeOCR() is MockOCRService)
     }
 
-    /// Processing ProgressView + barcode field must not promise OCR pre-fill or camera scan.
+    /// Processing ProgressView must not promise OCR pre-fill; barcode caption must be
+    /// **honest per platform**. 此前它恒说「相机扫描尚不可用」——真机接上 VisionKit
+    /// DataScanner（A5）后那就是 capability lie，所以文案改成随扫描可用性分叉。
     @Test func photoProcessingAndBarcodeCaptionsAreHonest() {
         let processing = IntakeServiceFactory.photoProcessingCaption
         #expect(processing.localizedCaseInsensitiveContains("Cutting out"))
@@ -416,12 +418,27 @@ struct IntakeTests {
         #expect(!processing.localizedCaseInsensitiveContains("pre-filling"))
         #expect(!processing.localizedCaseInsensitiveContains("pre-fill"))
 
-        let barcode = IntakeServiceFactory.barcodeEntryCaption
-        #expect(barcode.localizedCaseInsensitiveContains("paste")
-            || barcode.localizedCaseInsensitiveContains("Type"))
-        #expect(barcode.localizedCaseInsensitiveContains("not available")
-            || barcode.localizedCaseInsensitiveContains("no camera"))
-        #expect(!barcode.localizedCaseInsensitiveContains("scan with camera"))
+        // 无相机（模拟器 / mac / 旧机）：手输通路仍在，且必须诚实说相机扫描
+        // 不可用——绝不给出「用相机扫」的祈使句（那就是原来的谎）。
+        let noScanner = IntakeServiceFactory.barcodeEntryCaption(scannerAvailable: false)
+        #expect(noScanner.localizedCaseInsensitiveContains("paste")
+            || noScanner.localizedCaseInsensitiveContains("Type"))
+        #expect(noScanner.localizedCaseInsensitiveContains("not available")
+            || noScanner.localizedCaseInsensitiveContains("no camera"))
+        #expect(!noScanner.localizedCaseInsensitiveContains("scan the barcode"))
+        #expect(!noScanner.localizedCaseInsensitiveContains("scan with camera"))
+
+        // 真机 DataScanner 可用：必须说能用相机扫，且不得再说「不可用」；
+        // 手输仍在（可扫也可输，copilot 原则：推荐可被用户覆盖）。
+        let withScanner = IntakeServiceFactory.barcodeEntryCaption(scannerAvailable: true)
+        #expect(withScanner.localizedCaseInsensitiveContains("scan"))
+        #expect(withScanner.localizedCaseInsensitiveContains("camera"))
+        #expect(!withScanner.localizedCaseInsensitiveContains("not available"))
+        #expect(withScanner.localizedCaseInsensitiveContains("Type")
+            || withScanner.localizedCaseInsensitiveContains("paste"))
+
+        // 两个平台的文案必须真的不同——否则平台分支形同虚设（假接线）。
+        #expect(noScanner != withScanner)
     }
 
     // MARK: - I1: matting failure must not store uncut photo as layer

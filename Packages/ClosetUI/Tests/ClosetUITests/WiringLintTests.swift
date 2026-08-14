@@ -252,8 +252,14 @@ struct CustomerCopyVocabularyTests {
 
 /// D100（缺口 #21）：tab 集合是**文档与实现的共同契约**，不得再各说各的。
 /// DESIGN §10.2 原文把「入库」列为 tab，同一行又写「tab bar 只做导航不放动作」——
-/// 入库是动作不是目的地，那句话本就否定了入库 tab。裁决以实现为准（4 tab），
+/// 入库是动作不是目的地，那句话本就否定了入库 tab。裁决以实现为准（4 内容 tab），
 /// 文档已改；这道门钉住两边不再漂移。
+///
+/// D212（A2 液态导航）：`AppRootView` 从弃用的 `.tabItem { Label(` 迁到 iOS 26 的
+/// `Tab(_:systemImage:)`，搜索改成语义化 `Tab(role: .search)`（系统自动置尾端分离）。
+/// 这门也随代码迁移——从 grep `.tabItem` 改成认新 `Tab(` API：
+/// **内容 tab 恰好这四个**（Today/Closet/Calendar/Me，C1），外加**恰好一个**搜索角色 tab，
+/// 且不得回退到 `.tabItem`。搜索是目的地不是第五个内容 tab、更不是入库 tab。
 struct TabSkeletonTests {
 
     static let expected = ["Today", "Closet", "Calendar", "Me"]
@@ -263,37 +269,35 @@ struct TabSkeletonTests {
             $0.lastPathComponent == "AppRootView.swift"
         }
         let text = try String(contentsOf: try #require(root), encoding: .utf8)
-        // D214：骨架迁到 iOS 26 的 `Tab("Name", systemImage:…)` 值语法——
-        // 门跟着**意图**走（4 个 tab 名对齐文档），不钉写法。
+        // D215：四内容 tab + 恰好一个 search role。只数代码行（注释里的 API 名不算）。
+        // 滚动收起钉**调用点**（D214 教训：只断言符号存在，删调用门照绿）。
         var found: [String] = []
-        for line in text.split(separator: "\n") where line.contains("Tab(\"") {
-            guard let open = line.range(of: "Tab(\""),
-                  let close = line[open.upperBound...].firstIndex(of: "\"") else { continue }
-            found.append(String(line[open.upperBound..<close]))
+        var searchRoles = 0
+        var usesDeprecatedTabItem = false
+        var callsMinimizeHelper = false
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.hasPrefix("//") else { continue }
+            if line.contains(".tabItem") { usesDeprecatedTabItem = true }
+            if line.contains(".minimizesTabBarOnScroll()") { callsMinimizeHelper = true }
+            if line.hasPrefix("Tab(role: .search)") {
+                searchRoles += 1
+            } else if line.hasPrefix("Tab(\""), line.contains("systemImage:"),
+                      let open = line.range(of: "Tab(\""),
+                      let close = line[open.upperBound...].firstIndex(of: "\"") {
+                found.append(String(line[open.upperBound..<close]))
+            }
         }
-        #expect(found == Self.expected, Comment(rawValue: "实际 tab：\(found)"))
-        // DESIGN 的 ≤5 上限
-        #expect(found.count <= 5)
-        // 衣橱网格是照片的地方——滚动时 tab bar 要让位（DESIGN §10.2 点名）。
-        // 两条都要：真实现存在 + **调用点在 body 上**——初版只查了前者，
-        // 把调用删掉门照样绿（「断言符号存在而非用在决策点」，CLAUDE.md 四形态之一，
-        // 这次是撞门第一击当场撞出来的）。
+        #expect(found == Self.expected, Comment(rawValue: "实际内容 tab：\(found)"))
+        #expect(searchRoles == 1,
+                Comment(rawValue: "Tab(role: .search) 出现 \(searchRoles) 次，应恰好一次"))
+        #expect(found.count + searchRoles <= 5)
         #expect(text.contains("tabBarMinimizeBehavior(.onScrollDown)"),
                 "tab bar 不再滚动收起 —— DESIGN §10.2 的照片展示承诺掉了")
-        #expect(text.contains(".minimizesTabBarOnScroll()"),
+        #expect(callsMinimizeHelper,
                 "滚动收起的调用点没了 —— extension 还在但没人用它")
-        // D214 裁决：搜索**不是** tab（内联搜索带 facet 继承，拆 tab 会丢它；
-        // 「tab bar 只做导航不放动作」是 DESIGN 自己的原则）。
-        // 只看代码行——解释「为什么不用它」的注释不算犯规
-        //（初版就这么误报了：AppRootView 里记录裁决的注释被门自己抓住，
-        // 与 D147 的 WearHistory 门同一形态）。
-        let searchTabInCode = text.split(separator: "\n").contains { line in
-            let t = line.trimmingCharacters(in: .whitespaces)
-            return t.contains("Tab(role: .search)")
-                && !t.hasPrefix("//") && !t.hasPrefix("///")
-        }
-        #expect(!searchTabInCode,
-                "搜索被提成了 tab —— 这会丢掉网格 facet 继承，先读 D214 再动")
+        #expect(!usesDeprecatedTabItem,
+                "AppRootView 仍在用弃用的 .tabItem API")
     }
 
     /// 文档必须与实现一致（此前 DESIGN 写五 tab、实现四 tab，两年没人对账）。

@@ -1,13 +1,22 @@
-# CI（HANDOFF A1，D213）
+# ============================================================================
+# CI — D213（main）+ D215（fleet 合入）
 #
-# 本机 load 长期 17-38（外部进程），三道时间敏感性能门
-# （PerfEnvironment.machineIsQuietEnough：load < 核数一半）在本机恒 skipped——
-# 性能守护实质悬空。CI runner 是安静机器，它们在这里才真正跑起来。
+#  1. iOS-only code that macOS `swift test` can NEVER compile (D92).
+#     Only `xcodebuild` against an iOS destination proves those `#if os(iOS)`
+#     blocks compile. The ios-build job is mandatory, not polish.
 #
-# ⚠️ 唯一无法本地验证的假设：runner 镜像名与其携带的 Xcode 版本。
-#    本仓需要 Xcode 26.x（iOS 26 SDK，swift-tools 6.0）。
-#    若 `macos-26` 不存在或缺 Xcode 26，换 `macos-latest` 并看
-#    「Show toolchain」一步打印的可用清单来选。
+#  2. Performance gates that skip on the busy dev box (D211: load 17-38).
+#     ClosetModel runs `--no-parallel` so an idle runner can actually execute
+#     the three time-sensitive gates instead of reporting a green that measured
+#     nothing.
+#
+#  3. No git remote yet (D213). Workflow is ready; push is the user's C11.
+#     First Actions run: read "Show toolchain" and confirm Xcode 26 is present.
+#
+# Runner: macos-26, pin Xcode 26.x (prefer 26.2). No Xcode 26 → hard fail,
+# never a fake green against the wrong SDK. `macos-latest` is avoided.
+# No `.build` cache (D200 stale-SwiftPM segfault). No secrets.
+# ============================================================================
 name: CI
 
 on:
@@ -15,14 +24,29 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  package-tests:
+  unit-tests:
     name: swift test · ${{ matrix.package }}
     runs-on: macos-26
     strategy:
       fail-fast: false
       matrix:
-        package: [ClosetCore, ClosetModel, ClosetUI, ClosetIntake]
+        include:
+          - package: ClosetCore
+            extra: ""
+          - package: ClosetModel
+            extra: "--no-parallel"
+          - package: ClosetUI
+            extra: ""
+          - package: ClosetIntake
+            extra: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -33,32 +57,59 @@ jobs:
           uptime
           xcodebuild -version
 
-      - name: Select newest Xcode 26
+      - name: Select Xcode 26 (Swift 6.2 + iOS 26 SDK; honest fail if absent)
         run: |
-          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
-          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          set -euo pipefail
+          dev="/Applications/Xcode_26.2.app"
+          [ -d "$dev" ] || dev="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1 || true)"
+          if [ -z "$dev" ]; then
+            echo "::error::No Xcode 26.x on this runner (repo needs Swift 6.2 + an iOS 26 SDK). Refusing to fake a green build."
+            exit 1
+          fi
+          sudo xcode-select -s "$dev"
           xcodebuild -version
+          swift --version
 
-      # swift-testing 的失败写在 stdout（D209）——不要只存 stderr
-      - name: swift test
-        run: swift test --package-path Packages/${{ matrix.package }}
+      # swift-testing failures land on stdout (D209) — do not capture stderr only
+      - name: swift test · ${{ matrix.package }}
+        run: swift test --package-path Packages/${{ matrix.package }} ${{ matrix.extra }}
 
   ios-build:
-    name: xcodebuild (generic/platform=iOS)
+    name: xcodebuild · generic/platform=iOS (unsigned)
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select newest Xcode 26
+      - name: Select Xcode 26 (Swift 6.2 + iOS 26 SDK; honest fail if absent)
         run: |
-          XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
-          if [ -n "$XC" ]; then sudo xcode-select -s "$XC/Contents/Developer"; fi
+          set -euo pipefail
+          dev="/Applications/Xcode_26.2.app"
+          [ -d "$dev" ] || dev="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n1 || true)"
+          if [ -z "$dev" ]; then
+            echo "::error::No Xcode 26.x on this runner (repo needs Swift 6.2 + an iOS 26 SDK). Refusing to fake a green build."
+            exit 1
+          fi
+          sudo xcode-select -s "$dev"
           xcodebuild -version
+          swift --version
 
-      # #if os(iOS) 块只有这条真编译看得到（D92）；无签名跑 build。
-      # xcodeproj 已入库（真相源是 project.yml；两者漂移由本地 xcodegen 流程管）。
-      - name: Build for generic iOS
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # project.yml is the source of truth — regenerate so CI never depends on
+      # a committed .xcodeproj staying in sync (D213 left that as a follow-up).
+      - name: xcodegen generate
+        working-directory: app-shell
+        run: xcodegen generate
+
+      - name: xcodebuild (unsigned iOS compile)
         run: |
-          xcodebuild -project app-shell/ClosetApp.xcodeproj -scheme ClosetApp \
+          xcodebuild \
+            -project app-shell/ClosetApp.xcodeproj \
+            -scheme ClosetApp \
+            -configuration Debug \
             -destination 'generic/platform=iOS' \
-            CODE_SIGNING_ALLOWED=NO build
+            build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""

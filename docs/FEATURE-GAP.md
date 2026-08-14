@@ -1,6 +1,6 @@
 # 功能缺口台账（相对 DESIGN §7 v1.0）
 
-> **最近核实：2026-08-13（D195），逐条对着代码查过。** 与代码不一致时以代码为准。
+> **最近核实：2026-08-14（D213 fleet A1–A8）**；上一轮 2026-08-13（D195）。与代码不一致时以代码为准。
 >
 > ⚠️ **这份台账是决策文档——过期比缺失更危险。** 本次核实前它至少三条已经与代码不符
 >（批量入库说「未做」而 D92 早已交付、跨柜检索说「UI 恒钉当前柜」而 Picker 就在
@@ -17,7 +17,7 @@
 | 推荐引擎 + copilot 补全 + 四条正确性 | ClosetCore |
 | SwiftData 实体 + 转移/删除/不变量 | ClosetModel |
 | 打卡防重复 | CheckInService |
-| 检索（**含跨柜**：`SearchScope.thisCloset/allClosets`，Picker 在 `AppRootView`；§2.3 全局检索**已闭合**，2026-08-13 核实）/ 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
+| 检索（**含跨柜**：`SearchScope.thisCloset/allClosets`，Picker 在 `SearchTabView` / `Tab(role:.search)`；§2.3 全局检索**已闭合**）/ 体型门 / 合身标记 / 日历计划 | Search/BodyProfile/FitMark/CalendarPlan |
 | 入库 seam + mock | ClosetIntake |
 | Onboarding / Today / Closet 网格 / 打卡 | ClosetUI |
 | **Today Avatar 首屏（方案 B）** | 大 BodyAvatar + 今日 look；Other looks 点选；非冷启动自动 full-auto |
@@ -40,7 +40,7 @@
 | **合身标记网格** | Closet 格徽章 + 状态过滤；详情页 FitMark |
 | **离线城市天气** | CityClimateWeatherProvider → Today 温区 |
 | **公开 API 天气（D77）** | Open-Meteo + Composite fallback；来源标签 + 降水外套提示 |
-| **公开条码商品（D77）** | Open Product/Beauty/Food Facts → 入库 enrich |
+| **公开条码商品（D77 / D213）** | Open Product/Beauty/Food Facts → 入库 enrich；真机 DataScanner 扫码走同一条 `normalizeBarcode` 通路（模拟器仍手输） |
 | **尺码参考提示（D77）** | PublicSizeReference（not brand-true） |
 | **纸娃娃叠衣预览** | `OutfitAvatarComposer` + Today 建议卡 / 收藏列表 |
 | **主路径旅程测试** | `FeatureJourneyTests`：种子→推荐→收藏/计划→打卡→检索→体型→导出/删除 |
@@ -50,12 +50,12 @@
 
 | 能力 | 说明 |
 |------|------|
-| 相机真机验证 | 相册**批量多选已交付**（D92 `BatchIntakeQueue`，`selectionLimit = BatchIntakeQueue.maxSelection = 30`，逐张确认 + 诚实汇总）；**仍缺的只有相机在真机上的实拍验证** |
+| 相机真机验证 | 相册**批量多选已交付**（D92）；条码 DataScanner **已接线**（D213，模拟器无扫码钮）。**仍缺的是相机/扫码在真机上的实拍验证** |
 | Vision 抠图 / OCR 真推理 | **Vision 真机优先**（`IntakeServiceFactory`）；模拟器 mock |
 | WeatherKit | 协议已隔离；现主路径 Open-Meteo，真机可再实现 `WeatherProviding` |
 | CloudKit 私有库 | D5 双域已模板，两个 store 当前都是 `cloudKitDatabase: .none`；Capability 待开。**D170 已证「身体数据不同步靠分区而非没开同步」**，端到端仍需真机 + 云端容器 |
 | AI 打标 Worker + App Attest | 独立服务；`IntakeServiceFactory.recognitionAvailable = false`，未接前披露文案会说清「类型/场合是起点猜测，不是照片识别」 |
-| Widget | **已交付**（D197 快照+target；D210 配色色点+单色渲染诚实降级）。仍缺：App Group 开发者后台注册（未注册前 inert）+ 真机验收 §5（HANDOFF C1/B1）。通知早于它交付（D118），缺真机权限流验证 |
+| Widget | **已交付**（D197 快照+target；D210 色点；D213 旧 `pieceNames` 读迁移 + Intent/push 客户端挂钩）。仍缺：App Group 开发者后台注册（未注册前 inert）+ 真机验收 §5（HANDOFF C1/B1）+ 服务端 push（C9） |
 | 叠衣槽位真图 | **Today/收藏已叠入库图**（表达层）；肩线精修仍后置 |
 
 ## v1.x（明确后置）

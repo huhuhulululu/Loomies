@@ -92,6 +92,111 @@ struct ColdStartActivationTests {
             || DemoSeedService.loadButtonAccessibilityHint
             .localizedCaseInsensitiveContains("demo"))
     }
+
+    /// A4（HANDOFF §6.4）：里程碑的 `missingSlots` 必须能变成一颗**可点**的补件 CTA，
+    /// 且接的是**活的** API `ActivationProgress.Milestone.missingSlots`（HANDOFF 误记为
+    /// `OutfitCompleter.missingSlots`，后者不存在）。这条把服务层缺口接到用户看得见的按钮上。
+    @Test func slotCTAConnectsToLiveMilestoneMissingSlots() throws {
+        let (ctx, w) = try makeContext()
+        // 只有一件上装 → work 里程碑缺 bottom + shoes
+        add("Tee", "top", to: w, in: ctx)
+        try ctx.save()
+        var candidates = (w.items ?? []).map { $0.toCandidateItem() }
+        let gap = try #require(ActivationProgress.headlineMilestone(
+            items: candidates, statedOccasion: "work"))
+        #expect(!gap.missingSlots.isEmpty)
+        #expect(CapsuleGapCTA.shouldOffer(missingSlots: gap.missingSlots))
+        // 点名的是缺口里最靠前那格（missingSlots 已按 rawValue 定序）——不是身体
+        let title = try #require(CapsuleGapCTA.buttonTitle(missingSlots: gap.missingSlots))
+        #expect(title.localizedCaseInsensitiveContains(
+            gap.missingSlots[0].displayTitle))
+
+        // 补齐一套 → 缺口清空 → 不再打扰
+        add("Jeans", "bottom", to: w, in: ctx)
+        add("Boots", "shoes", to: w, in: ctx)
+        try ctx.save()
+        candidates = (w.items ?? []).map { $0.toCandidateItem() }
+        let done = try #require(ActivationProgress.headlineMilestone(
+            items: candidates, statedOccasion: "work"))
+        #expect(done.missingSlots.isEmpty)
+        #expect(!CapsuleGapCTA.shouldOffer(missingSlots: done.missingSlots))
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: done.missingSlots) == nil)
+        _ = ctx
+    }
+}
+
+/// A4 补件 CTA 的**纯拷贝 + 纯决策**（脱离 ViewInspector 可测）。
+/// 铁律：文案评价**衣服/槽位**，绝不评价身体（copilot 身体红线）；
+/// 且永远可跳过——不替用户拿主意（D19/D98）。
+struct CapsuleGapCTATests {
+
+    /// 缺 bottom → 标题点名 bottom（用户才知道下一件补什么）。
+    @Test func missingBottomTitleNamesTheBottom() {
+        let title = CapsuleGapCTA.buttonTitle(missingSlots: [.bottom])
+        #expect(title?.localizedCaseInsensitiveContains("bottom") == true)
+        // 列表打头是 bottom 时同样点名 bottom（取最靠前那格）
+        let listed = CapsuleGapCTA.buttonTitle(missingSlots: [.bottom, .shoes])
+        #expect(listed?.localizedCaseInsensitiveContains("bottom") == true)
+    }
+
+    /// 空缺口 → 不提供 CTA（能拼出一套了就别再打扰）。
+    @Test func emptyMissingSlotsOffersNoCTA() {
+        #expect(!CapsuleGapCTA.shouldOffer(missingSlots: []))
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: []) == nil)
+        #expect(CapsuleGapCTA.accessibilityLabel(missingSlots: []) == nil)
+        #expect(CapsuleGapCTA.primarySlot(missingSlots: []) == nil)
+    }
+
+    /// 跳过是**明写的选项**，措辞不得暗示「必须/需要」——copilot 不逼用户。
+    @Test func skipIsOfferedAndDoesNotImplyRequired() {
+        #expect(!CapsuleGapCTA.skipTitle.isEmpty)
+        for word in ["require", "must", "need", "have to", "mandatory"] {
+            #expect(!CapsuleGapCTA.skipTitle.localizedCaseInsensitiveContains(word),
+                    "跳过文案暗示了强制：\(word)")
+        }
+        // 有缺口时确实提供了 CTA，但它与跳过并存（可点、可跳）
+        #expect(CapsuleGapCTA.shouldOffer(missingSlots: [.shoes]))
+    }
+
+    /// 身体红线：任何槽位的按钮 / VoiceOver / 跳过文案都不得谈身体。
+    @Test func copyEvaluatesClothesNotBody() {
+        let bodyWords = ["body", "figure", "flatter", "shape", "curve",
+                         "slim", "physique", "silhouette", "your size"]
+        var lines: [String] = [CapsuleGapCTA.skipTitle]
+        for slot in GarmentSlot.allCases {
+            if let t = CapsuleGapCTA.buttonTitle(missingSlots: [slot]) { lines.append(t) }
+            if let a = CapsuleGapCTA.accessibilityLabel(missingSlots: [slot]) { lines.append(a) }
+        }
+        for line in lines {
+            for w in bodyWords {
+                #expect(!line.localizedCaseInsensitiveContains(w),
+                        "补件文案评价了身体（\"\(w)\"）：\(line)")
+            }
+        }
+    }
+
+    /// 语法：shoes 复数 / outerwear 不可数不加冠词；其余加 a/an。
+    @Test func nounPhrasingIsGrammatical() {
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.top]) == "Add a top")
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.bottom]) == "Add a bottom")
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.dress]) == "Add a dress")
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.shoes]) == "Add shoes")
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.outerwear]) == "Add outerwear")
+        #expect(CapsuleGapCTA.buttonTitle(missingSlots: [.accessory]) == "Add an accessory")
+    }
+
+    /// VoiceOver 列**全部**缺口，避免用户以为补完一件就齐了。
+    @Test func accessibilityLabelListsEveryGap() {
+        let label = CapsuleGapCTA.accessibilityLabel(missingSlots: [.bottom, .shoes])
+        #expect(label?.localizedCaseInsensitiveContains("bottom") == true)
+        #expect(label?.localizedCaseInsensitiveContains("shoes") == true)
+    }
+
+    /// primary 取缺口序列第一个（milestone 已定序，UI 不再自作主张排序）。
+    @Test func primarySlotTakesTheFirstGap() {
+        #expect(CapsuleGapCTA.primarySlot(missingSlots: [.bottom, .shoes]) == .bottom)
+        #expect(CapsuleGapCTA.primarySlot(missingSlots: [.shoes]) == .shoes)
+    }
 }
 
 /// D98：**首启必须落在冷启动面上**。此前 onboarding 完成时自动播种 9 件 demo，

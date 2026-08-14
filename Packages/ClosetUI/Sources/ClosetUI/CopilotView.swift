@@ -16,6 +16,9 @@ public struct CopilotView: View {
     @State private var showCheckInSheet = false
     /// 冷启动「真实起步」路径：直接开入库面（DESIGN §475 双路径之一）
     @State private var showAddPieceSheet = false
+    /// A4：补件 CTA 被用户跳过（copilot 不逼补拍）。本次会话内不再顶出来；
+    /// 下次冷启动若仍缺同一格会温和地再提一次——「跳过」是提示级别，不是永久决定。
+    @State private var capsuleGapDismissed = false
     /// 毕业时刻只出一次——看过就记住（跨启动）。
     @AppStorage("loomies.activation.readyMomentSeen") private var hasSeenReadyMoment = false
     /// 早安提醒的邀请**只问一次**（D140）——iOS 的权限弹窗一辈子只有一次机会，
@@ -208,6 +211,11 @@ public struct CopilotView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+        // A2（iOS 26）：内容滚过顶部大标题栏时走柔和边缘，而不是一条硬切线。
+        // 这条修饰的是**滚动容器**的边缘，不给任何内容层加玻璃（C2）。
+        #if os(iOS)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        #endif
     }
 
     private func runBootstrapOnce() async {
@@ -306,45 +314,16 @@ public struct CopilotView: View {
                     .padding(4)
                     .allowsHitTesting(false)
 
-                HStack {
-                    // 2s 电影感分享预览（yaw + 视差 MP4）
-                    Button {
-                        Task { await exportCinematicPreview(backdrop: heroBackdrop) }
-                    } label: {
-                        Group {
-                            if isExportingCinematic {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: cinematicExportFailed
-                                      ? "exclamationmark.triangle.fill" : "film")
-                                    .font(.body.weight(.semibold))
-                            }
-                        }
-                        .foregroundStyle(cinematicExportFailed ? Color.orange : DS.ink)
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(
-                        isExportingCinematic
-                            || !CopilotCinematicExportCopy.canExport(layers: heroLayers))
-                    .accessibilityLabel(
-                        cinematicExportFailed
-                        ? CopilotCinematicExportCopy.failedLabel
-                        : CopilotCinematicExportCopy.label)
-                    .accessibilityHint(CopilotCinematicExportCopy.hint)
-                    .padding(14)
-                    Spacer()
-                    if vm.isRefreshing {
-                        ProgressView()
-                            .padding(12)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .padding(14)
-                    }
+                // A2：hero 顶部悬浮 chrome 成对包进 GlassEffectContainer（iOS 26）——
+                // 两颗**控件**（预览 / 刷新）共享一层 Liquid Glass 渲染。
+                // 内容层（人体 + 叠衣）刻意不进容器、不上玻璃（C2）。
+                #if os(iOS)
+                GlassEffectContainer(spacing: 12) {
+                    heroTopChrome(heroBackdrop: heroBackdrop)
                 }
+                #else
+                heroTopChrome(heroBackdrop: heroBackdrop)
+                #endif
             }
             .sheet(isPresented: $showCinematicShare, onDismiss: {
                 // 分享面板关闭（取消或完成）即删当次 MP4：活动已在分享时拷贝数据，
@@ -455,6 +434,66 @@ public struct CopilotView: View {
         .animation(
             reduceMotion ? nil : .easeInOut(duration: 0.22),
             value: vm.selectedSuggestionIndex)
+        // A2（iOS 26）：hero 的场合染底向安全区外自然延伸，滚动时边缘柔和过渡，
+        // 而不是一条硬切。这作用在**卡片背景**上，人体/叠衣内容本身不受影响（C2）。
+        #if os(iOS)
+        .backgroundExtensionEffect()
+        #endif
+    }
+
+    /// Hero 顶部悬浮 chrome：电影预览按钮（左）+ 刷新指示（右）。
+    /// A2/C2：这两颗是**控件**，用 regular Liquid Glass（在 `heroCard` 的
+    /// `GlassEffectContainer` 内成对渲染）；人体 + 叠衣是**内容层**，绝不上玻璃。
+    /// macOS `swift test` 编不到 `#if os(iOS)`，玻璃只由 xcodebuild 在真机/模拟器验（D84/D92）。
+    @ViewBuilder
+    private func heroTopChrome(heroBackdrop: AvatarBackdrop) -> some View {
+        HStack {
+            // 2s 电影感分享预览（yaw + 视差 MP4）
+            Button {
+                Task { await exportCinematicPreview(backdrop: heroBackdrop) }
+            } label: {
+                Group {
+                    if isExportingCinematic {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: cinematicExportFailed
+                              ? "exclamationmark.triangle.fill" : "film")
+                            .font(.body.weight(.semibold))
+                    }
+                }
+                .foregroundStyle(cinematicExportFailed ? Color.orange : DS.ink)
+                .frame(width: 36, height: 36)
+                #if os(iOS)
+                .glassEffect(.regular, in: Circle())
+                #else
+                .background(.ultraThinMaterial)
+                .clipShape(Circle())
+                #endif
+            }
+            .buttonStyle(.plain)
+            .disabled(
+                isExportingCinematic
+                    || !CopilotCinematicExportCopy.canExport(layers: heroLayers))
+            .accessibilityLabel(
+                cinematicExportFailed
+                ? CopilotCinematicExportCopy.failedLabel
+                : CopilotCinematicExportCopy.label)
+            .accessibilityHint(CopilotCinematicExportCopy.hint)
+            .padding(14)
+            Spacer()
+            if vm.isRefreshing {
+                ProgressView()
+                    .padding(12)
+                    #if os(iOS)
+                    .glassEffect(.regular, in: Circle())
+                    #else
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    #endif
+                    .padding(14)
+            }
+        }
     }
 
     private func heroEdgeGlow(_ b: AvatarBackdrop) -> LinearGradient {
@@ -702,6 +741,38 @@ public struct CopilotView: View {
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(milestone.headline). \(milestone.nextStep)")
+
+                // A4（HANDOFF §6.4）：把 nextStep 那句灰字**变成可点的下一步**。
+                // 此前缺口只作为静态文案存在，没有任何路径把用户带去补那一格。
+                // 点名缺口里最靠前那格 → 开**通用**入库面（不预选、不举相机、不自动挑衣，
+                // 对齐 D98）；且永远可跳过——缺口是提示不是关卡（copilot，D19）。
+                if !capsuleGapDismissed,
+                   CapsuleGapCTA.shouldOffer(missingSlots: milestone.missingSlots),
+                   let gapTitle = CapsuleGapCTA.buttonTitle(
+                        missingSlots: milestone.missingSlots) {
+                    HStack(spacing: DS.Space.m) {
+                        Button { showAddPieceSheet = true } label: {
+                            Label(gapTitle, systemImage: "plus.circle")
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(DS.accent.opacity(0.12))
+                                .foregroundStyle(DS.accent)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            CapsuleGapCTA.accessibilityLabel(
+                                missingSlots: milestone.missingSlots) ?? gapTitle)
+                        .accessibilityHint(CopilotColdStartCopy.realStartAccessibilityHint)
+                        Button(CapsuleGapCTA.skipTitle) { capsuleGapDismissed = true }
+                            .font(.caption)
+                            .foregroundStyle(DS.muted)
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Dismiss this suggestion for now")
+                    }
+                    .padding(.top, 2)
+                }
             }
 
             // 路径一/二只在冷启动出现：它们回答「怎么起步」，
