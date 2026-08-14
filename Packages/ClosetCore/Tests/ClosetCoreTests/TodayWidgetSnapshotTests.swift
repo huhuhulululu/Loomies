@@ -16,7 +16,11 @@ struct TodayWidgetSnapshotTests {
     ) -> TodayWidgetSnapshot {
         TodayWidgetSnapshot(
             dayKey: dayKey, lookTitle: "Navy work look",
-            pieceNames: ["Navy Blazer", "White Tee", "Chinos"],
+            pieces: [
+                .init(name: "Navy Blazer", colorPaletteID: "navy"),
+                .init(name: "White Tee", colorPaletteID: "white"),
+                .init(name: "Chinos", colorPaletteID: nil),
+            ],
             daytimeTempF: temp, weatherSourceLabel: "Open-Meteo",
             isSettled: settled)
     }
@@ -33,11 +37,17 @@ struct TodayWidgetSnapshotTests {
         let keys = Set((try JSONSerialization.jsonObject(with: data)
             as? [String: Any] ?? [:]).keys)
         let allowed: Set<String> = [
-            "dayKey", "lookTitle", "pieceNames",
+            "dayKey", "lookTitle", "pieces",
             "daytimeTempF", "weatherSourceLabel", "isSettled",
         ]
         #expect(keys == allowed, Comment(rawValue:
             "共享容器里多出/少了字段：\(keys.symmetricDifference(allowed))"))
+
+        // 每件身上出去的东西也要列举完备（D210：颜色进来了，边界得跟着收）
+        let pieceKeys = Set(((try JSONSerialization.jsonObject(with: data)
+            as? [String: Any])?["pieces"] as? [[String: Any]] ?? []).flatMap(\.keys))
+        #expect(pieceKeys == ["name", "colorPaletteID"], Comment(rawValue:
+            "每件出去的字段变了：\(pieceKeys) —— 照片/尺寸/品牌都不许跟着走"))
 
         // 逐个点名那些**绝不许**出现的（加字段时这条会当场红）
         let forbidden = ["bust", "waist", "hip", "measure", "body",
@@ -125,5 +135,63 @@ struct TodayWidgetSnapshotTests {
         #expect(TodayWidgetSnapshotStore.write(snapshot(), to: dir))
         TodayWidgetSnapshotStore.clear(in: dir)
         #expect(TodayWidgetSnapshotStore.read(from: dir) == nil)
+    }
+
+    // MARK: - D210：衣物的颜色是这块界面唯一的色彩主角
+
+    /// 颜色出去的是**调色板 id**（16 个固定值之一），不是 hex、更不是照片。
+    /// 信息量比件名还小——件名是自由文本，可能带品牌。
+    @Test func theColourTravelsAsAPaletteIDNotAFreeString() throws {
+        for piece in snapshot().pieces {
+            guard let id = piece.colorPaletteID else { continue }
+            #expect(GarmentColorPalette.entry(id: id) != nil, Comment(rawValue:
+                "`\(id)` 不在调色板里 —— widget 那边还原不出颜色，只能画个空点"))
+        }
+    }
+
+    /// 认不出的 id **不猜**（存量快照、将来改调色板都会走到这条）。
+    @Test func anUnknownPaletteIDDrawsNothing() {
+        let piece = TodayWidgetSnapshot.Piece(name: "X", colorPaletteID: "chartreuse-2")
+        #expect(piece.paletteEntry == nil, "认不出的颜色要留白，不许挑个相近的顶上")
+    }
+
+    /// 没设颜色的件也不猜——`nil` 一路传到画面上就是「不画点」。
+    @Test func aPieceWithoutAColourStaysBlank() {
+        let chinos = snapshot().pieces.first { $0.name == "Chinos" }
+        #expect(chinos?.colorPaletteID == nil)
+        #expect(chinos?.paletteEntry == nil)
+    }
+
+    /// **单色渲染下不画色点**。
+    ///
+    /// 锁屏与去饱和主屏（`accented` / `vibrant`）会把 widget 里的一切
+    /// 染成同一个强调色。那时三个色点会变成同一个颜色——而它们**在说谎**：
+    /// 用户会读成「今天这三件是同色系」。
+    ///
+    /// 这与 D130 的三值语义是同一条：**不能诚实显示的时候，什么都不显示**，
+    /// 不是显示一个看起来还行的默认值。
+    @Test func monochromeRenderingDrawsNoDotsAtAll() {
+        #expect(TodayWidgetCopy.showsColorDots(.trueColor))
+        #expect(!TodayWidgetCopy.showsColorDots(.monochrome))
+    }
+
+    /// 色点的 VoiceOver 读法：说颜色名，不说「几个圆点」。
+    @Test func theColourStripSpeaksColourNames() {
+        let spoken = TodayWidgetCopy.coloursSpoken(snapshot().pieces)
+        #expect(spoken.contains("Navy"))
+        #expect(spoken.contains("White"))
+        #expect(!spoken.localizedCaseInsensitiveContains("circle"),
+                "读出来的是控件形状，不是内容")
+    }
+
+    /// 一件颜色都没有时**不出声**——空标签好过「Colours: 」这种半截话。
+    @Test func aColourlessOutfitSpeaksNothing() {
+        let pieces = [TodayWidgetSnapshot.Piece(name: "A", colorPaletteID: nil)]
+        #expect(TodayWidgetCopy.coloursSpoken(pieces).isEmpty)
+    }
+
+    /// 件名在两种模式下都照常显示——被压掉的只有颜色。
+    @Test func theNamesSurviveEitherRendering() {
+        #expect(snapshot().pieces.map(\.name) == ["Navy Blazer", "White Tee", "Chinos"])
     }
 }

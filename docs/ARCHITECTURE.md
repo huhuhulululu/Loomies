@@ -19,6 +19,28 @@
 
 > App 外壳（`app-shell/`）：**XcodeGen `project.yml` → `ClosetApp.xcodeproj`**，本地 SPM 四包；模拟器 **BUILD SUCCEEDED**（2026-08-03，iPhone 17 Pro / iOS 26.2）。CloudKit 默认 off；Onboarding → AppRoot 4-tab。
 
+### 第二个 target：主屏 Widget（D197 / D210）
+
+`app-shell/LoomiesWidget/` → target **`LoomiesWidgetExtension`**，**只依赖 ClosetCore**
+（ClosetModel 拖着 SwiftData，widget 进程不该背它）。它与 App 是两个进程，
+唯一的通道是 **App Group 共享容器** `group.com.pinglin.closet`：
+
+```
+CopilotViewModel.publishWidgetSnapshot()      LoomiesWidget（另一进程）
+        │ 写 today-widget.json                        │ 读
+        └────────► App Group 容器 ◄────────────────────┘
+                 （TodayWidgetSnapshotStore）
+```
+
+- **这是本 App 唯一一处数据离开自己沙盒**（不是出网），所以清单收得很死：
+  件名、look 标题、温度、来源、每件的**调色板 id**。
+  **绝不**出去：身体围度（D5 局域）、**照片**、城市名。
+  边界由 `TodayWidgetSnapshotTests` 打在**编码后的 JSON 键**上，列举完备。
+- 跨天由 widget 自己的 timeline（次日 00:01）失效，**过期快照不冒充今天**（D188 同一条）。
+- 删库要连这份一起清——共享容器不在 App 沙盒里。
+- ⚠️ **App Group 需在开发者后台注册**，代码做不到；未注册前 widget 读不到东西，
+  显示「Open Loomies…」。见 `DEVICE-ACCEPTANCE.md` §0。
+
 > 计划中完整 SPM 结构见 `MVP-PLAN.md §3`。当前 4 包覆盖 RulesEngine 先行部分 + 数据层 + UI 逻辑 + 入库 seam。
 
 ## 模块依赖 DAG

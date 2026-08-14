@@ -332,6 +332,20 @@ public final class CopilotViewModel {
     /// 从库里回读，所以它扛得住重启，而不是活在一个计时器里。
     public private(set) var todayWornNames: [String] = []
 
+    /// 今天打卡的是**哪几件**（不是名字）。
+    ///
+    /// D210：widget 要画每件的颜色，而颜色只能跟着 item 本体走——
+    /// 按名字回查在衣橱里有两件「白 T」时就会串色。
+    private var todayWornItemIDs: Set<String> = []
+
+    /// item → widget 上那一件。颜色走 `ItemDetailViewModel.paletteID` 那一份口径，
+    /// **不另抄一遍**（本 session 数次栽在「同一条规则的第 N 份手抄」上）。
+    static func widgetPiece(_ item: Item) -> TodayWidgetSnapshot.Piece {
+        .init(name: item.name,
+              colorPaletteID: ItemDetailViewModel.paletteID(
+                hue: item.colorHue, isNeutral: item.colorIsNeutral))
+    }
+
     /// 是否真的取到过天气。
     ///
     /// `daytimeTempF` 有个 70 的默认值供打分用，但那不是「今天 70 度」——
@@ -380,13 +394,13 @@ public final class CopilotViewModel {
             .flatMap(\.wornItemIDs))
         guard !ids.isEmpty else {
             todayWornNames = []
+            todayWornItemIDs = []
             publishWidgetSnapshot()
             return
         }
-        todayWornNames = (wardrobe.items ?? [])
-            .filter { ids.contains($0.id.uuidString) }
-            .map(\.name)
-            .sorted()
+        let worn = (wardrobe.items ?? []).filter { ids.contains($0.id.uuidString) }
+        todayWornNames = worn.map(\.name).sorted()
+        todayWornItemIDs = Set(worn.map { $0.id.uuidString })
         publishWidgetSnapshot()
     }
 
@@ -398,16 +412,20 @@ public final class CopilotViewModel {
     public func publishWidgetSnapshot(
         directory: URL? = TodayWidgetSnapshotStore.sharedDirectory()
     ) {
-        let settled = !todayWornNames.isEmpty
-        let pieces = settled
-            ? todayWornNames
-            : (selectedSuggestion?.outfit.itemIDs.compactMap { id in
-                (wardrobe.items ?? []).first { $0.id.uuidString == id }?.name
-              } ?? [])
+        let settled = !todayWornItemIDs.isEmpty
+        let ids = settled
+            ? todayWornItemIDs.sorted()
+            : (selectedSuggestion?.outfit.itemIDs ?? [])
+        let byID = Dictionary(
+            (wardrobe.items ?? []).map { ($0.id.uuidString, $0) },
+            uniquingKeysWith: { a, _ in a })   // D147：重复 id 不许直接终止进程
+        var pieces = ids.compactMap { byID[$0].map(Self.widgetPiece) }
+        // 已定那身按名字排（与 `todayWornNames` 同序），建议那身保持槽位顺序
+        if settled { pieces.sort { $0.name < $1.name } }
         let snapshot = TodayWidgetSnapshot(
             dayKey: CalendarPlanService.dayKey(for: Date()),
             lookTitle: settled ? nil : selectedSuggestion.map { _ in occasion.capitalized },
-            pieceNames: pieces,
+            pieces: pieces,
             // 温度未知就不写——widget 那边同样是三值语义（不填默认值）
             daytimeTempF: hasResolvedWeather ? Int(daytimeTempF.rounded()) : nil,
             weatherSourceLabel: hasResolvedWeather ? weatherSourceLabel : nil,

@@ -34,6 +34,7 @@ Packages/ClosetCore/Sources/ClosetCore/Recommendation/** | DESIGN「四条正确
 Packages/ClosetModel/Sources/ClosetModel/FitMarkService.swift | requirements「尺码标签不得当合身证据」；MVP-PLAN「ease 引擎单测」
 Packages/ClosetCore/Sources/ClosetCore/FitEngine.swift | requirements「尺码标签不得当合身证据」；MVP-PLAN「ease 引擎单测」
 Packages/ClosetCore/Sources/ClosetCore/BodyAvatar/** | DESIGN「两档体型下同一衣物呈现可辨差异」
+Packages/ClosetCore/Sources/ClosetCore/TodayWidgetSnapshot.swift | DESIGN「Widget 主屏 clear/tinted 去饱和模式」
 Packages/ClosetCore/Sources/ClosetCore/TelemetryEvents.swift | MARKET「遥测裁决预注册协议」
 Packages/ClosetCore/Sources/ClosetCore/ComplianceCopy.swift | MVP-PLAN「隐私一致性审计门」；MARKET「遥测裁决预注册协议」
 Packages/ClosetModel/Sources/ClosetModel/LoomiesSchema.swift | DESIGN「VersionedSchema」；MVP-PLAN「schema 过加法式单向门守卫测试」

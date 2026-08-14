@@ -485,7 +485,12 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 - 导航骨架：底部 TabView **4 tab（搭配 / 衣橱 / 日历 / 我的）**——入库不设 tab，
   它是**动作**不是目的地（本行下文「tab bar 只做导航不放动作」本就否定了入库 tab；
   D100 裁决：以实现为准，改文档）。入库入口在 Closet 的「+」，批量多选也在那里，衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示；搜索用 `Tab(role:.search)`；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
-- 系统表面：Widget 主屏 clear/tinted 去饱和模式需 `widgetAccentable` 适配（否则衣物照片不可辨）；WidgetKit push 服务端触发每日搭配刷新；App Intents `SnippetIntent` 交互结果卡适配「今日搭配」快捷场景（⚠️ updates 页 June 2026 段属 iOS 27 SDK，min iOS 26 不可依赖）
+- 系统表面：Widget 主屏 clear/tinted 去饱和模式需 `widgetAccentable` 适配（否则衣物照片不可辨）。
+  ⚠️ **实现取了另一条路（D210）**：照片不出 App 沙盒（D197 立的边界，D210 重审后维持），
+  widget 上的色彩主角是每件的**调色板色点**而非缩略图。去饱和/锁屏（`accented`/`vibrant`）下
+  系统会把色点全部染成同一个强调色——那时它们**在说谎**（用户会读成「今天这三件是同色系」），
+  故单色渲染下**只留件名不画点**。判断住在 `TodayWidgetCopy.showsColorDots`（可测），
+  WidgetKit 那侧只有一行语义映射；WidgetKit push 服务端触发每日搭配刷新；App Intents `SnippetIntent` 交互结果卡适配「今日搭配」快捷场景（⚠️ updates 页 June 2026 段属 iOS 27 SDK，min iOS 26 不可依赖）
 
 ### 10.3 关键 UX 流程
 
