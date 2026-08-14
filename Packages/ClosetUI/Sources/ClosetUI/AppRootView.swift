@@ -15,21 +15,46 @@ public struct AppRootView: View {
     public init(wardrobe: Wardrobe) { self.wardrobe = wardrobe }
 
     public var body: some View {
+        // D214：iOS 26 `Tab` 值语法（`.tabItem` 老写法迁移；TabSkeletonTests 按名对账）。
+        // 搜索**不设 tab**（D214 裁决）：网格内联搜索带 facet 继承（状态/类型过滤
+        // 跟着进搜索、默认本柜），拆成 Tab(role: .search) 会丢掉它——
+        // 且「tab bar 只做导航不放动作」是 DESIGN §10.2 自己的原则。
         TabView {
-            CopilotView(wardrobe: wardrobe)
-                // Today 的 VM 是 @State 初值——参数变了它不会重建，
-                // 切柜后会一直停在旧衣柜上（其余三个 tab 持 let wardrobe，天然跟随）。
-                // 用视图身份强制重建：换柜 = 换内容，重置瞬时状态正是想要的（D101）。
-                .id(wardrobe.id)
-                .tabItem { Label("Today", systemImage: "sparkles") }
-            ClosetGridView(wardrobe: wardrobe)
-                .tabItem { Label("Closet", systemImage: "square.grid.2x2") }
-            CalendarView(wardrobe: wardrobe)
-                .tabItem { Label("Calendar", systemImage: "calendar") }
-            MeView(wardrobe: wardrobe)
-                .tabItem { Label("Me", systemImage: "person") }
+            Tab("Today", systemImage: "sparkles") {
+                CopilotView(wardrobe: wardrobe)
+                    // Today 的 VM 是 @State 初值——参数变了它不会重建，
+                    // 切柜后会一直停在旧衣柜上（其余三个 tab 持 let wardrobe，天然跟随）。
+                    // 用视图身份强制重建：换柜 = 换内容，重置瞬时状态正是想要的（D101）。
+                    .id(wardrobe.id)
+            }
+            Tab("Closet", systemImage: "square.grid.2x2") {
+                ClosetGridView(wardrobe: wardrobe)
+            }
+            Tab("Calendar", systemImage: "calendar") {
+                CalendarView(wardrobe: wardrobe)
+            }
+            Tab("Me", systemImage: "person") {
+                MeView(wardrobe: wardrobe)
+            }
         }
+        // 衣物照片是界面唯一的色彩主角（§10.1）——网格滚动时 bar 让位给照片。
+        .minimizesTabBarOnScroll()
         .tint(DS.accent)
+    }
+
+    // MARK: - D214
+
+    /// `.onScrollDown` 在 macOS 不存在（`swift test` 编的是 macOS，D92）——
+    /// 真机行为只有 xcodebuild + 真机能验，已入 DEVICE-ACCEPTANCE §6。
+}
+
+private extension View {
+    @ViewBuilder func minimizesTabBarOnScroll() -> some View {
+        #if os(iOS)
+        self.tabBarMinimizeBehavior(.onScrollDown)
+        #else
+        self
+        #endif
     }
 }
 

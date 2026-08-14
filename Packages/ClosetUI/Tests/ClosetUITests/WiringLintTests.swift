@@ -263,15 +263,37 @@ struct TabSkeletonTests {
             $0.lastPathComponent == "AppRootView.swift"
         }
         let text = try String(contentsOf: try #require(root), encoding: .utf8)
+        // D214：骨架迁到 iOS 26 的 `Tab("Name", systemImage:…)` 值语法——
+        // 门跟着**意图**走（4 个 tab 名对齐文档），不钉写法。
         var found: [String] = []
-        for line in text.split(separator: "\n") where line.contains(".tabItem { Label(") {
-            guard let open = line.range(of: "Label(\""),
+        for line in text.split(separator: "\n") where line.contains("Tab(\"") {
+            guard let open = line.range(of: "Tab(\""),
                   let close = line[open.upperBound...].firstIndex(of: "\"") else { continue }
             found.append(String(line[open.upperBound..<close]))
         }
         #expect(found == Self.expected, Comment(rawValue: "实际 tab：\(found)"))
         // DESIGN 的 ≤5 上限
         #expect(found.count <= 5)
+        // 衣橱网格是照片的地方——滚动时 tab bar 要让位（DESIGN §10.2 点名）。
+        // 两条都要：真实现存在 + **调用点在 body 上**——初版只查了前者，
+        // 把调用删掉门照样绿（「断言符号存在而非用在决策点」，CLAUDE.md 四形态之一，
+        // 这次是撞门第一击当场撞出来的）。
+        #expect(text.contains("tabBarMinimizeBehavior(.onScrollDown)"),
+                "tab bar 不再滚动收起 —— DESIGN §10.2 的照片展示承诺掉了")
+        #expect(text.contains(".minimizesTabBarOnScroll()"),
+                "滚动收起的调用点没了 —— extension 还在但没人用它")
+        // D214 裁决：搜索**不是** tab（内联搜索带 facet 继承，拆 tab 会丢它；
+        // 「tab bar 只做导航不放动作」是 DESIGN 自己的原则）。
+        // 只看代码行——解释「为什么不用它」的注释不算犯规
+        //（初版就这么误报了：AppRootView 里记录裁决的注释被门自己抓住，
+        // 与 D147 的 WearHistory 门同一形态）。
+        let searchTabInCode = text.split(separator: "\n").contains { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t.contains("Tab(role: .search)")
+                && !t.hasPrefix("//") && !t.hasPrefix("///")
+        }
+        #expect(!searchTabInCode,
+                "搜索被提成了 tab —— 这会丢掉网格 facet 继承，先读 D214 再动")
     }
 
     /// 文档必须与实现一致（此前 DESIGN 写五 tab、实现四 tab，两年没人对账）。

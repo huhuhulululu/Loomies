@@ -4739,3 +4739,43 @@ Xcode 26 可用性本地无从验证**——这条假设写在 ci.yml 头注释�
 没做的：project.yml ↔ xcodeproj 漂移检查（xcodegen generate + git diff --exit-code）
 可以作为第三个 job，但 xcodegen 跨版本生成不保证字节稳定，容易假红——留给
 真有 CI 环境后按实际 xcodegen 版本钉。
+
+## D214 — tab 骨架上 iOS 26，三个「手工项」被裁定不适用（2026-08-14）
+
+按 HANDOFF A2 做 DESIGN §10.2 的 Liquid Glass 手工项。**做之前逐项评估适用性**，
+结果五项里两项是真活，三项是设计期写下、实现期已不成立的：
+
+| 项 | 结论 |
+|---|---|
+| `Tab` 值语法 | ✅ 迁了（`.tabItem` → `Tab("Name", systemImage:)`）|
+| `tabBarMinimizeBehavior(.onScrollDown)` | ✅ 做了——衣物照片是唯一的色彩主角（§10.1），网格滚动时 bar 让位 |
+| `Tab(role: .search)` | **裁决不做**。实现里的搜索是网格内联 + **facet 继承**（状态/类型过滤跟着进搜索、默认本柜跨柜显式）——拆成独立 tab 会丢继承，且「tab bar 只做导航不放动作」是 §10.2 自己的原则。D100 同款文档-实现分歧，照先例以实现为准改文档，门钉住不许回潮 |
+| `backgroundExtensionEffect` | **无适用位**——详情页是 Form 不是 product-page 大图布局 |
+| `scrollEdgeEffectStyle` | **无适用位**——flash chip 是临时提示，非持久贴边悬浮元素 |
+
+`glassEffect`：0 处（≤2 合规）。「视觉预算全给内容层」——没有自然位置就不硬加。
+
+### 实现里的一个平台边界
+
+`.onScrollDown` **在 macOS 不存在**（`tabBarMinimizeBehavior` 符号在 macOS interface
+里有，case 没有——查符号存在还不够，得编译说了算）。包 `#if os(iOS)` 进
+`minimizesTabBarOnScroll()` 扩展，真机行为入 DEVICE-ACCEPTANCE §6。
+
+### 撞门第一击就撞出一个假绿
+
+门初版断言 `text.contains("tabBarMinimizeBehavior(.onScrollDown)")`——
+破坏1（删调用点）**没红**：那个字符串在 extension 实现体里，调用删了实现还在。
+**「断言符号存在而非用在决策点」**（CLAUDE.md 四形态之一），这次是自己刚写就犯。
+补第二条断言（调用点 `.minimizesTabBarOnScroll()` 必须在），重撞红。
+
+第二个小坑：门初版全文 `contains("Tab(role: .search)")` 抓到了**自己注释里的
+字面量**（AppRootView 记录裁决的注释）——D147 WearHistory 门同款，改成只认代码行。
+
+### 证据
+
+- 双向撞门：删调用点 → 红；真加 search tab → 红；还原 → 绿
+- 四包 1700 全绿 + iOS 真编译（`#if os(iOS)` 块只有它编到）
+- DESIGN §10.2 补对账块 + 删除线；DEVICE-ACCEPTANCE §6 补滚动收起验收条
+
+**没做的**：Icon Composer 分层图标（HANDOFF A6，需要设计资产工具链）；
+`glassEffect` 的真机视觉调优机会留给拿到真机的人。

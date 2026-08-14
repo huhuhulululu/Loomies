@@ -66,7 +66,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | # | 条目 | 规模 | 详单 |
 |---|---|---|---|
 | A1 | ~~CI 搭建~~ **workflow 文件已备**（D213，`.github/workflows/ci.yml`）——剩「建 GitHub repo + push」归用户（C11） | — | §6.1 |
-| A2 | Liquid Glass 手工项 ×5（glassEffect ≤2 处 / backgroundExtensionEffect / scrollEdgeEffectStyle / tabBarMinimizeBehavior / Tab(role:.search)） | 中 | §6.2 |
+| A2 | ~~Liquid Glass 手工项 ×5~~ **D214 收口**：tabBarMinimizeBehavior ✅ + Tab 值语法 ✅；search-role/backgroundExtension/scrollEdge 经逐项评估**不适用**（裁决记 DESIGN §10.2 对账块）；glassEffect 0 处合规。剩 Icon Composer（A6） | — | §6.2 |
 | A3 | Widget 旧快照（pieceNames 版）解码迁移 | 小 | §6.3 |
 | A4 | 胶囊模板补拍接线（`missingSlots` 已算好，无人消费；DESIGN §206） | 中 | §6.4 |
 | A5 | 条码相机扫描（DataScanner；现只能手输数字） | 中 | §6.5 |

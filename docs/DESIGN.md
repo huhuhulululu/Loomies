@@ -480,11 +480,12 @@ ease（放松量）= 服装周长（2 × 平铺宽）− 身体净围
 
 核心心智：**两层制**——内容层（衣物摄影）+ 悬浮玻璃功能层；视觉预算全给内容层，控件层用系统默认。
 
+- ⚠️ **手工项适用性对账（D214）**：`tabBarMinimizeBehavior` ✅ 已做；`Tab` 值语法 ✅ 已迁；`glassEffect` **0 处**（≤2 合规——「视觉预算全给内容层」，无自然位置就不硬加，留真机视觉调优）；`backgroundExtensionEffect` **当前布局无适用位**（详情页是 Form 不是 product-page 大图；未来若做大图式搭配详情页再用）；`scrollEdgeEffectStyle` **无适用位**（flash chip 是临时提示，非持久贴边悬浮元素）；Icon Composer 分层图标仍未做（HANDOFF A6）。
 - 标准 SwiftUI 组件经 Xcode 26 SDK 重编译并运行于 iOS 26 即自动获得新外观；手工项集中在四处：清理自定义 bar/sheet 背景（Apple 建议性措辞「prefer to remove」，会与系统玻璃/scroll edge effect 冲突）、自定义悬浮元素注册 `scrollEdgeEffectStyle`、搭配详情 hero 图用 `backgroundExtensionEffect`（Apple 点名的 product page 场景）、Icon Composer 分层图标（六外观变体全验收，不预裁圆角不自绘高光）
 - 克制规则（Apple 官方告诫）：自定义 `glassEffect` 全 App ≤2 处（如悬浮「今日搭配」入口）且必须包进 `GlassEffectContainer`；内容层禁用玻璃；禁玻璃叠玻璃；regular/clear 变体不混用（clear 仅全屏看图/体型可视化浮层 + ~35% dimming）；bar 优先单色外观（内容鲜艳 App 的 HIG 首选项）
 - 导航骨架：底部 TabView **4 tab（搭配 / 衣橱 / 日历 / 我的）**——入库不设 tab，
   它是**动作**不是目的地（本行下文「tab bar 只做导航不放动作」本就否定了入库 tab；
-  D100 裁决：以实现为准，改文档）。入库入口在 Closet 的「+」，批量多选也在那里，衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示；搜索用 `Tab(role:.search)`；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
+  D100 裁决：以实现为准，改文档）。入库入口在 Closet 的「+」，批量多选也在那里，衣橱网格页启用 `tabBarMinimizeBehavior(.onScrollDown)` 最大化照片展示（**D214 已做**，`#if os(iOS)`）；~~搜索用 `Tab(role:.search)`~~ **D214 裁决：搜索不设 tab**——实现选择了网格内联搜索 + facet 继承（状态/类型过滤跟着进搜索、默认本柜跨柜显式），拆成独立 tab 会丢掉继承，且「tab bar 只做导航不放动作」本就是本行自己的原则（`TabSkeletonTests` 钉住不许回潮）；tab bar 只做导航不放动作；卡片列表用大行高 + 同心圆角（concentric），层级靠布局分组不靠装饰边框
 - 系统表面：Widget 主屏 clear/tinted 去饱和模式需 `widgetAccentable` 适配（否则衣物照片不可辨）。
   ⚠️ **实现取了另一条路（D210）**：照片不出 App 沙盒（D197 立的边界，D210 重审后维持），
   widget 上的色彩主角是每件的**调色板色点**而非缩略图。去饱和/锁屏（`accented`/`vibrant`）下
