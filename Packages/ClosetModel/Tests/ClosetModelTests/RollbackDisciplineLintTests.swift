@@ -29,11 +29,14 @@ struct RollbackDisciplineLintTests {
     ]
 
     @Test func everyRollbackAfterARelationEditRestoresIt() throws {
+        // D208：遍历型门必须自证「扫到过东西」（实证：遍历根坏掉时门照样绿）。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
 
             var funcStart = 0
@@ -63,6 +66,8 @@ struct RollbackDisciplineLintTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "rollback 撤不掉内存关系，幻影会被下一次无关 save 写进库：\n"
             + violations.joined(separator: "\n")))
@@ -143,11 +148,13 @@ struct PlanUnbindLintTests {
     }
 
     @Test func everyOutfitDeletionUnbindsItsPlansFirst() throws {
+        var unbindScanCount = 0   // D208：同上，防空转
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: sourcesDir, includingPropertiesForKeys: nil)!
         where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            unbindScanCount += 1
             let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             for (i, line) in lines.enumerated() {
                 // 只认删「搭配」的那种：变量名或参数名里带 outfit
@@ -161,6 +168,8 @@ struct PlanUnbindLintTests {
                 }
             }
         }
+        #expect(unbindScanCount >= 3, Comment(rawValue:
+            "只扫到 \(unbindScanCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "删搭配前没解绑日历计划，会留下指向已删行的悬挂引用：\(violations)"))
     }

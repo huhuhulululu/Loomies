@@ -207,6 +207,10 @@ struct CalendarAndCheckInGapsTests {
 struct PlanOnlySourceIsSingleSourcedTests {
 
     @Test func noProductionCodeSpellsTheMarkerByHand() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         let packages = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -218,6 +222,7 @@ struct PlanOnlySourceIsSingleSourcedTests {
             guard path.contains("/Sources/") else { continue }
             guard url.lastPathComponent != "CalendarPlanService.swift" else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             let hit = text.split(separator: "\n").contains { line in
                 let t = line.trimmingCharacters(in: .whitespaces)
                 return t.contains("\"copilot-plan\"")
@@ -225,6 +230,8 @@ struct PlanOnlySourceIsSingleSourcedTests {
             }
             if hit { offenders.append(url.lastPathComponent) }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方手写了来源标记：\(offenders) —— 用 CalendarPlanService.planOnlySource"))
     }

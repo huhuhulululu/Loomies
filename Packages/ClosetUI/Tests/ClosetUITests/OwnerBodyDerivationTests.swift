@@ -92,6 +92,10 @@ struct OwnerBodyDerivationTests {
 struct OwnerBodyDerivationSingleSourceTests {
 
     @Test func noViewHandRollsTheDerivation() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         let dir = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -104,6 +108,7 @@ struct OwnerBodyDerivationSingleSourceTests {
             // 推导自身与推导服务不算犯规
             guard url.lastPathComponent != "OwnerBodyDerivation.swift" else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for line in text.split(separator: "\n") {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
@@ -118,6 +123,8 @@ struct OwnerBodyDerivationSingleSourceTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "又有人自己拼头像体型推导：\(offenders) —— 用 `OwnerBodyDerivation`"))
     }

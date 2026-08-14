@@ -28,12 +28,17 @@ struct LayeringTests {
     ]
 
     @Test func coreImportsNothingBeyondTheAllowList() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         var offenders: [String] = []
         let fm = FileManager.default
         guard let walker = fm.enumerator(at: coreSources, includingPropertiesForKeys: nil)
         else { return }
         for case let url as URL in walker where url.pathExtension == "swift" {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for line in text.split(separator: "\n") {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard t.hasPrefix("import ") else { continue }
@@ -44,6 +49,8 @@ struct LayeringTests {
                 offenders.append("\(url.lastPathComponent) ~ import \(module)")
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "ClosetCore 引入了白名单之外的模块：\(offenders) —— "
             + "引擎是纯值层（CLAUDE.md 关键约束）；确实需要就先改白名单并说明理由"))

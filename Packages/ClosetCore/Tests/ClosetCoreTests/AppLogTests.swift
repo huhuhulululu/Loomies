@@ -74,6 +74,10 @@ struct AppLogTests {
     /// 静态隐私 lint：全仓 Sources 的 AppLog 行禁止插值用户内容
     /// （单品/衣柜/搭配/位置名、城市原文、error 全量 dump）。回归即失败。
     @Test func appLogCallSitesCarryNoPIIPatterns() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         let packagesDir = URL(fileURLWithPath: #filePath)   // …/Packages/ClosetCore/Tests/ClosetCoreTests/AppLogTests.swift
             .deletingLastPathComponent()                    // ClosetCoreTests
             .deletingLastPathComponent()                    // Tests
@@ -104,6 +108,7 @@ struct AppLogTests {
         }
         for url in files {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             // D101：旧写法要求**同一行**里出现 AppLog.——而 `Self.error(...)`
             // 这种同文件内的转发调用不带 AppLog. 前缀，泄漏就从这里漏过去了。
             // 改为：AppLog.swift 全文件扫描，其余文件仍按 AppLog. 行过滤。
@@ -128,6 +133,8 @@ struct AppLogTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, "\(violations)")
     }
 }

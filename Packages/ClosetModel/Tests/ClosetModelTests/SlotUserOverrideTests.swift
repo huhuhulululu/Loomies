@@ -95,6 +95,10 @@ struct SlotUserOverrideTests {
     /// 八个读取点各自调 `GarmentSlot.resolved(item.slotRaw, name:)` 正是本条的成因：
     /// 加了标记位而漏掉任何一个，那一处就仍然会把用户的选择改回去。
     @Test func noReadSiteBypassesTheOverride() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         let packages = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -104,6 +108,7 @@ struct SlotUserOverrideTests {
         where url.pathExtension == "swift" {
             guard url.path.contains("/Sources/") else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (n, line) in text.split(separator: "\n").enumerated() {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard !t.hasPrefix("//"), !t.hasPrefix("///") else { continue }
@@ -114,6 +119,8 @@ struct SlotUserOverrideTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(offenders.isEmpty, Comment(rawValue:
             "这些地方绕过了用户的明确选择：\(offenders) —— 用 `item.resolvedSlot`"))
     }

@@ -50,6 +50,10 @@ struct BodyLanguageRedLineTests {
     }
 
     @Test func noUserFacingStringEvaluatesTheUsersBody() throws {
+        // D208：**遍历型门必须自证「扫到过东西」**。
+        // 实证过：把遍历根指向不存在的目录，门照样绿——
+        // 「不存在」断言 + 目录遍历 = 看不见的地方等于不存在（假绿，无征兆）。
+        var scannedFileCount = 0
         var violations: [String] = []
         let fm = FileManager.default
         for case let url as URL in fm.enumerator(at: packagesDir, includingPropertiesForKeys: nil)!
@@ -57,6 +61,7 @@ struct BodyLanguageRedLineTests {
             let path = url.path
             guard path.contains("/Sources/"), !path.contains("/Tests/") else { continue }
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
+            scannedFileCount += 1
             for (i, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 let line = String(raw)
                 // 注释行不算产出（注释里引用红线词是合法的，比如这条门自己的说明）
@@ -70,6 +75,8 @@ struct BodyLanguageRedLineTests {
                 }
             }
         }
+        #expect(scannedFileCount >= 3, Comment(rawValue:
+            "只扫到 \(scannedFileCount) 个文件 —— 遍历坏了，这道门在空转"))
         #expect(violations.isEmpty, Comment(rawValue:
             "DESIGN §10.4 文案红线：合身语言只评价衣服，不评价身体。\n"
             + violations.joined(separator: "\n")))
