@@ -44,7 +44,7 @@ struct PolicySiteTests {
 
     /// 每个小节都要落到页面上——生成器不得悄悄漏段。
     @Test func everySectionReachesThePage() {
-        for doc in ComplianceCopy.policyDocuments(hasSink: false) {
+        for doc in PolicySite.hostedDocuments(hasSink: false) {
             let html = PolicySite.render(doc)
             for section in doc.sections {
                 #expect(html.contains(PolicySite.escape(section.heading)),
@@ -59,7 +59,7 @@ struct PolicySiteTests {
     @Test func checkedInPagesMatchTheCurrentCopy() throws {
         let dir = repoRoot.appendingPathComponent("preview/landing")
         let recording = ProcessInfo.processInfo.environment["LOOMIES_POLICY_SITE"] == "record"
-        for doc in ComplianceCopy.policyDocuments(hasSink: false) {
+        for doc in PolicySite.hostedDocuments(hasSink: false) {
             let file = dir.appendingPathComponent(PolicySite.fileName(for: doc))
             let expected = PolicySite.render(doc)
             if recording {
@@ -169,5 +169,33 @@ struct ReleaseFactsTests {
     @Test func aClearSummaryWhenNothingBlocks() {
         #expect(ReleaseReadiness.summaryLine(blockers: [])
             .localizedCaseInsensitiveContains("ready"))
+    }
+}
+
+/// D217：Support 页与应用内政策同一条生成链，但不进 Help 的 Policies。
+struct SupportPageTests {
+
+    @Test func supportIsHostedButNotAnInAppPolicy() {
+        let inApp = ComplianceCopy.policyDocuments(hasSink: false).map(\.title)
+        #expect(!inApp.contains("Support"))
+        let hosted = PolicySite.hostedDocuments(hasSink: false).map(\.title)
+        #expect(hosted.contains("Support"))
+        #expect(PolicySite.fileName(for: ComplianceCopy.supportDocument(contact: nil))
+            == "support.html")
+    }
+
+    /// 没有收件方时不教用户「发给某处」（D191 同一条）。
+    @Test func aMissingInboxDoesNotInventARecipient() {
+        let html = PolicySite.render(ComplianceCopy.supportDocument(contact: nil))
+        #expect(!html.localizedCaseInsensitiveContains("send it to"))
+        #expect(!html.contains("@"))
+        #expect(html.contains("Export diagnostics"))
+    }
+
+    @Test func aRealContactAppearsOnThePage() {
+        let html = PolicySite.render(
+            ComplianceCopy.supportDocument(contact: "help@example.com"))
+        #expect(html.contains("help@example.com"))
+        #expect(html.contains("send it to"))
     }
 }

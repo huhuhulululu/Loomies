@@ -229,6 +229,37 @@ public enum ComplianceCopy {
             ]),
     ] }
 
+    /// ASC Support URL 与仓内静态页的同一份正文（D217）。
+    ///
+    /// **不进** `policyDocuments`——Help 里那一节叫 Policies，把 Support 塞进去会
+    /// 把「政策」和「怎么找人」混在一起。站点单独生成 `support.html`。
+    /// 没有收件方时只讲导出诊断，不教用户「发给某处」（D191）。
+    public static func supportDocument(contact: String?) -> PolicyDocument {
+        let diagnostics: String
+        if TextNormalize.blankToNil(contact) != nil {
+            diagnostics = feedbackBody(contact: contact)
+        } else {
+            diagnostics = "Me → Support → Export diagnostics produces a file of counts and "
+                + "recent logs, with closet names and city removed. This build does not "
+                + "publish a public inbox; when one exists it will be listed in this section."
+        }
+        return PolicyDocument(
+            title: "Support",
+            lastUpdated: "August 2026",
+            sections: [
+                PolicySection(
+                    heading: "In the app",
+                    body: "Me → Help & FAQ covers what leaves the device, why a recommendation "
+                        + "can be empty, and how to delete everything. Suggestions stay yours to "
+                        + "override — the app does not make the final call."),
+                PolicySection(heading: "Diagnostics", body: diagnostics),
+                PolicySection(
+                    heading: "Policies",
+                    body: "The Privacy Policy and Terms of Use live in the app under Me → Help. "
+                        + "The same text is published as static pages next to this one."),
+            ])
+    }
+
     /// 帮助与反馈：反馈通道复用既有诊断导出（不虚构邮箱/工单系统）。
     public static let feedbackTitle = "Send feedback"
 

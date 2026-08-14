@@ -9,6 +9,7 @@ preview/*
 preview/landing/*
 !preview/landing/privacy.html
 !preview/landing/terms.html
+!preview/landing/support.html
 
 # SwiftPM
 .build/

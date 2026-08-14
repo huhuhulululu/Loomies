@@ -11,6 +11,9 @@ let package = Package(
     ],
     targets: [
         .target(name: "ClosetCore"),
-        .testTarget(name: "ClosetCoreTests", dependencies: ["ClosetCore"]),
+        .testTarget(
+            name: "ClosetCoreTests",
+            dependencies: ["ClosetCore"],
+            exclude: ["Fixtures"]),
     ]
 )

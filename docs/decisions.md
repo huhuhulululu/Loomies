@@ -4822,3 +4822,16 @@ Widget push 客户端挂钩。A9 仍按原文谨慎跳过。
 
 **没做的**：B/C/P 仍是用户或真机的事；没造 93 张身体图、没填 ReleaseFacts、
 没建 GitHub remote、没开 App Group entitlements。
+
+## D217 — Support 静态页：有页、不编造收件方（2026-08-14）
+
+**起因**：C2 要三条事实。隐私/条款页早就从 `ComplianceCopy` 生成，
+Support URL 却没有对应页——填了域名也指向空气。
+
+**做法**：`ComplianceCopy.supportDocument` + `PolicySite.hostedDocuments`。
+`support.html` 进 `preview/landing/` 白名单。没有 `ReleaseFacts.supportContact`
+时只讲导出诊断，不出现「send it to」或邮箱（D191）。有收件方后重录即出现。
+
+**不进**应用内 Policies 列表——那一节是政策，不是客服入口。
+
+**没做的**：没填公网 URL（tailnet 审稿人打不开），没编造邮箱。

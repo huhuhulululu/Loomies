@@ -5,7 +5,7 @@
 
 ## 为什么需要这份清单
 
-本仓的自动化是 **1643 条单元测试 + `xcodebuild -destination 'generic/platform=iOS'` 编译**。
+本仓的自动化是 **1720 条单元测试 + `xcodebuild -destination 'generic/platform=iOS'` 编译**。
 这两样合起来能证明的是：**逻辑对、编译过**。它们证明不了的是：
 
 - 相机、Vision 抠图/OCR 在真设备上的**真实推理结果**（模拟器一律 mock）；

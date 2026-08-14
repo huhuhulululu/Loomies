@@ -17,10 +17,19 @@ public enum PolicySite {
             .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    /// 文件名由标题推出：`Privacy Policy` → `privacy.html`、`Terms of Use` → `terms.html`。
+    /// 文件名由标题推出：`Privacy Policy` → `privacy.html`、`Terms of Use` → `terms.html`、
+    /// `Support` → `support.html`。
     public static func fileName(for doc: ComplianceCopy.PolicyDocument) -> String {
         let first = doc.title.split(separator: " ").first.map(String.init) ?? "policy"
         return first.lowercased() + ".html"
+    }
+
+    /// 落地页要托管的全部页：应用内政策 + Support（D217，不进 Help 的 Policies 节）。
+    public static func hostedDocuments(hasSink: Bool, contact: String? = ReleaseFacts.supportContact)
+        -> [ComplianceCopy.PolicyDocument]
+    {
+        ComplianceCopy.policyDocuments(hasSink: hasSink)
+            + [ComplianceCopy.supportDocument(contact: contact)]
     }
 
     /// 自包含单页：无外链 CSS/JS/字体（静态托管直接可用，也不给第三方留追踪位）。
