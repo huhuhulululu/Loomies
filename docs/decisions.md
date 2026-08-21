@@ -4835,3 +4835,25 @@ Support URL 却没有对应页——填了域名也指向空气。
 **不进**应用内 Policies 列表——那一节是政策，不是客服入口。
 
 **没做的**：没填公网 URL（tailnet 审稿人打不开），没编造邮箱。
+
+## D218 — TestFlight 一键路径与本机 runner 跟 CI 对齐（2026-08-21）
+
+**起因**：文档与脚本还在教两条路。TESTFLIGHT.md 写死 `/Users/ping/code/cloth` 并叫人跑
+`scripts/testflight.sh`（Automatic）；build 44 实际走的是 `tf-upload-now.sh`
+（Manual、仅 App、C1 前不 embed Widget）。`RUN-TESTFLIGHT.command` 同样写死那条路径
+且不 source `.env.asc`。`scripts/run-all-tests.sh` 的 ClosetModel 没带 CI 的
+`--no-parallel`（D211/D215），`--ios` 写死 `iPhone 17 Pro,OS=26.2`。
+
+**核实过、没发明的**：HANDOFF §1 已经指向 `tf-upload-now.sh`。`testflight.sh`
+确有 `set -o pipefail` 且把 `xcodebuild archive` 接到 `grep`——grep 零匹配会让成功的
+archive 整段失败。仓里没有 `ts-publish.sh`，不补发布管线，只在 HANDOFF §9.2 写明缺失。
+
+**做法**：
+- TESTFLIGHT.md / HANDOFF §1：一键路径 = `tf-upload-now.sh`；Finder 走
+  `RUN-TESTFLIGHT.command`（相对 `$0` 定位，有 `.env.asc` 就 source）
+- `testflight.sh` 标成 legacy Automatic，去掉 pipefail+grep 假红（只 tee，再看 archive 是否落盘）
+- `run-all-tests.sh`：ClosetModel `--no-parallel`；`--ios` 从本机已装的 iOS 26
+  iPhone 里挑（优先 17 Pro / 26.2），没有就列出已装的 iOS 26 模拟器后失败
+
+**没做的**：没开 App Group entitlements、没 embed Widget、没改 build 号、没上传
+TestFlight。本环境是 Linux，只对改过的 shell 做了 `bash -n`，没跑 xcodebuild / iOS 测。

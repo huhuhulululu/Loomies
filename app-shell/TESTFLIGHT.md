@@ -37,10 +37,14 @@
 
 ## 你本机 Terminal.app 一键（推荐）
 
-在 **Terminal.app**（非 agent）执行，会弹出钥匙串授权：
+**Canonical 路径**（build 44 同款）：`scripts/tf-upload-now.sh` — Manual 签名、仅 App 目标、C1 完成前不 embed Widget。
+
+Finder 一键：双击 `app-shell/RUN-TESTFLIGHT.command`（相对自身定位仓库；存在 `.env.asc` 则 source）。
+
+在 **Terminal.app**（非 agent）执行，会弹出钥匙串授权。从**仓库根**进 `app-shell`，不要抄本机绝对路径：
 
 ```bash
-cd /Users/ping/code/cloth/app-shell
+cd app-shell
 
 # 1) 解锁钥匙串（弹出密码框）
 security unlock-keychain ~/Library/Keychains/login.keychain-db
@@ -49,7 +53,7 @@ security unlock-keychain ~/Library/Keychains/login.keychain-db
 # 从 https://appstoreconnect.apple.com/access/integrations/api 复制 Issuer ID
 cp -n .env.asc.example .env.asc
 # 编辑 .env.asc 填 ASC_ISSUER_ID=...
-source .env.asc
+set -a && . ./.env.asc && set +a
 
 # 3) 注册 Bundle ID + App 记录（首次，已完成 — 实际 ASC 记录：Loomies / Loomy001）
 #    Bundle ID: com.pinglin.closet
@@ -58,9 +62,11 @@ source .env.asc
 #    主语言: English (U.S.)
 #    可用性: United States only (D9)
 
-# 4) Archive + 上传
-./scripts/testflight.sh
+# 4) Archive + 上传（Manual + Closet App Store TF2；与 build 44 同一条路）
+./scripts/tf-upload-now.sh
 ```
+
+`scripts/testflight.sh` 是遗留 **Automatic** 路径，不要用来发 TestFlight。
 
 成功后到 [App Store Connect → TestFlight](https://appstoreconnect.apple.com/apps) 等处理（通常 5–30 分钟），加内部测试员。
 
@@ -80,6 +86,8 @@ source .env.asc
 - 审核备注：copilot demo seeds for empty closet
 
 ## 命令对照
+
+发 TestFlight 用上面的 `tf-upload-now.sh`，不要手抄下面这组（缺 Manual profile / ASC key，也不是 build 44 那条路）。拆开看步骤时才用：
 
 ```bash
 # 仅 archive

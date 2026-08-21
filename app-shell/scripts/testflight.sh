@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# TestFlight 一键：xcodegen → archive → export/upload
+# LEGACY Automatic signing path. Do not use for TestFlight.
+# Canonical (Manual, app-only, same as build 44): ./scripts/tf-upload-now.sh
 # 需要：
 #   1) DEVELOPMENT_TEAM 证书（已有 iPhone Distribution / Apple Development）
 #   2) App Store Connect API：
@@ -8,6 +9,7 @@
 #        export ASC_KEY_PATH=$HOME/.appstoreconnect/private_keys/AuthKey_YFRZC2GC2V.p8
 #   或 Xcode 已登录 Apple ID（Automatic signing + allowProvisioningUpdates）
 set -euo pipefail
+echo "NOTE: legacy Automatic path. For TestFlight use ./scripts/tf-upload-now.sh" >&2
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO="$(cd "$ROOT/.." && pwd)"
 ARCHIVE="$ROOT/build/ClosetApp.xcarchive"
@@ -21,7 +23,9 @@ xcodegen generate
 
 mkdir -p "$ROOT/build"
 
-echo "==> Archive (generic iOS device)"
+echo "==> Archive (generic iOS device; Automatic — not the TestFlight path)"
+# tee only: pipefail + grep used to fail a successful archive that printed
+# no matching lines (grep exit 1). Full log is still in archive.log.
 xcodebuild archive \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
@@ -31,8 +35,7 @@ xcodebuild archive \
   -allowProvisioningUpdates \
   DEVELOPMENT_TEAM=28626PSX5Y \
   CODE_SIGN_STYLE=Automatic \
-  | tee "$ROOT/build/archive.log" \
-  | grep -E 'error:|warning:|ARCHIVE SUCCEEDED|ARCHIVE FAILED|\*\*'
+  2>&1 | tee "$ROOT/build/archive.log"
 
 if [[ ! -d "$ARCHIVE" ]]; then
   echo "Archive missing — see $ROOT/build/archive.log" >&2

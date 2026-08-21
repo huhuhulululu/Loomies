@@ -9,7 +9,7 @@
 1. **先跑一遍 §1 的验证命令**——四包全绿 + xcodebuild 成功是你的基线，任何时候红了先回这里对照。
 2. **通读 §2 约束与 §3 坑表**——本仓 90% 的返工都栽在这两张表里的某一条。
 3. **选活**：A1–A9 已收口。其余是 B 真机 / C 外部 / P 产品三连（用户包在 §9）。
-4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D217）；改行为前查 `docs/DOC-SYNC.md`；
+4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D218）；改行为前查 `docs/DOC-SYNC.md`；
    涉及结构就同步 `docs/ARCHITECTURE.md`；HANDOFF 对应行标收口。
 5. **别碰的**：B/C/P 组是用户或真机的事，做不了别硬做；D 组动工前先过它标的前置门。
 6. **不确定就查 ADR**——每个「为什么这么怪」的问题几乎都有一条 D 编号写着理由。
@@ -31,6 +31,7 @@ for p in ClosetCore ClosetModel ClosetUI ClosetIntake; do swift test --package-p
 xcodebuild -project app-shell/ClosetApp.xcodeproj -scheme ClosetApp -destination 'generic/platform=iOS' build
 
 # TestFlight 上传（仅用户说「发」时；当前 build 44，version 见 project.yml）
+# 与 build 44 同一条路：tf-upload-now.sh（Manual、仅 App）。或双击 app-shell/RUN-TESTFLIGHT.command
 cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 ```
 
@@ -193,7 +194,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 |---|---|
 | `CLAUDE.md` | 每 session 自动加载：约束 + 撞门纪律 |
 | `docs/ARCHITECTURE.md` | 定位模块/检修；每次提交同步 |
-| `docs/decisions.md` | 217 条 ADR；改任何行为前查关联决策 |
+| `docs/decisions.md` | 218 条 ADR；改任何行为前查关联决策 |
 | `docs/DOC-SYNC.md` | **改文件前查 glob → 承诺**（DocSyncMapTests 守着） |
 | `docs/DESIGN.md` | 产品真相；⚠️ 标注 = 实现与设计的已知偏差 |
 | `docs/MVP-PLAN.md` | 里程碑退出门（✅/❌/⚠️ 标记约定见 D203） |
@@ -238,7 +239,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 三页都从 `ComplianceCopy` 生成：`privacy.html` / `terms.html` / `support.html`。
 Support 页在没有收件方时只讲导出诊断，不教「发给某处」（D191/D217）。
-托管：`ts-publish.sh` 或任何**公网**静态托管（tailnet :10029 审稿人打不开）。`http://` / `TBD` 过不了 `isUsableHTTPSURL`。
+托管：仓里**没有** `ts-publish.sh`（不要现造发布管线）；用任何**公网**静态托管（tailnet :10029 审稿人打不开）。`http://` / `TBD` 过不了 `isUsableHTTPSURL`。
 
 ### 9.3 C3 · ASC 营养标签草稿（对照代码，不是法务意见）
 
