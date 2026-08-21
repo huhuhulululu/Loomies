@@ -25,11 +25,11 @@
 `Packages/ClosetCore/Tests/ClosetCoreTests/Fixtures/TraversalCensus.json`。
 涨了：`LOOMIES_TRAVERSAL_RECORD=1 swift test --package-path Packages/ClosetCore --filter TraversalCensus`。
 
-### CI（D213 / D215；待 remote）
+### CI（D213 / D215；remote 已接）
 
 `.github/workflows/ci.yml`：四包 `swift test`（ClosetModel `--no-parallel`）+
 `xcodegen generate` + 无签名 iOS `xcodebuild`。无 Xcode 26 硬失败。
-**仓库当前无 git remote**——push 后即生效（HANDOFF C11）。
+**remote**：`https://github.com/huhuhulululu/Loomies`（C11，2026-08-21 推上 main）。
 动机：本机 load 长期 17-38，三道性能门恒 skipped（D211），CI 是它们唯一会真跑的地方。
 
 ### 第二个 target：主屏 Widget（D197 / D210）

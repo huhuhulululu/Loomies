@@ -10,7 +10,7 @@
 #     the three time-sensitive gates instead of reporting a green that measured
 #     nothing.
 #
-#  3. No git remote yet (D213). Workflow is ready; push is the user's C11.
+#  3. Remote: https://github.com/huhuhulululu/Loomies (C11 done 2026-08-21).
 #     First Actions run: read "Show toolchain" and confirm Xcode 26 is present.
 #
 # Runner: macos-26, pin Xcode 26.x (prefer 26.2). No Xcode 26 → hard fail,

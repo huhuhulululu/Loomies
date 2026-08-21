@@ -76,7 +76,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 | # | 条目 | 规模 | 详单 |
 |---|---|---|---|
-| A1 | ~~CI 搭建~~ workflow 已备（D213/D215）；剩「建 GitHub repo + push」归用户（C11） | — | §6.1 ✅ |
+| A1 | ~~CI 搭建~~ workflow 已备（D213/D215）；repo 已推 `huhuhulululu/Loomies`（C11） | — | §6.1 ✅ |
 | A2 | ~~Liquid Glass~~ D215：search tab + hero 玻璃 + 滚动收起（D214 的「三项不适用」被实测推翻） | — | §6.2 ✅ |
 | A3 | ~~Widget 旧快照迁移~~ read 时 `pieceNames` → `pieces` | — | §6.3 ✅ |
 | A4 | ~~胶囊补拍~~ `CapsuleGapCTA` 可跳过 | — | §6.4 ✅ |
@@ -111,7 +111,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | C8 | 落地页 `FORM_ENDPOINT` 占位未接后端 | 后端选型 |
 | C9 | 云端 AI Worker（无状态代理 + App Attest + 配额账本，DESIGN §4.1）完全未建——打标真推理（D 组 D1）的前置 | 云端基建 |
 | C10 | 真实人体 USDZ 网格许可/采购（`Mannequin3DView` 降级为探针中） | 采购 |
-| C11 | **建 GitHub repo + push**（CI workflow 已备好即刻生效；仓库无 remote，外发代码归用户决策）。push 后看 Actions 第一跑的「Show toolchain」确认 runner 有 Xcode 26，没有则按 ci.yml 头注释换镜像 | 用户 |
+| C11 | ~~建 GitHub repo + push~~ `https://github.com/huhuhulululu/Loomies`（public，2026-08-21）。看 Actions「Show toolchain」确认 runner 有 Xcode 26 | — |
 
 ### 产品决策待裁（用户三连）
 
@@ -150,7 +150,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 
 ### 6.1 CI（A1）✅
 `.github/workflows/ci.yml`：`macos-26` + 显式 Xcode 26.2（没有就硬失败）；四包 `swift test`（ClosetModel `--no-parallel`）；`xcodegen generate` + 无签名 iOS `xcodebuild`。本机 load 17-38 时性能门仍 skip。
-**剩余（C11）**：建 GitHub repo + push。首跑看「Show toolchain」。
+**C11 ✅**：`https://github.com/huhuhulululu/Loomies`。首跑看 Actions「Show toolchain」。
 
 ### 6.2 Liquid Glass + 分层图标（A2/A6）✅
 - Today hero：`backgroundExtensionEffect` + `scrollEdgeEffectStyle`；自定义 `glassEffect` 恰 2 处且在 `GlassEffectContainer`（`GlassEffectBudgetTests` 守）
@@ -373,16 +373,9 @@ photoreal_male_indigenous_invertedTriangle_front
 2. **FashionCLIP / Marqo-FashionSigLIP 训练数据链**（Farfetch 等）商用是否干净？权重 MIT/Apache，数据许可未声明。过不了就不要启动 Core ML 转换（D7）。
 3. **扩区**：现在只开 US。逐国开之前，GDPR / PIPL 等各要补什么？孩子档案已裁到 v2 + COPPA 同批（D2）。
 
-### 9.6 C11 · 建 GitHub repo（不要让 agent push）
+### 9.6 C11 · GitHub repo ✅
 
-CI 已在 `.github/workflows/ci.yml`。仓库**没有 remote**。外发代码是你的决定。
-
-```bash
-# 在你确认可以公开/私有之后自己跑；agent 不跑 push
-gh repo create <你的login>/cloth --private --source=. --remote=origin
-git push -u origin main
-```
-
+`https://github.com/huhuhulululu/Loomies`（public）。`origin` 已跟踪 `main`。
 首跑看 Actions「Show toolchain」：runner 必须有 Xcode 26，没有就按 `ci.yml` 头注释换镜像。
 
 ### 9.7 P1–P3 · 决策简报（你裁，agent 不替你选）
