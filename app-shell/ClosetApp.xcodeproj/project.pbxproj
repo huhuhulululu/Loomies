@@ -317,10 +317,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LOOMIES_PROFILE_Manual = "Closet App Store TF2";
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet;
 				PRODUCT_NAME = Loomies;
-				PROVISIONING_PROFILE_SPECIFIER = "Closet App Store TF2";
+				PROVISIONING_PROFILE_SPECIFIER = "$(LOOMIES_PROFILE_$(CODE_SIGN_STYLE))";
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -403,9 +404,10 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				LOOMIES_PROFILE_Manual = "Loomies Widget App Store";
 				PRODUCT_BUNDLE_IDENTIFIER = com.pinglin.closet.widget;
 				PRODUCT_NAME = LoomiesWidget;
-				PROVISIONING_PROFILE_SPECIFIER = "Loomies Widget App Store";
+				PROVISIONING_PROFILE_SPECIFIER = "$(LOOMIES_PROFILE_$(CODE_SIGN_STYLE))";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
