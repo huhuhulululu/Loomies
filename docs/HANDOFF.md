@@ -9,7 +9,7 @@
 1. **先跑一遍 §1 的验证命令**——四包全绿 + xcodebuild 成功是你的基线，任何时候红了先回这里对照。
 2. **通读 §2 约束与 §3 坑表**——本仓 90% 的返工都栽在这两张表里的某一条。
 3. **选活**：A1–A9 已收口。其余是 B 真机 / C 外部 / P 产品三连（用户包在 §9）。
-4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D218）；改行为前查 `docs/DOC-SYNC.md`；
+4. **每波必做的收尾**：`docs/decisions.md` 追加 ADR（编号接续，当前至 D219）；改行为前查 `docs/DOC-SYNC.md`；
    涉及结构就同步 `docs/ARCHITECTURE.md`；HANDOFF 对应行标收口。
 5. **别碰的**：B/C/P 组是用户或真机的事，做不了别硬做；D 组动工前先过它标的前置门。
 6. **不确定就查 ADR**——每个「为什么这么怪」的问题几乎都有一条 D 编号写着理由。
@@ -113,6 +113,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | C9 | 云端 AI Worker（无状态代理 + App Attest + 配额账本，DESIGN §4.1）完全未建——打标真推理（D 组 D1）的前置 | 云端基建 |
 | C10 | 真实人体 USDZ 网格许可/采购（`Mannequin3DView` 降级为探针中） | 采购 |
 | C11 | ~~建 GitHub repo + push~~ `https://github.com/huhuhulululu/Loomies`（public，2026-08-21）。看 Actions「Show toolchain」确认 runner 有 Xcode 26 | — |
+| C12 | **Xcode Cloud workflow**（D219）：工程侧已就绪；建 workflow、授权仓库、把 Next Build Number 设成 45 要在 Xcode / ASC 里点，步骤见 `app-shell/TESTFLIGHT.md`「Xcode Cloud」 | Xcode + ASC |
 
 ### 产品决策待裁（用户三连）
 

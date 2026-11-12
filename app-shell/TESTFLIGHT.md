@@ -136,3 +136,46 @@ Widget 与 App 是**两个进程**，靠 App Group 共享容器里的一份小�
 
 **没做完这一步之前不要把 Widget 发出去**：它会一直显示
 「Open Loomies to get today's look.」——诚实但没用。
+
+## Xcode Cloud（D219）
+
+第二条发布通道：云端归档并上传 TestFlight，不占本机、不需要本机证书。
+本机 `tf-upload-now.sh` 那条路不变。仓里**不需要** `ci_scripts/`：四个 SPM 包都是本地路径、
+没有 gitignore 掉的构建产物，clone 下来直接能归档。
+
+**工程侧已经做的**：Release 的 profile 名改成按签名方式取（`project.yml`）。
+Xcode Cloud 归档时在命令行传 `CODE_SIGN_STYLE=Automatic`，profile 名随之为空；
+本机不传，仍是 Manual + `Closet App Store TF2`。
+
+**你要做的（Xcode 与网页，代码做不了）**：
+
+1. 把带这项改动的提交合进 `main` 并 push（Xcode Cloud 只看远端）
+2. Xcode 打开 `app-shell/ClosetApp.xcodeproj` → Report navigator（⌘9）→ Cloud → **Get Started**
+3. 产品选 **ClosetApp**；授权 GitHub 仓库 `huhuhulululu/Loomies`
+   （health 接过 Xcode Cloud 的话，GitHub 上那个 Xcode Cloud 应用可能只勾了 health：
+   GitHub → Settings → Applications → Xcode Cloud → Configure，把 Loomies 加进去）
+4. App 记录选已有的 **Loomies**（`com.pinglin.closet`，id `6797632035`），不要新建
+5. 编辑 workflow：
+   - Environment：Xcode **26.2**（跟 `ci.yml` 一致，别选会自动漂移的 Latest）
+   - Start Condition：建议改成 **Tag** `tf-*` 或手动。每次 push main 都归档会很快烧完
+     每月 25 小时免费额度，测试已经有 GitHub Actions 在跑
+   - Actions 只留 **Archive**：scheme `ClosetApp`，platform iOS，
+     Distribution Preparation 选 **TestFlight and App Store**
+   - Post-Actions：加 **TestFlight Internal Testing**，选内测组
+6. **先改 build 号再跑第一次**：App Store Connect → Loomies → Xcode Cloud → Settings →
+   Build Number → Next Build Number 填 **45**。Xcode Cloud 自己从 1 开始编号并覆盖
+   `CURRENT_PROJECT_VERSION`，而 ASC 上 0.1.0 已经有 build 44，不改的话上传会被拒
+7. Start Build（或打 tag `tf-45` 并 push）
+
+**两条通道并存时的 build 号**：云端每跑一次号加一，本机脚本读 `project.yml`。
+本机发之前先看 ASC 上最新的号，把 `project.yml` 改到比它大；发完再把云端的
+Next Build Number 调到更大。
+
+**之后要注意的**：
+- 改了 `project.yml` 必须 `xcodegen generate` 并把 `.xcodeproj` 一起提交。
+  Xcode Cloud 用的是仓里那份工程，不会重新生成（GitHub Actions 会，所以它绿不代表云端对）
+- C1（App Group）做完、Widget embed 之后，App Group 必须已经在开发者后台挂到两个 App ID 上，
+  云端签名才签得出来
+
+**没验证的**：云端第一次真跑。本机验证到的是「在 Xcode Cloud 的归档参数下 profile 名解析为空」
+（`xcodebuild -showBuildSettings`）；本机复现不了云端的签名环境，完整归档只能在云端见分晓。

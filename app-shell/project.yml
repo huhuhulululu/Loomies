@@ -65,7 +65,11 @@ targets:
           # 仅 App 目标 Manual（勿在 CLI 全局设 PROVISIONING_PROFILE，会污染 SPM 资源包）
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "iPhone Distribution: Ping Lin (28626PSX5Y)"
-          PROVISIONING_PROFILE_SPECIFIER: "Closet App Store TF2"
+          # profile 名按签名方式取：本机 Manual → TF2；Xcode Cloud 在命令行传
+          # CODE_SIGN_STYLE=Automatic → 取不到 LOOMIES_PROFILE_Automatic → 空，
+          # 否则云端归档会因「自动签名却指定了 profile」失败。
+          LOOMIES_PROFILE_Manual: "Closet App Store TF2"
+          PROVISIONING_PROFILE_SPECIFIER: "$(LOOMIES_PROFILE_$(CODE_SIGN_STYLE))"
           ONLY_ACTIVE_ARCH: NO
           SWIFT_OPTIMIZATION_LEVEL: -O
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
@@ -112,7 +116,9 @@ targets:
           # 未生成前 Release 归档会失败——见 TESTFLIGHT.md 的 App Group 一节。
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "iPhone Distribution: Ping Lin (28626PSX5Y)"
-          PROVISIONING_PROFILE_SPECIFIER: "Loomies Widget App Store"
+          # 同 App 目标：profile 名按签名方式取，Xcode Cloud 下为空。
+          LOOMIES_PROFILE_Manual: "Loomies Widget App Store"
+          PROVISIONING_PROFILE_SPECIFIER: "$(LOOMIES_PROFILE_$(CODE_SIGN_STYLE))"
         Debug:
           CODE_SIGN_STYLE: Automatic
     dependencies:

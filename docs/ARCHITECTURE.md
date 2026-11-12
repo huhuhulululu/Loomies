@@ -32,6 +32,14 @@
 **remote**：`https://github.com/huhuhulululu/Loomies`（C11，2026-08-21 推上 main）。
 动机：本机 load 长期 17-38，三道性能门恒 skipped（D211），CI 是它们唯一会真跑的地方。
 
+### 发布通道（D218 / D219）
+
+两条并存：本机 `app-shell/scripts/tf-upload-now.sh`（Manual 签名、仅 App）；
+Xcode Cloud（云端归档 + TestFlight，workflow 在 App Store Connect 里配，仓里无 `ci_scripts/`）。
+Release 的 profile 名按 `CODE_SIGN_STYLE` 取，云端传 Automatic 时为空。
+Xcode Cloud 用仓里 check-in 的 `.xcodeproj`，不重新生成——改 `project.yml` 后必须连工程一起提交。
+步骤与 build 号规则见 `app-shell/TESTFLIGHT.md`「Xcode Cloud」。
+
 ### 第二个 target：主屏 Widget（D197 / D210）
 
 `app-shell/LoomiesWidget/` → target **`LoomiesWidgetExtension`**，**只依赖 ClosetCore**

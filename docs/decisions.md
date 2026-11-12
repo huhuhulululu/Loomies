@@ -4857,3 +4857,28 @@ archive 整段失败。仓里没有 `ts-publish.sh`，不补发布管线，只�
 
 **没做的**：没开 App Group entitlements、没 embed Widget、没改 build 号、没上传
 TestFlight。本环境是 Linux，只对改过的 shell 做了 `bash -n`，没跑 xcodebuild / iOS 测。
+
+## D219 — 接 Xcode Cloud：profile 名按签名方式取，不加 ci_scripts（2026-11-11）
+
+**起因**：用户要参照 health 仓接 Xcode Cloud。health 那边只有一个 `ci_post_clone.sh`
+（装 Node、构建 web 层、`cap sync`），因为它的 web 产物不入库；它的 Release 本来就是自动签名。
+
+**核实过的**：
+- 本仓四包全是本地路径，没有远程依赖，也没有归档所需却被 gitignore 的产物 → 不需要 `ci_scripts/`
+- Xcode Cloud 的归档命令固定带 `CODE_SIGN_IDENTITY=- AD_HOC_CODE_SIGNING_ALLOWED=YES
+  CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=…`；苹果文档要求自动签名，并提醒别在云端
+  用工具动态生成或修改工程
+- 本仓 Release 是 Manual + 写死的 `PROVISIONING_PROFILE_SPECIFIER`（D35）。命令行覆盖得了
+  签名方式和证书，覆盖不了 profile 名 → 云端会落到「自动签名却指定了 profile」
+
+**做法**：`PROVISIONING_PROFILE_SPECIFIER = $(LOOMIES_PROFILE_$(CODE_SIGN_STYLE))`，
+只定义 `LOOMIES_PROFILE_Manual`。本机解析结果与改前逐字相同；传 `CODE_SIGN_STYLE=Automatic`
+时为空。App 与 Widget 两个目标同样处理。`-showBuildSettings` 两种参数各看过一遍。
+
+**否决的**：在 `ci_post_clone.sh` 里 sed 改 pbxproj 或重跑 xcodegen（苹果明说动态改工程
+可能让构建失败）；把 Release 整个改成 Automatic（会断掉 build 44 那条本机路径，D35/D218）。
+
+**没做的**：没建 workflow（只能在 Xcode / ASC 里点），没跑云端构建，没改 build 号。
+本机用云端参数整段归档会停在 “has entitlements that require signing with a development
+certificate”，去掉 entitlements 文件也一样——那是本机没有云端签名环境，不是工程的问题，
+所以完整归档只有云端第一次真跑能证明。用户步骤在 `app-shell/TESTFLIGHT.md`「Xcode Cloud」。
