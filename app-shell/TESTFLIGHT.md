@@ -147,25 +147,29 @@ Widget 与 App 是**两个进程**，靠 App Group 共享容器里的一份小�
 Xcode Cloud 归档时在命令行传 `CODE_SIGN_STYLE=Automatic`，profile 名随之为空；
 本机不传，仍是 Manual + `Closet App Store TF2`。
 
-**你要做的（Xcode 与网页，代码做不了）**：
+**已经建好的（2026-11-12）**：workflow **TestFlight**，在 Xcode Cloud 产品 Loomies 下。
 
-1. 把带这项改动的提交合进 `main` 并 push（Xcode Cloud 只看远端）
-2. Xcode 打开 `app-shell/ClosetApp.xcodeproj` → Report navigator（⌘9）→ Cloud → **Get Started**
-3. 产品选 **ClosetApp**；授权 GitHub 仓库 `huhuhulululu/Loomies`
-   （health 接过 Xcode Cloud 的话，GitHub 上那个 Xcode Cloud 应用可能只勾了 health：
-   GitHub → Settings → Applications → Xcode Cloud → Configure，把 Loomies 加进去）
-4. App 记录选已有的 **Loomies**（`com.pinglin.closet`，id `6797632035`），不要新建
-5. 编辑 workflow：
-   - Environment：Xcode **26.2**（跟 `ci.yml` 一致，别选会自动漂移的 Latest）
-   - Start Condition：建议改成 **Tag** `tf-*` 或手动。每次 push main 都归档会很快烧完
-     每月 25 小时免费额度，测试已经有 GitHub Actions 在跑
-   - Actions 只留 **Archive**：scheme `ClosetApp`，platform iOS，
-     Distribution Preparation 选 **TestFlight and App Store**
-   - Post-Actions：加 **TestFlight Internal Testing**，选内测组
-6. **先改 build 号再跑第一次**：App Store Connect → Loomies → Xcode Cloud → Settings →
-   Build Number → Next Build Number 填 **45**。Xcode Cloud 自己从 1 开始编号并覆盖
-   `CURRENT_PROJECT_VERSION`，而 ASC 上 0.1.0 已经有 build 44，不改的话上传会被拒
-7. Start Build（或打 tag `tf-45` 并 push）
+| 项 | 值 |
+|----|----|
+| 工程 / scheme | `app-shell/ClosetApp.xcodeproj` / `ClosetApp` |
+| Xcode | 26.3（云端没有 26.2；别改成会自动漂移的 Latest） |
+| 触发 | 分支 **`testflight`** 有变动。push main 不触发 |
+| 动作 | Archive（iOS），Distribution Preparation = App Store |
+| Post-Actions | 还没有（产品建成前加不了 TestFlight 那两项） |
+
+**发一版**：`git push origin main:testflight`。
+
+**跑第一次之前必须做的（网页，代码做不了）**：App Store Connect → Loomies → Xcode Cloud →
+Settings → Build Number → Next Build Number 填 **45**。Xcode Cloud 自己编号并覆盖
+`CURRENT_PROJECT_VERSION`，而 ASC 上 0.1.0 已经有 build 44，号小了上传会被拒。
+这个计数器是**整个产品共用**的（见下一条），建 workflow 时已经走到 10。
+
+**同一个产品下还有一个不属于本仓的 workflow**：`Default`，指向 health 仓的
+`HealthOS-Capacitor/ios/App/App.xcodeproj`，任意分支 push 就归档。它是 health 接 Xcode Cloud 时
+挂到 Loomies 这条 App 记录上的，和本仓共用 build 号计数器与每月 25 小时额度。
+留、改触发条件还是挪走，由 health 那边定；本仓不动它。
+
+**可选**：想让内测组自动拿到新 build，在 workflow 的 Post-Actions 里加 TestFlight Internal Testing。
 
 **两条通道并存时的 build 号**：云端每跑一次号加一，本机脚本读 `project.yml`。
 本机发之前先看 ASC 上最新的号，把 `project.yml` 改到比它大；发完再把云端的

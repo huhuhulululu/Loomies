@@ -113,7 +113,7 @@ cd app-shell && set -a && . ./.env.asc && set +a && ./scripts/tf-upload-now.sh
 | C9 | 云端 AI Worker（无状态代理 + App Attest + 配额账本，DESIGN §4.1）完全未建——打标真推理（D 组 D1）的前置 | 云端基建 |
 | C10 | 真实人体 USDZ 网格许可/采购（`Mannequin3DView` 降级为探针中） | 采购 |
 | C11 | ~~建 GitHub repo + push~~ `https://github.com/huhuhulululu/Loomies`（public，2026-08-21）。看 Actions「Show toolchain」确认 runner 有 Xcode 26 | — |
-| C12 | **Xcode Cloud workflow**（D219）：工程侧已就绪；建 workflow、授权仓库、把 Next Build Number 设成 45 要在 Xcode / ASC 里点，步骤见 `app-shell/TESTFLIGHT.md`「Xcode Cloud」 | Xcode + ASC |
+| C12 | **Xcode Cloud**（D219）：workflow `TestFlight` 已建（分支 `testflight` 触发）。**第一次跑之前**把 Next Build Number 设成 45（ASC 网页）；同产品下还挂着 health 仓的 `Default` workflow，共用 build 号与额度，待裁。见 `app-shell/TESTFLIGHT.md`「Xcode Cloud」 | ASC 网页 |
 
 ### 产品决策待裁（用户三连）
 
